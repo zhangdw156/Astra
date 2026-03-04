@@ -1,1 +1,1 @@
-"""Astra test suite."""
+"""Astra 测试。"""

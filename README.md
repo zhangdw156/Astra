@@ -1,51 +1,66 @@
 # Astra — Agentic Skill & TRAce
 
-A data factory for generating high-quality multi-turn tool-use conversation trajectories. These trajectories are used to fine-tune small language models to improve their agentic capabilities.
+面向高质量多轮工具调用对话轨迹的数据工厂，用于微调小模型以提升 Agent 能力。
 
-## Overview
+## 概述
 
-- **Skill Registry**: Collect and standardize Skills (Anthropic-style tool definitions)
-- **Blueprint Engine**: Create mission blueprints (context, requirements, planned tool sequences)
-- **Execution & Trace**: Teacher agent executes blueprints against mock environments
-- **Optimization**: Filter and refine traces into fine-tuning datasets
+- **Skill Registry**：收集并标准化 Skills（Anthropic 风格工具定义）
+- **Blueprint Engine**：生成任务蓝图（上下文、需求、计划工具序列）
+- **Execution & Trace**：教师 Agent 在 mock 环境中执行并产生轨迹
+- **Optimization**：筛选与精炼轨迹，得到微调数据集
 
-## Project Structure
+## 项目结构
 
 ```
 Astra/
-├── src/astra/          # Core package
-│   └── configs/        # Hydra configuration
-├── exps/               # Experiments (early-stage logic)
-├── skillshub/          # Collected skills (raw)
-├── skills/             # Curated skills for use
-├── artifacts/          # Generated blueprints & traces
-├── docs/               # Documentation
-└── tests/              # Test suite
+├── configs/            # 可执行配置文件（发布前会确认）；当前为 repo.yaml
+├── src/astra/         # 核心包
+├── exps/               # 实验（前期逻辑）
+├── examples/           # 使用示例（含脚本、配置示例）
+├── skillshub/          # 收集到的外部 skill 仓库（submodule）
+├── skills/             # 精选后供使用的 skills
+├── artifacts/          # 生成的蓝图与轨迹
+├── docs/               # 文档
+└── tests/              # 测试
 ```
 
-## Quick Start
+## 快速开始
 
 ```bash
-# Install with uv
+# 安装依赖
 uv sync
-
-# Run the CLI (Hydra + Rich + Loguru)
-uv run astra
-
-# Override config from CLI
-uv run astra skill.validation.strict_schema=false
 ```
 
-## Development
+使用方式见 [exps/skill_collection](exps/skill_collection/README.md)、[examples/](examples/) 与 [docs/](docs/)。
 
-Astra uses [Issue-driven Development](docs/development.md). Create an Issue before coding; PRs must link to an Issue.
+## 同步 Submodule（skillshub）
+
+`skillshub/` 下的外部 skill 仓库以 Git submodule 方式管理。脚本只负责**添加** submodule，不负责后续同步。
+
+**首次克隆本仓库后**，拉取 submodule：
 
 ```bash
-uv sync --all-groups   # Include dev dependencies
-uv run pytest          # Run tests
-uv run ruff check .    # Lint
+git submodule update --init --recursive
 ```
 
-## License
+**之后要更新** skillshub 下各仓库到最新提交：
+
+```bash
+git submodule update --remote --recursive
+```
+
+添加/维护 submodule 列表（只改 .gitmodules）见 [exps/skill_collection](exps/skill_collection/README.md)。
+
+## 开发
+
+采用 [Issue-driven Development](docs/development.md)：先开 Issue 再写代码，PR 须关联 Issue。
+
+```bash
+uv sync --all-groups   # 含 dev 依赖
+uv run pytest         # 测试
+uv run ruff check .   # 静态检查
+```
+
+## 许可证
 
 MIT
