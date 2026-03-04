@@ -1,8 +1,7 @@
 """
-Rich UI utilities for Astra.
+Astra 的 Rich 终端 UI 工具。
 
-Provides consistent, beautiful terminal output for agent traces,
-tool calls, and dashboards.
+提供统一的终端输出：Agent 轨迹、工具调用、欢迎面板等。
 """
 
 from typing import Any
@@ -13,16 +12,16 @@ from rich.table import Table
 
 
 def get_console() -> Console:
-    """Return shared Rich Console instance."""
+    """返回共用的 Rich Console 实例。"""
     return Console()
 
 
 def welcome_dashboard(version: str = "0.1.0") -> None:
     """
-    Display the Astra welcome dashboard.
+    显示 Astra 欢迎面板。
 
     Args:
-        version: Astra package version to display.
+        version: 要显示的 Astra 版本号。
     """
     console = get_console()
 
@@ -56,13 +55,13 @@ def print_trace(
     turn: int | None = None,
 ) -> None:
     """
-    Pretty-print a single tool call and response (agent trace step).
+    美化打印单次工具调用与响应（Agent 轨迹一步）。
 
     Args:
-        tool_name: Name of the tool that was called.
-        tool_input: Input parameters passed to the tool.
-        tool_output: Response from the tool.
-        turn: Optional turn number in the conversation.
+        tool_name: 被调用的工具名。
+        tool_input: 传入工具的参数字典。
+        tool_output: 工具返回结果。
+        turn: 可选，对话轮次编号。
     """
     console = get_console()
 
@@ -73,11 +72,11 @@ def print_trace(
     table.add_column("Field", style="dim", width=12)
     table.add_column("Value", style="white")
 
-    # Format input
+    # 输入
     input_str = _format_value(tool_input)
     table.add_row("Input", input_str)
 
-    # Format output
+    # 输出
     output_str = _format_value(tool_output)
     table.add_row("Output", output_str)
 
@@ -92,7 +91,7 @@ def print_trace(
 
 
 def _format_value(value: Any, max_len: int = 200) -> str:
-    """Format a value for display, truncating if needed."""
+    """将值格式化为可读字符串，过长时截断。"""
     import json
 
     try:
