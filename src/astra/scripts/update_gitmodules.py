@@ -45,37 +45,43 @@ def submodule_path_rel(owner: str, repo: str) -> str:
     return f"skillshub/{owner}_{repo}"
 
 
-def parse_gitmodules(path: Path) -> list[tuple[str, str, str]]:
-    """返回 [(section_name, path, url), ...]，均为相对路径。"""
+def parse_gitmodules(path: Path) -> list[tuple[str, str, str, str | None]]:
+    """返回 [(section_name, path, url, ignore), ...]，均为相对路径；ignore 为 None 表示未设置。"""
     if not path.exists():
         return []
     entries = []
-    current_name = current_path = current_url = None
+    current_name = current_path = current_url = current_ignore = None
     for line in path.read_text(encoding="utf-8").splitlines():
         line_strip = line.strip()
         if line.startswith("[submodule "):
             if current_name is not None and current_path and current_url:
-                entries.append((current_name, current_path, current_url))
+                entries.append((current_name, current_path, current_url, current_ignore))
             m = re.match(r'\[submodule\s+"([^"]+)"\]', line)
             current_name = m.group(1) if m else None
-            current_path = current_url = None
+            current_path = current_url = current_ignore = None
         elif current_name is not None:
             if line_strip.startswith("path ="):
                 current_path = line_strip.split("=", 1)[1].strip()
             elif line_strip.startswith("url ="):
                 current_url = line_strip.split("=", 1)[1].strip()
+            elif line_strip.startswith("ignore ="):
+                current_ignore = line_strip.split("=", 1)[1].strip() or None
     if current_name is not None and current_path and current_url:
-        entries.append((current_name, current_path, current_url))
+        entries.append((current_name, current_path, current_url, current_ignore))
     return entries
 
 
-def write_gitmodules(path: Path, entries: list[tuple[str, str, str]]) -> None:
-    """按 Git 习惯写 .gitmodules（section、path、url，相对路径）。"""
+def write_gitmodules(
+    path: Path, entries: list[tuple[str, str, str, str | None]]
+) -> None:
+    """按 Git 习惯写 .gitmodules（section、path、url，可选 ignore）。"""
     lines = []
-    for name, sub_path, url in entries:
+    for name, sub_path, url, ignore in entries:
         lines.append(f'[submodule "{name}"]')
         lines.append(f"\tpath = {sub_path}")
         lines.append(f"\turl = {url}")
+        if ignore:
+            lines.append(f"\tignore = {ignore}")
         lines.append("")
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
@@ -116,7 +122,7 @@ def main() -> int:
 
     existing = parse_gitmodules(GITMODULES)
     seen_paths = {e[1] for e in existing}
-    new_entries: list[tuple[str, str, str]] = list(existing)
+    new_entries: list[tuple[str, str, str, str | None]] = list(existing)
 
     for raw_url in urls:
         url = normalize_url(raw_url)
@@ -130,7 +136,7 @@ def main() -> int:
             logger.debug("已存在: {}", path_rel)
             continue
         seen_paths.add(path_rel)
-        new_entries.append((path_rel, path_rel, url))
+        new_entries.append((path_rel, path_rel, url, None))
         logger.info("添加: {} -> {}", url, path_rel)
 
     write_gitmodules(GITMODULES, new_entries)
