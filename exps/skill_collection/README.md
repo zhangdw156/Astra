@@ -53,6 +53,10 @@ uv run python -m astra.scripts.update_gitmodules exps/skill_collection/repos.yam
   git submodule update --remote --recursive
   ```
 
+### 4. Skills 聚合站 URL（供后续爬取）
+
+**`exps/skill_collection/urls.yaml`** 中记录了若干 Skills 聚合站/目录站的 URL（如 SkillsMP、Agent Skills、SkillStore 等），供将来通过爬虫方式发现、过滤并收集更多 skills 时使用。当前仅做登记，尚未接入爬取逻辑。
+
 ## 小结
 
 | 步骤           | 操作                         |
@@ -60,5 +64,6 @@ uv run python -m astra.scripts.update_gitmodules exps/skill_collection/repos.yam
 | 配置仓库列表   | 编辑 `exps/skill_collection/repos.yaml` |
 | 只改 .gitmodules | 运行 `./exps/skill_collection/run.sh`（或上面的 `uv run python -m ...`） |
 | 真正拉取/更新  | 在根目录执行 `git submodule update --init --recursive` 等 |
+| 聚合站 URL     | 编辑 `exps/skill_collection/urls.yaml`（供后续爬取） |
 
 脚本与配置均只针对 **`.gitmodules` 的维护**；克隆与更新一律交给 Git 命令在项目根完成。
