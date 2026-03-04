@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """
-根据给定的仓库列表 YAML 文件，仅更新项目根目录的 .gitmodules 文件。
+根据给定的仓库列表 YAML 文件，更新项目根目录的 .gitmodules，并注册尚未在 Git 索引中的子模块。
 
 用法：python -m astra.scripts.update_gitmodules <repos.yaml 路径>
 文件格式：YAML，包含 repos: 或 repositories: 或顶层 list，每项为 GitHub 仓库 URL。
-不执行 git submodule add 或 clone；更新后需在仓库根执行
-`git submodule update --init --recursive` 拉取 submodule。
+- 会重写 .gitmodules，并对「在 YAML 中但尚未在索引中」的条目执行 git submodule add，
+  使后续 `git submodule update --init --recursive` 能正确拉取。
+- 已存在的子模块仅更新 .gitmodules 中的顺序/ignore，不重复 add。
 """
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -86,6 +88,42 @@ def write_gitmodules(
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
+def get_indexed_submodule_paths(root: Path) -> set[str]:
+    """返回当前 Git 索引中已注册的子模块路径集合（相对 root）。"""
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", "-s", "--stage"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return set()
+    paths = set()
+    for line in out.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 4 and parts[0] == "160000":
+            paths.add(parts[3])
+    return paths
+
+
+def submodule_add(root: Path, url: str, path: str) -> bool:
+    """在 root 下执行 git submodule add url path，返回是否成功。"""
+    try:
+        subprocess.run(
+            ["git", "submodule", "add", url, path],
+            cwd=root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return True
+    except subprocess.CalledProcessError as e:
+        logger.error("git submodule add 失败: {} {}", path, e.stderr or e)
+        return False
+
+
 def load_repos_from_config(conf: Any) -> list[str]:
     """从 OmegaConf 解析出的配置中取仓库 URL 列表。支持 repos / repositories 或顶层 list。"""
     if conf is None:
@@ -139,6 +177,19 @@ def main() -> int:
         new_entries.append((path_rel, path_rel, url, None))
         logger.info("添加: {} -> {}", url, path_rel)
 
+    # 先写入 .gitmodules，便于后续 add 时 Git 能读到完整配置
+    write_gitmodules(GITMODULES, new_entries)
+
+    # 对尚未在索引中注册的子模块执行 git submodule add，使索引与 .git 一致
+    indexed = get_indexed_submodule_paths(PROJECT_ROOT)
+    for name, sub_path, url, _ in new_entries:
+        if sub_path not in indexed:
+            logger.info("在索引中注册并克隆子模块: {}", sub_path)
+            if not submodule_add(PROJECT_ROOT, url, sub_path):
+                return 1
+            indexed.add(sub_path)
+
+    # add 可能改动了 .gitmodules（如 Git 追加了 section），再按我们约定的格式写回
     write_gitmodules(GITMODULES, new_entries)
     logger.info("已写入 {}（共 {} 条）", GITMODULES, len(new_entries))
     return 0
