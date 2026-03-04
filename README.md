@@ -13,7 +13,7 @@
 
 ```
 Astra/
-├── configs/            # 可执行配置文件（发布前会确认）；当前为 repos.example.yaml
+├── configs/            # 可执行配置文件（发布前会确认）；当前为 repo.yaml
 ├── src/astra/         # 核心包
 ├── exps/               # 实验（前期逻辑）
 ├── examples/           # 使用示例（含脚本、配置示例）

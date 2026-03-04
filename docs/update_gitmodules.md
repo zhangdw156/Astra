@@ -33,7 +33,7 @@ uv run python -m astra.scripts.update_gitmodules <repos.yaml 路径>
 uv run python -m astra.scripts.update_gitmodules exps/skill_collection/repos.yaml
 
 # 使用项目 configs 中的配置（真正可执行，发布前会确认）
-uv run python -m astra.scripts.update_gitmodules configs/repos.example.yaml
+uv run python -m astra.scripts.update_gitmodules configs/repo.yaml
 
 # 使用 examples 下的示例
 uv run python -m astra.scripts.update_gitmodules examples/update_gitmodules/repos.example.yaml
@@ -41,7 +41,7 @@ uv run python -m astra.scripts.update_gitmodules examples/update_gitmodules/repo
 
 ## configs/ 与实验脚本
 
-- **configs/**：存放**真正可用于执行的配置文件**；skill_collection 实验完成后、项目发布前会由维护者确认。当前为 `repos.example.yaml`。
+- **configs/**：存放**真正可用于执行的配置文件**；skill_collection 实验完成后、项目发布前会由维护者确认。当前为 `repo.yaml`。
 - **exps/skill_collection/run.sh**：执行**本实验的专用配置**，即传入 `exps/skill_collection/repos.yaml` 并调用上述脚本。
 
 ## 示例
