@@ -1,1 +1,1 @@
-"""Astra experiments — early-stage logic and prototyping."""
+"""Astra 实验：前期逻辑与原型。"""

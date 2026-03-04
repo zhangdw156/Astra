@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-# 在项目根目录执行：使用默认 configs/update_gitmodules.yaml 中的 repos_file
+# 示例：传入本目录下的 repos 文件，在项目根执行脚本
 set -e
 cd "$(dirname "$0")/../.."
-uv run python -m astra.scripts.update_gitmodules
-
-# 使用本示例的仓库列表时，可覆盖 repos_file：
-# uv run python -m astra.scripts.update_gitmodules repos_file=examples/update_gitmodules/repos.example.yaml
+uv run python -m astra.scripts.update_gitmodules examples/update_gitmodules/repos.example.yaml

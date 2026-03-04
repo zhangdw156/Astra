@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
 """
-根据 Hydra 配置中的仓库列表 YAML，仅更新项目根目录的 .gitmodules 文件。
+根据给定的仓库列表 YAML 文件，仅更新项目根目录的 .gitmodules 文件。
 
-入口使用 @hydra.main()；不执行 git submodule add 或 clone。更新后需在仓库根执行
+用法：python -m astra.scripts.update_gitmodules <repos.yaml 路径>
+文件格式：YAML，包含 repos: 或 repositories: 或顶层 list，每项为 GitHub 仓库 URL。
+不执行 git submodule add 或 clone；更新后需在仓库根执行
 `git submodule update --init --recursive` 拉取 submodule。
 """
 
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
-import hydra
 from loguru import logger
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 # 仓库根目录：含 .git 与 .gitmodules
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent  # scripts -> astra -> src -> root
+PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 GITMODULES = PROJECT_ROOT / ".gitmodules"
 
 GITHUB_URL_PATTERN = re.compile(
@@ -79,7 +81,7 @@ def write_gitmodules(path: Path, entries: list[tuple[str, str, str]]) -> None:
 
 
 def load_repos_from_config(conf: Any) -> list[str]:
-    """从 OmegaConf/Hydra 解析出的配置中取仓库 URL 列表。支持 repos / repositories 或顶层 list。"""
+    """从 OmegaConf 解析出的配置中取仓库 URL 列表。支持 repos / repositories 或顶层 list。"""
     if conf is None:
         return []
     if OmegaConf.is_list(conf):
@@ -90,33 +92,27 @@ def load_repos_from_config(conf: Any) -> list[str]:
     return []
 
 
-# Hydra 配置在项目根 configs/（astra 包内不放置 configs）
-_CONFIG_DIR = PROJECT_ROOT / "configs"
+def main() -> int:
+    if len(sys.argv) < 2:
+        logger.error("用法: uv run python -m astra.scripts.update_gitmodules <repos.yaml 路径>")
+        return 1
 
-
-@hydra.main(
-    config_path=str(_CONFIG_DIR),
-    config_name="update_gitmodules",
-    version_base=None,
-)
-def main(cfg: DictConfig[str, Any]) -> None:
-    """Hydra 入口：根据 cfg.repos_file 指向的 YAML 更新 .gitmodules。"""
-    if not (PROJECT_ROOT / ".git").exists():
-        logger.error("不在 Git 仓库根目录: {}", PROJECT_ROOT)
-        raise SystemExit(1)
-
-    repos_file = Path(cfg.repos_file)
+    repos_file = Path(sys.argv[1])
     if not repos_file.is_absolute():
-        repos_file = PROJECT_ROOT / repos_file
+        repos_file = Path.cwd() / repos_file
     if not repos_file.exists():
         logger.error("仓库列表文件不存在: {}", repos_file)
-        raise SystemExit(1)
+        return 1
+
+    if not (PROJECT_ROOT / ".git").exists():
+        logger.error("不在 Git 仓库根目录: {}", PROJECT_ROOT)
+        return 1
 
     conf = OmegaConf.load(repos_file)
     urls = load_repos_from_config(conf)
     if not urls:
         logger.warning("YAML 中未找到仓库列表（repos / repositories 或顶层 list）")
-        return
+        return 0
 
     existing = parse_gitmodules(GITMODULES)
     seen_paths = {e[1] for e in existing}
@@ -139,7 +135,8 @@ def main(cfg: DictConfig[str, Any]) -> None:
 
     write_gitmodules(GITMODULES, new_entries)
     logger.info("已写入 {}（共 {} 条）", GITMODULES, len(new_entries))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

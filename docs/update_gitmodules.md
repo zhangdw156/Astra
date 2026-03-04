@@ -1,35 +1,54 @@
 # update_gitmodules 脚本
 
-`astra.scripts.update_gitmodules` 根据 Hydra 配置中的仓库列表 YAML，**仅更新**项目根目录的 `.gitmodules` 文件，不执行 `git submodule add` 或 clone。
+`astra.scripts.update_gitmodules` **接受一个仓库列表 YAML 文件路径**，根据其内容仅更新项目根目录的 `.gitmodules` 文件，不执行 `git submodule add` 或 clone。
 
 ## 作用
 
-- 从指定 YAML 中读取 GitHub 仓库 URL 列表（支持 `repos` / `repositories` 或顶层 list）。
+- 从传入的 YAML 文件中读取 GitHub 仓库 URL 列表（支持 `repos` / `repositories` 或顶层 list，格式见下方）。
 - 将每个 URL 按 `skillshub/{owner}_{repo}` 写入 `.gitmodules`（相对路径），已存在的 path 会保留不重复添加。
 - 更新完成后，需在仓库根目录自行执行 `git submodule update --init --recursive` 拉取 submodule。
 
-## 配置
+## 文件格式
 
-- Hydra 配置位于项目根 **`configs/update_gitmodules.yaml`**，其中 `repos_file` 指向仓库列表 YAML 的路径（相对项目根）。
-- 仓库列表 YAML 格式示例见下方「示例」或 **`examples/update_gitmodules/`**。
+YAML 文件示例（`repos` 或 `repositories` 下列出 URL，可含注释）：
+
+```yaml
+repos:
+  - https://github.com/openai/skills
+  # - https://github.com/anthropics/skills
+```
 
 ## 使用
 
-在**项目根目录**执行：
+在**项目根目录**执行，传入仓库列表文件路径（相对当前工作目录或绝对路径）：
 
 ```bash
-# 使用默认 configs 中的 repos_file
-uv run python -m astra.scripts.update_gitmodules
-
-# 指定其他仓库列表文件（Hydra 覆盖）
-uv run python -m astra.scripts.update_gitmodules repos_file=examples/update_gitmodules/repos.example.yaml
+uv run python -m astra.scripts.update_gitmodules <repos.yaml 路径>
 ```
+
+示例：
+
+```bash
+# 使用本实验的配置
+uv run python -m astra.scripts.update_gitmodules exps/skill_collection/repos.yaml
+
+# 使用全局示例配置（供其他用户参考的格式）
+uv run python -m astra.scripts.update_gitmodules configs/repos.example.yaml
+
+# 使用 examples 下的示例
+uv run python -m astra.scripts.update_gitmodules examples/update_gitmodules/repos.example.yaml
+```
+
+## configs/ 与实验脚本
+
+- **configs/**：提供**全局示例配置文件**（如 `configs/repos.example.yaml`），方便其他用户参考格式或复制使用。
+- **exps/skill_collection/run.sh**：执行**本实验的专用配置**，即传入 `exps/skill_collection/repos.yaml` 并调用上述脚本。
 
 ## 示例
 
-**示例配置与运行方式** 见项目内 **`examples/update_gitmodules/`** 目录：
+**可运行的示例** 见 **`examples/update_gitmodules/`**：
 
-- `repos.example.yaml` — 示例仓库列表（`repos` 键下列出 GitHub URL）。
-- `run.sh` — 示例运行命令（默认或覆盖 `repos_file`）。
+- `repos.example.yaml` — 示例仓库列表格式。
+- `run.sh` — 示例：传入该目录下的 repos 文件路径并执行脚本。
 
-文档与脚本说明以本文档为准；examples 目录内仅保留可运行的示例与示例所需注释。
+文档以本文档为准；examples 目录内仅保留可运行示例与必要注释。
