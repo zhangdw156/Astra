@@ -38,6 +38,8 @@ uv run astra skill.validation.strict_schema=false
 
 ## Development
 
+Astra uses [Issue-driven Development](docs/development.md). Create an Issue before coding; PRs must link to an Issue.
+
 ```bash
 uv sync --all-groups   # Include dev dependencies
 uv run pytest          # Run tests
