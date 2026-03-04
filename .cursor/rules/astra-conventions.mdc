@@ -1,0 +1,47 @@
+---
+description: Astra 项目约定：提交信息、配置、文档与包内引用
+alwaysApply: true
+---
+
+# Astra 项目约定
+
+## 提交信息 (Commit Message)
+
+- **必须使用英文**，且符合 [Conventional Commits](https://www.conventionalcommits.org/)。
+- 格式：`<type>(<scope>): <subject>`，常见 type：`feat`、`fix`、`docs`、`refactor`、`chore`、`test`。
+- 示例：`feat(skill): add OmegaConf for repos.yaml`、`fix(sync): use relative paths in .gitmodules`。
+
+## YAML 与配置（必须用 Hydra）
+
+- 所有涉及 **YAML 配置** 的入口必须走 **Hydra 框架**：**使用 `@hydra.main()` 装饰入口函数**，由 Hydra 负责加载配置（config_path / config_name），业务逻辑只接收 `DictConfig`。
+- 不在业务代码里用 `yaml.safe_load` 等直接作为配置入口；子 YAML 文件内容可用 `OmegaConf.load()` 读取，但**脚本/CLI 的入口必须用 `@hydra.main()`**。
+- Hydra 用到的 YAML 放在**项目根目录的 `configs/`**（不在 `src/astra` 内）；需要配置的入口（如 `astra.scripts.update_gitmodules`）通过 `config_path` 指向该目录，并使用 `@hydra.main(config_path=..., config_name=...)`。
+
+## 注释语言
+
+- **所有注释（含 docstring、行内注释）均以中文为准**，便于团队阅读与维护。
+
+## 文档语言
+
+- **除 `.github/` 目录外**，项目内文档（README、docs、各目录下的 README 等）**以中文为主**。
+- `.github/` 下 Issue / PR 模板等保持英文。
+
+## src/astra 作为包使用
+
+- **`src/astra` 是供外部调用的 package**，主要在 **`exps/`** 等入口被使用。
+- **`src/astra` 内不放置 Hydra 配置目录**：所有 Hydra 用到的 YAML 放在**项目根目录的 `configs/`**，由入口通过 `config_path` 指向该目录。这样 astra 包只含代码与 schema，配置与使用方式由调用方（exps、根目录脚本）决定。
+
+## 包内引用 (src/astra)
+
+- `src/astra/` 下的代码应优先使用包内工具与公共模块，例如：
+  - **日志与输出**：使用 `astra.utils.logging`（如 `setup_logging`）、`astra.utils.ui`（如 `welcome_dashboard`、`print_trace`）。
+  - **配置**：通过 Hydra 与项目根目录 `configs/` 获取配置，不散落硬编码。
+  - 若后续引入 schema（如 Skill），再使用 `astra.schemas` 等子模块。
+- 保持 `src/astra` 为一致入口，通过 `astra.xxx` 引用子模块，便于维护与测试。
+
+## 修改 src/astra 时同步检查
+
+- **每次修改 `src/astra/` 内文件时**，需检查：
+  1. **examples/** 中是否存在该模块或脚本的**使用示例**；若有，修改后是否需更新示例（配置、命令、注释）。
+  2. **docs/** 中是否存在该模块或脚本的**对应文档**；若有，修改后是否需更新文档（行为说明、参数、示例路径）。
+- 若新增了对外使用的脚本或模块，应在 `examples/` 中补充使用示例、在 `docs/` 中补充或更新对应文档，并在文档中指明示例所在路径。
