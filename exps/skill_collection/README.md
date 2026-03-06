@@ -35,8 +35,8 @@ repos:
 或直接调用（使用默认 `exps/skill_collection/repos.yaml`），也可以通过 Hydra 的 `--config-path` 与 `--config-name` 指定配置：
 
 ```bash
-uv run python -m astra.scripts.update_gitmodules
-uv run python -m astra.scripts.update_gitmodules --config-path=exps/skill_collection --config-name=repos
+uv run -m astra.scripts.update_gitmodules
+uv run -m astra.scripts.update_gitmodules --config-path=exps/skill_collection --config-name=repos
 ```
 
 或使用 run.sh 传入配置文件路径：
@@ -69,7 +69,7 @@ uv run python -m astra.scripts.update_gitmodules --config-path=exps/skill_collec
 | 步骤           | 操作                         |
 |----------------|------------------------------|
 | 配置仓库列表   | 编辑 `exps/skill_collection/repos.yaml` |
-| 更新 .gitmodules 并注册新子模块 | 运行 `./exps/skill_collection/run.sh`（或上面的 `uv run python -m ...`） |
+| 更新 .gitmodules 并注册新子模块 | 运行 `./exps/skill_collection/run.sh`（或上面的 `uv run -m ...`） |
 | 真正拉取/更新  | 在根目录执行 `git submodule update --init --recursive` 等 |
 | 聚合站 URL     | 编辑 `exps/skill_collection/urls.yaml`（供后续爬取） |
 

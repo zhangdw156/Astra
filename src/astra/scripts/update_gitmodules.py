@@ -2,8 +2,8 @@
 """
 根据 Hydra 配置中的仓库列表，更新项目根目录的 .gitmodules，并注册尚未在 Git 索引中的子模块。
 
-用法：uv run python -m astra.scripts.update_gitmodules
-      uv run python -m astra.scripts.update_gitmodules --config-path=exps/skill_collection --config-name=repos
+用法：uv run -m astra.scripts.update_gitmodules
+      uv run -m astra.scripts.update_gitmodules --config-path=exps/skill_collection --config-name=repos
 配置格式：YAML，包含 repos: 或 repositories: 或顶层 list，每项为 GitHub 仓库 URL。
 - 会重写 .gitmodules，并对「在配置中但尚未在索引中」的条目执行 git submodule add，
   使后续 `git submodule update --init --recursive` 能正确拉取。

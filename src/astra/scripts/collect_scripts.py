@@ -6,9 +6,9 @@
 至少有一个可执行脚本，且其中没有其它类型脚本（如 .js、.ts 等），则将该目录复制到 skills。
 
 用法：
-    uv run python -m astra.scripts.collect_scripts
-    uv run python -m astra.scripts.collect_scripts mode=run
-    uv run python -m astra.scripts.collect_scripts --config-path=exps/skill_discovery --config-name=collects mode=run
+    uv run -m astra.scripts.collect_scripts
+    uv run -m astra.scripts.collect_scripts mode=run
+    uv run -m astra.scripts.collect_scripts --config-path=exps/skill_discovery --config-name=collect_scripts mode=run
 """
 
 import os
@@ -149,7 +149,7 @@ def run(cfg: DictConfig) -> int:
 
 @hydra.main(
     config_path=_config_path,
-    config_name="collects",
+    config_name="collect_scripts",
     version_base=None,
 )
 def main(cfg: DictConfig) -> None:

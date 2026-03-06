@@ -23,8 +23,8 @@ repos:
 在**项目根目录**执行：
 
 ```bash
-uv run python -m astra.scripts.update_gitmodules
-uv run python -m astra.scripts.update_gitmodules --config-path=exps/skill_collection --config-name=repos
+uv run -m astra.scripts.update_gitmodules
+uv run -m astra.scripts.update_gitmodules --config-path=exps/skill_collection --config-name=repos
 ```
 
 **exps/skill_collection/run.sh**：固定使用 `exps/skill_collection/repos.yaml`：
