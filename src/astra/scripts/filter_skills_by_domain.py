@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 按领域过滤 skills 的入口：基于 artifacts/multi_turn_func_doc 的领域描述，用 OpenAI 判断 skills/ 下各 skill
-是否覆盖这些领域，只保留匹配的（不匹配的目录会被直接删除）。逻辑与提示词均在 astra.scripts._filter 包内。
+是否覆盖这些领域，只保留匹配的（不匹配的目录会被直接删除）。逻辑与提示词均在 astra.scripts._domain_filter 包内。
 
 用法：
     uv run -m astra.scripts.filter_skills_by_domain
@@ -19,7 +19,7 @@ import hydra
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig
 
-from astra.scripts._filter import run
+from astra.scripts._domain_filter import run
 from astra.utils.logging import setup_logging
 
 # Hydra 默认配置目录与名称（项目根 exps/skill_discovery）

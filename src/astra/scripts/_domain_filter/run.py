@@ -12,10 +12,10 @@ from hydra.utils import get_original_cwd
 from loguru import logger
 from omegaconf import DictConfig
 
-from astra.scripts._filter import domain as domain_module
-from astra.scripts._filter import llm
-from astra.scripts._filter import prompts
-from astra.scripts._filter import skills
+from astra.scripts._domain_filter import domain as domain_module
+from astra.scripts._domain_filter import llm
+from astra.scripts._domain_filter import prompts
+from astra.scripts._domain_filter import skills
 
 
 def run(cfg: DictConfig) -> int:
@@ -23,7 +23,12 @@ def run(cfg: DictConfig) -> int:
     skills_dir = Path(cfg.skills_dir)
     raw_prompts = cfg.get("prompts_dir")
     data_dir = prompts.DATA_DIR if not raw_prompts else Path(raw_prompts)
-    mode = str(cfg.mode).lower()
+    mode_raw = str(cfg.mode).strip().lower()
+    mode = mode_raw.replace("-", "_")
+    if mode == "dryrun":
+        mode = "dry_run"
+    if mode == "testrun":
+        mode = "test"
     concurrency = int(cfg.get("concurrency", 5))
     cache_path = cfg.get("filter_result_cache")
 
@@ -35,7 +40,7 @@ def run(cfg: DictConfig) -> int:
 
     logger.info("skills_dir: {}", skills_dir)
     logger.info("prompts_dir: {}", data_dir)
-    logger.info("mode: {}", mode)
+    logger.info("mode: {} (raw={})", mode, mode_raw)
 
     domain_summary = domain_module.get_domain_summary(data_dir)
     if not domain_summary.strip():

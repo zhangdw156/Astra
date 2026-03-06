@@ -5,9 +5,9 @@
 ## 作用
 
 - **领域摘要**：优先从「提示词数据目录」下的 `domain_summary.txt` 。摘要通过占位符 `{{domain_summary}}` 填入系统提示。
-- **提示词**：系统/用户提示从「提示词数据目录」的 `filter_system.txt`、`filter_user.txt` 加载（默认目录为包内 `src/astra/scripts/_filter/data`，可通过配置 `prompts_dir` 覆盖），占位符 `{{domain_summary}}`、`{{skill_content}}` 由脚本替换。判定标准为与任一领域**相关**即保留（不要求完全匹配）。逻辑与数据均在 `astra.scripts._filter` 包内。
+- **提示词**：系统/用户提示从「提示词数据目录」的 `filter_system.txt`、`filter_user.txt` 加载（默认目录为包内 `src/astra/scripts/_domain_filter/data`，可通过配置 `prompts_dir` 覆盖），占位符 `{{domain_summary}}`、`{{skill_content}}` 由脚本替换。判定标准为与任一领域**相关**即保留（不要求完全匹配）。逻辑与数据均在 `astra.scripts._domain_filter` 包内。
 - 对 `skills_dir` 下每个子目录：读取目录名 + **SKILL.md 全部内容**，填入 `{{skill_content}}`，调用大模型判定是否与任一领域相关
-- 输出：判定为不匹配的 skill 目录会被直接删除；判定结果缓存到 `filter_result.json`，支持断点续跑
+- 输出：判定为不匹配的 skill 目录会被直接删除；判定结果缓存到 `filter_result.json`（可通过配置 `filter_result_cache` 固定到如 `exps/skill_discovery/filter_domain_result.json`），支持断点续跑
 
 ## 环境变量
 
@@ -25,7 +25,7 @@
 
 ```yaml
 skills_dir: skills
-# prompts_dir 不配置时使用包内 src/astra/scripts/_filter/data（含 domain_summary.txt、filter_system.txt、filter_user.txt）
+# prompts_dir 不配置时使用包内 src/astra/scripts/_domain_filter/data（含 domain_summary.txt、filter_system.txt、filter_user.txt）
 mode: dry_run    # dry_run | test（随机 3 个 skill）| run
 concurrency: 5   # 并发请求数（仅 run 时生效）
 ```
