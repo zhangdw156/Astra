@@ -46,6 +46,8 @@ uv run -m astra.scripts.collect_scripts --config-path=exps/skill_discovery --con
 
 ### 3. 快捷脚本
 
+`run.sh` 会先切换到项目根目录再执行，因此从任意目录运行均可；可传入 Hydra 覆盖参数（如 `mode=run`）。
+
 ```bash
 ./exps/skill_discovery/run.sh                                    # 默认配置，dry_run
 ./exps/skill_discovery/run.sh mode=run                           # 实际复制

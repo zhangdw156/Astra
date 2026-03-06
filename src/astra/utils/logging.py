@@ -1,18 +1,18 @@
 """
-Loguru + Rich + Hydra 日志集成。
+Loguru + Hydra 日志集成。
 
-配置 loguru：输出到 Rich 控制台（彩色）；若提供 output_dir则同时写入该目录下 run.log。
+控制台与文件均使用纯文本格式，避免在 uv/子进程下打出裸 ANSI 码（如 [32m）。
 """
 
+import sys
 from pathlib import Path
 
 from loguru import logger
-from rich.console import Console
 
 
 def setup_logging(output_dir: str | Path | None = None) -> None:
     """
-    配置 loguru：Rich 控制台输出，并可选写入文件。
+    配置 loguru：控制台与文件均输出纯文本。
 
     当提供 output_dir（如 HydraConfig.get().runtime.output_dir）时，
     同时写入 {output_dir}/run.log。
@@ -22,16 +22,12 @@ def setup_logging(output_dir: str | Path | None = None) -> None:
     """
     logger.remove()
 
-    # Rich 控制台：彩色终端输出
-    console = Console(stderr=True)
+    # 控制台：纯文本格式，避免在 zsh/uv 子进程下 ANSI 的 ESC 被丢弃后裸显 [32m 等
     logger.add(
-        lambda msg: console.print(msg, end=""),
-        colorize=True,
+        sys.stderr,
         format=(
-            "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
-            "<level>{level: <8}</level> | "
-            "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
-            "<level>{message}</level>"
+            "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | "
+            "{name}:{function}:{line} - {message}"
         ),
         level="DEBUG",
     )
