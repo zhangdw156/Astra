@@ -17,9 +17,12 @@ import sys
 from pathlib import Path
 
 import hydra
+from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_original_cwd
 from loguru import logger
 from omegaconf import DictConfig
+
+from astra.utils.logging import setup_logging
 
 # 项目根目录（src/astra/scripts -> 上三级）
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -29,7 +32,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 _config_path = str(PROJECT_ROOT / "exps" / "skill_discovery")
 
 # 可执行脚本的扩展名（无 +x 时也视为可执行）
-EXECUTABLE_EXTENSIONS = {".py", ".sh", ".bash", ".zsh"}
+EXECUTABLE_EXTENSIONS = {".py", ".sh", ".bash", ".zsh", ".js", ".ts", ".jsx", ".tsx"}
 
 
 def _has_shebang(path: Path) -> bool:
@@ -139,6 +142,9 @@ def run(cfg: DictConfig) -> int:
     version_base=None,
 )
 def main(cfg: DictConfig) -> None:
+    # 使用 astra 统一日志：Rich 控制台 + 写入 Hydra output_dir/run.log
+    output_dir = HydraConfig.get().runtime.output_dir
+    setup_logging(output_dir)
     sys.exit(run(cfg))
 
 
