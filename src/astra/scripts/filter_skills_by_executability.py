@@ -25,7 +25,7 @@ from astra.scripts._executability_filter import run
 from astra.utils.logging import setup_logging
 
 # Hydra 默认配置目录与名称（项目根 exps/skill_discovery）
-_config_path = str(Path(__file__).resolve().parent.parent.parent.parent / "exps" / "skill_discovery")
+_config_path = str(Path(__file__).resolve().parent.parent.parent.parent / "exps" / "skill_discovery" / "configs")
 
 
 @hydra.main(

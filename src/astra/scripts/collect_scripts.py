@@ -8,7 +8,7 @@
 用法：
     uv run -m astra.scripts.collect_scripts
     uv run -m astra.scripts.collect_scripts mode=run
-    uv run -m astra.scripts.collect_scripts --config-path=exps/skill_discovery --config-name=collect_scripts mode=run
+    uv run -m astra.scripts.collect_scripts --config-path=exps/skill_discovery/configs --config-name=collect_scripts mode=run
 """
 
 import os
@@ -29,7 +29,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 
 # Hydra 默认配置目录与名称
-_config_path = str(PROJECT_ROOT / "exps" / "skill_discovery")
+_config_path = str(PROJECT_ROOT / "exps" / "skill_discovery" / "configs")
 
 # 可执行脚本的扩展名（用于判断是否为脚本文件）
 EXECUTABLE_EXTENSIONS = {".py", ".sh", ".bash", ".zsh", ".js", ".ts", ".jsx", ".tsx"}

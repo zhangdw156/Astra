@@ -7,7 +7,7 @@
     uv run -m astra.scripts.filter_skills_by_domain
     uv run -m astra.scripts.filter_skills_by_domain mode=run
     uv run -m astra.scripts.filter_skills_by_domain mode=test   # 随机测试 3 个 skill，验证流程
-    uv run -m astra.scripts.filter_skills_by_domain --config-path=exps/skill_discovery --config-name=filter_by_domain mode=run
+    uv run -m astra.scripts.filter_skills_by_domain --config-path=exps/skill_discovery/configs --config-name=filter_by_domain mode=run
 
 需在项目根目录 .env 中配置：OPENAI_API_KEY、OPENAI_MODEL，可选 OPENAI_BASE_URL。
 """
@@ -23,7 +23,7 @@ from astra.scripts._domain_filter import run
 from astra.utils.logging import setup_logging
 
 # Hydra 默认配置目录与名称（项目根 exps/skill_discovery）
-_config_path = str(Path(__file__).resolve().parent.parent.parent.parent / "exps" / "skill_discovery")
+_config_path = str(Path(__file__).resolve().parent.parent.parent.parent / "exps" / "skill_discovery" / "configs")
 
 
 @hydra.main(

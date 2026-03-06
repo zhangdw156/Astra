@@ -17,18 +17,31 @@ from astra.scripts._domain_filter import llm
 from astra.scripts._domain_filter import prompts
 from astra.scripts._domain_filter import skills
 
+_ALLOWED_MODES = {"run", "test", "dry-run"}
+
+
+def _parse_mode(raw: str) -> str:
+    raw = (raw or "").strip().lower()
+    if raw == "dryrun":
+        raw = "dry-run"
+    if raw not in _ALLOWED_MODES:
+        raise ValueError(
+            f"mode 只允许取 {sorted(_ALLOWED_MODES)}，当前为: {raw!r}。"
+        )
+    return raw
+
 
 def run(cfg: DictConfig) -> int:
     """实际执行逻辑。"""
     skills_dir = Path(cfg.skills_dir)
     raw_prompts = cfg.get("prompts_dir")
     data_dir = prompts.DATA_DIR if not raw_prompts else Path(raw_prompts)
-    mode_raw = str(cfg.mode).strip().lower()
-    mode = mode_raw.replace("-", "_")
-    if mode == "dryrun":
-        mode = "dry_run"
-    if mode == "testrun":
-        mode = "test"
+    mode_raw = str(cfg.get("mode", "")).strip()
+    try:
+        mode = _parse_mode(mode_raw)
+    except ValueError as e:
+        logger.error("{}", e)
+        return 2
     concurrency = int(cfg.get("concurrency", 5))
     cache_path = cfg.get("filter_result_cache")
 
@@ -78,7 +91,7 @@ def run(cfg: DictConfig) -> int:
     else:
         output_dir = HydraConfig.get().runtime.output_dir
         if output_dir:
-            cache_file = Path(output_dir) / "filter_result.json"
+            cache_file = Path(output_dir) / "filter_domain_result.json"
 
     done: dict[str, dict] = {}
     if cache_file and cache_file.exists():
@@ -95,11 +108,11 @@ def run(cfg: DictConfig) -> int:
         except Exception:
             pass
 
-    if mode == "dry_run":
-        logger.info("[dry_run] 将判定 {} 个 skill，不调用 API（可设置 mode=run 实际调用）", len(skill_dirs))
+    if mode == "dry-run":
+        logger.info("[dry-run] 将判定 {} 个 skill，不调用 API（可设置 mode=run 实际调用）", len(skill_dirs))
         logger.debug("领域摘要预览: {} ...", domain_summary[:500])
         for p in skill_dirs[:3]:
-            logger.info("[dry_run] 示例 skill: {} -> 内容长度 {}", p.name, len(skills.read_skill_content(p)))
+            logger.info("[dry-run] 示例 skill: {} -> 内容长度 {}", p.name, len(skills.read_skill_content(p)))
         return 0
 
     client, model = llm.load_env_and_client(base)

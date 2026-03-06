@@ -18,7 +18,7 @@
 
 ## 配置
 
-通过 Hydra 加载配置，默认配置：`exps/skill_discovery/collect_scripts.yaml`。也可以通过 Hydra 的 `--config-path` 与 `--config-name` 切换配置：
+通过 Hydra 加载配置，默认配置：`exps/skill_discovery/configs/collect_scripts.yaml`。也可以通过 Hydra 的 `--config-path` 与 `--config-name` 切换配置：
 
 ```yaml
 skillshub_root: skillshub   # skillshub 根目录（相对项目根）
@@ -39,7 +39,7 @@ uv run -m astra.scripts.collect_scripts mode=run
 
 # 命令行覆盖或显式指定配置
 uv run -m astra.scripts.collect_scripts mode=run skillshub_root=/path/to/skillshub
-uv run -m astra.scripts.collect_scripts --config-path=exps/skill_discovery --config-name=collect_scripts mode=run
+uv run -m astra.scripts.collect_scripts --config-path=exps/skill_discovery/configs --config-name=collect_scripts mode=run
 ```
 
 **exps/skill_discovery/run.sh**：可选传入配置文件路径，其余为 Hydra overrides：

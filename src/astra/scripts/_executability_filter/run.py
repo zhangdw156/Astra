@@ -28,7 +28,6 @@ def _parse_mode(raw: str) -> str:
     if raw not in _ALLOWED_MODES:
         raise ValueError(
             f"mode 只允许取 {sorted(_ALLOWED_MODES)}，当前为: {raw!r}。"
-            "注意 dry-run 必须使用中划线（不是 dry_run）。"
         )
     return raw
 

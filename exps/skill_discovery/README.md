@@ -2,6 +2,23 @@
 
 本实验负责从 `skillshub/` 中发现含可执行脚本的 skill 目录，并复制到 `skills/` 供后续使用。
 
+## 目录结构
+
+```
+exps/skill_discovery/
+├── configs/                    # Hydra 配置
+│   ├── collect_scripts.yaml    # 收集脚本配置
+│   ├── filter_by_domain.yaml   # 领域过滤配置
+│   └── filter_by_executability.yaml  # 可执行性过滤配置
+├── results/                    # 生成的 filter 结果（JSONL）
+│   ├── filter_domain_result.json
+│   └── filter_executability_result.json
+├── ensure_skills_demo.py        # 确保 skills_demo 有足够数量
+├── prune_skills_from_filter_results.py  # 根据 result 快速 pruning
+├── run.sh                      # collect_scripts 快捷入口
+└── README.md
+```
+
 ## 目的
 
 - 递归遍历 `skillshub/` 下所有目录
@@ -20,7 +37,7 @@
 
 ### 1. 配置文件
 
-参数通过 Hydra 配置指定，默认配置：`exps/skill_discovery/collect_scripts.yaml`。也可以通过 Hydra 的 `--config-path` 与 `--config-name` 切换配置：
+参数通过 Hydra 配置指定，默认配置：`exps/skill_discovery/configs/collect_scripts.yaml`。也可以通过 Hydra 的 `--config-path` 与 `--config-name` 切换配置：
 
 ```yaml
 skillshub_root: skillshub   # skillshub 根目录
@@ -41,7 +58,7 @@ uv run -m astra.scripts.collect_scripts mode=run
 
 # 覆盖配置项
 uv run -m astra.scripts.collect_scripts mode=run skillshub_root=/path/to/skillshub
-uv run -m astra.scripts.collect_scripts --config-path=exps/skill_discovery --config-name=collect_scripts mode=run
+uv run -m astra.scripts.collect_scripts --config-path=exps/skill_discovery/configs --config-name=collect_scripts mode=run
 ```
 
 ### 3. 快捷脚本
@@ -57,7 +74,7 @@ uv run -m astra.scripts.collect_scripts --config-path=exps/skill_discovery --con
 
 | 步骤     | 操作                                                         |
 |----------|--------------------------------------------------------------|
-| 配置参数 | 编辑 `exps/skill_discovery/collect_scripts.yaml` 或命令行覆盖 |
+| 配置参数 | 编辑 `exps/skill_discovery/configs/collect_scripts.yaml` 或命令行覆盖 |
 | dry_run  | `./exps/skill_discovery/run.sh` 或直接 `uv run -m astra.scripts.collect_scripts` |
 | 实际复制 | `./exps/skill_discovery/run.sh mode=run` |
 
@@ -71,7 +88,7 @@ uv run -m astra.scripts.collect_scripts --config-path=exps/skill_discovery --con
 
 - **领域摘要**：默认使用包内 `src/astra/scripts/_domain_filter/data/domain_summary.txt`
 - **每个 skill**：用目录名 + 该目录下 **SKILL.md 的全部内容** 作为描述，调用大模型判断是否属于或可覆盖上述任一领域。
-- **输出**：判定为不匹配的 skill 目录会被直接删除；判定结果会缓存到 `filter_result.json`（默认写入 Hydra 输出目录；本实验配置里固定为 `exps/skill_discovery/filter_domain_result.json`），支持断点续跑。
+- **输出**：判定为不匹配的 skill 目录会被直接删除；判定结果会缓存到 `filter_result.json`（默认写入 Hydra 输出目录；本实验配置里固定为 `exps/skill_discovery/results/filter_domain_result.json`），支持断点续跑。
 
 ### 环境变量（.env）
 
@@ -83,21 +100,21 @@ uv run -m astra.scripts.collect_scripts --config-path=exps/skill_discovery --con
 
 ### 配置与运行
 
-默认配置：`exps/skill_discovery/filter_by_domain.yaml`。
+默认配置：`exps/skill_discovery/configs/filter_by_domain.yaml`。
 
 ```bash
 # 建议在项目根目录执行
-uv run -m astra.scripts.filter_skills_by_domain              # dry_run，不调用 API
+uv run -m astra.scripts.filter_skills_by_domain              # dry-run，不调用 API
 uv run -m astra.scripts.filter_skills_by_domain mode=test     # 随机测试 3 个 skill，验证流程
 uv run -m astra.scripts.filter_skills_by_domain mode=run     # 实际调用 LLM 并删除不匹配的 skill 目录
-uv run -m astra.scripts.filter_skills_by_domain --config-path=exps/skill_discovery --config-name=filter_by_domain mode=run
+uv run -m astra.scripts.filter_skills_by_domain --config-path=exps/skill_discovery/configs --config-name=filter_by_domain mode=run
 ```
 
 | 配置项 | 说明 |
 |--------|------|
 | `skills_dir` | 待过滤的 skills 根目录（默认 `skills`） |
 | `prompts_dir` | 提示词与领域摘要目录（不配置则使用包内 `src/astra/scripts/_domain_filter/data`，含 `domain_summary.txt`、`filter_system.txt`、`filter_user.txt`） |
-| `mode` | `dry_run` / `test`（随机 3 个 skill）/ `run` |
+| `mode` | `dry-run` / `test`（随机 3 个 skill）/ `run` |
 | `concurrency` | 并发请求数（默认 5） |
 
 ---
@@ -113,7 +130,7 @@ uv run -m astra.scripts.filter_skills_by_domain --config-path=exps/skill_discove
 
 ### 配置与运行
 
-默认配置：`exps/skill_discovery/filter_by_executability.yaml`。
+默认配置：`exps/skill_discovery/configs/filter_by_executability.yaml`。
 
 ```bash
 # 建议在项目根目录执行
@@ -128,6 +145,34 @@ uv run -m astra.scripts.filter_skills_by_executability mode=run
 - `sample_n=3`：`dry-run` 打印多少个示例 skill
 - `mode`：`dry-run` / `test`（随机 N 个 skill）/ `run`
 - `concurrency`：并发请求数（默认 5）
+
+---
+
+## 根据 filter 结果快速 pruning（prune_skills_from_filter_results）
+
+在已生成 `results/filter_domain_result.json` 和 `results/filter_executability_result.json` 后，可用本脚本根据其中 `match=false` 的条目，删除 skills 目录下对应子目录，实现快速重新构建，无需重新调用 LLM。
+
+### 用法
+
+```bash
+# 使用默认两个 result 文件（exps/skill_discovery/results 下），dry-run 预览
+uv run exps/skill_discovery/prune_skills_from_filter_results.py --dry-run
+
+# 实际删除
+uv run exps/skill_discovery/prune_skills_from_filter_results.py
+
+# 指定 result 文件与 skills 目录
+uv run exps/skill_discovery/prune_skills_from_filter_results.py \
+  --result-files exps/skill_discovery/results/filter_domain_result.json exps/skill_discovery/results/filter_executability_result.json \
+  --skills-dir skills \
+  --dry-run
+```
+
+| 参数 | 说明 |
+|------|------|
+| `--skills-dir` | 待 pruning 的 skills 根目录（默认 `skills`） |
+| `--result-files` | filter result JSONL 文件列表；不指定则使用 `results/` 下默认两个 |
+| `--dry-run` | 仅打印将要删除的目录，不实际删除 |
 
 ---
 
