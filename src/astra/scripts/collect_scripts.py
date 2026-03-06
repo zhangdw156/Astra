@@ -2,8 +2,8 @@
 """
 递归遍历 skillshub，将含有可执行 scripts 的目录复制到 skills。
 
-若某目录存在 scripts 子目录且其中包含可执行脚本，则将该目录（含 scripts 的父目录）
-复制到 skills 输出目录，保持相对路径结构。
+仅保留 scripts 子目录下**全部**为 .py 或 .sh/.bash 脚本的目录：若某目录存在 scripts 且其中
+至少有一个可执行脚本，且其中没有其它类型脚本（如 .js、.ts 等），则将该目录复制到 skills。
 
 用法：
     uv run python -m astra.scripts.collect_scripts
@@ -31,8 +31,10 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 # Hydra 默认配置目录与名称
 _config_path = str(PROJECT_ROOT / "exps" / "skill_discovery")
 
-# 可执行脚本的扩展名（无 +x 时也视为可执行）
+# 可执行脚本的扩展名（用于判断是否为脚本文件）
 EXECUTABLE_EXTENSIONS = {".py", ".sh", ".bash", ".zsh", ".js", ".ts", ".jsx", ".tsx"}
+# 仅保留 scripts 里全是以下类型脚本的目录
+ALLOWED_SCRIPT_EXTENSIONS = {".py", ".sh", ".bash"}
 
 
 def _has_shebang(path: Path) -> bool:
@@ -61,14 +63,22 @@ def _is_executable_script(path: Path) -> bool:
     return False
 
 
-def _scripts_has_executable(scripts_dir: Path) -> bool:
-    """检查 scripts 目录下是否存在至少一个可执行脚本。"""
+def _scripts_only_py_or_shell(scripts_dir: Path) -> bool:
+    """
+    检查 scripts 目录下是否至少有一个可执行脚本，且全部为 .py 或 .sh/.bash。
+    若存在 .js、.ts、.zsh 等其它类型可执行脚本则返回 False。
+    """
     if not scripts_dir.is_dir():
         return False
+    has_allowed = False
     for f in scripts_dir.iterdir():
-        if f.is_file() and _is_executable_script(f):
-            return True
-    return False
+        if not f.is_file() or not _is_executable_script(f):
+            continue
+        ext = f.suffix.lower()
+        if ext not in ALLOWED_SCRIPT_EXTENSIONS:
+            return False
+        has_allowed = True
+    return has_allowed
 
 
 def _find_skill_dirs_with_scripts(skillshub_root: Path) -> list[Path]:
@@ -86,7 +96,7 @@ def _find_skill_dirs_with_scripts(skillshub_root: Path) -> list[Path]:
         root_path = Path(root)
         if "scripts" in dirs:
             scripts_dir = root_path / "scripts"
-            if _scripts_has_executable(scripts_dir):
+            if _scripts_only_py_or_shell(scripts_dir):
                 result.append(root_path)
                 # 不再深入该目录的子目录，避免重复（子目录的 scripts 会单独遍历到）
                 dirs.remove("scripts")
@@ -124,13 +134,14 @@ def run(cfg: DictConfig) -> int:
         return 0
 
     logger.info("发现 {} 个目录含可执行 scripts", len(dirs_to_copy))
-    for d in dirs_to_copy:
-        rel = d.relative_to(skillshub_root)
-        dst = skills_output / rel
+    skills_output.mkdir(parents=True, exist_ok=True)
+    for idx, d in enumerate(dirs_to_copy, start=1):
+        # 目标为 skills/<序号>_<目录名>，序号防止不同来源的同名 skill 覆盖
+        basename = d.name
+        dst = skills_output / f"{idx}_{basename}"
         if mode == "dry_run":
             logger.info("[dry_run] 将复制: {} -> {}", d, dst)
         else:
-            dst.parent.mkdir(parents=True, exist_ok=True)
             _copy_dir(d, dst)
 
     return 0
