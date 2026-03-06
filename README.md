@@ -33,6 +33,17 @@ uv sync
 
 使用方式见 [exps/skill_collection](exps/skill_collection/README.md)、[examples/](examples/) 与 [docs/](docs/)。
 
+## 环境变量
+
+部分脚本（如领域过滤 `filter_skills_by_domain`）需要从项目根目录的 `.env` 读取配置。请复制示例并填写实际值：
+
+```bash
+cp .env.example .env
+# 编辑 .env，填写 OPENAI_API_KEY 等
+```
+
+`.env` 已加入 `.gitignore`，不会提交到仓库。
+
 ## 同步 Submodule（skillshub）
 
 `skillshub/` 下的外部 skill 仓库以 Git submodule 方式管理。脚本只负责**添加** submodule，不负责后续同步。

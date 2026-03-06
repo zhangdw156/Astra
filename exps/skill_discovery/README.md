@@ -86,7 +86,8 @@ uv run -m astra.scripts.collect_scripts --config-path=exps/skill_discovery --con
 ```bash
 # 建议在项目根目录执行
 uv run -m astra.scripts.filter_skills_by_domain              # dry_run，不调用 API
-uv run -m astra.scripts.filter_skills_by_domain mode=run      # 实际调用 LLM 并写保留列表
+uv run -m astra.scripts.filter_skills_by_domain mode=test     # 仅处理 1 个 skill，验证流程
+uv run -m astra.scripts.filter_skills_by_domain mode=run     # 实际调用 LLM 并写保留列表
 uv run -m astra.scripts.filter_skills_by_domain --config-path=exps/skill_discovery --config-name=filter_by_domain mode=run
 ```
 
@@ -94,5 +95,5 @@ uv run -m astra.scripts.filter_skills_by_domain --config-path=exps/skill_discove
 |--------|------|
 | `skills_dir` | 待过滤的 skills 根目录（默认 `skills`） |
 | `artifacts_func_doc_dir` | multi_turn_func_doc 路径（默认 `artifacts/multi_turn_func_doc`） |
-| `mode` | `dry_run` / `run` |
+| `mode` | `dry_run` / `test`（仅处理 1 个 skill）/ `run` |
 | `concurrency` | 并发请求数（默认 5） |

@@ -25,8 +25,8 @@
 ```yaml
 skills_dir: skills
 artifacts_func_doc_dir: artifacts/multi_turn_func_doc
-mode: dry_run    # dry_run | run
-concurrency: 5  # 并发请求数（仅 run 时生效）
+mode: dry_run    # dry_run | test（仅 1 个 skill）| run
+concurrency: 5   # 并发请求数（仅 run 时生效）
 ```
 
 ## 使用
@@ -36,6 +36,9 @@ concurrency: 5  # 并发请求数（仅 run 时生效）
 ```bash
 # dry_run：仅打印待判定数量与示例，不调用 API
 uv run -m astra.scripts.filter_skills_by_domain
+
+# test：仅处理 1 个 skill，调用 LLM 并写结果，用于验证流程
+uv run -m astra.scripts.filter_skills_by_domain mode=test
 
 # run：实际调用 LLM，写保留列表到 Hydra 输出目录下的 skills_kept.txt
 uv run -m astra.scripts.filter_skills_by_domain mode=run
