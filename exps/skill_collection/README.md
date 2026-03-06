@@ -32,10 +32,17 @@ repos:
 ./exps/skill_collection/run.sh
 ```
 
-或直接传入本实验的配置文件：
+或直接调用（使用默认 `exps/skill_collection/repos.yaml`），也可以通过 Hydra 的 `--config-path` 与 `--config-name` 指定配置：
 
 ```bash
-uv run python -m astra.scripts.update_gitmodules exps/skill_collection/repos.yaml
+uv run python -m astra.scripts.update_gitmodules
+uv run python -m astra.scripts.update_gitmodules --config-path=exps/skill_collection --config-name=repos
+```
+
+或使用 run.sh 传入配置文件路径：
+
+```bash
+./exps/skill_collection/run.sh
 ```
 
 脚本会根据 YAML 重写 `.gitmodules`，并对 **YAML 中已有但尚未在 Git 索引中注册** 的子模块执行 `git submodule add`（即克隆并写入索引），这样后续 `git submodule update --init` 才会生效。已存在的子模块不会重复 add。
