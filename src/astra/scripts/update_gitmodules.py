@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-根据给定的仓库列表 YAML 文件，更新项目根目录的 .gitmodules，并注册尚未在 Git 索引中的子模块。
+根据 Hydra 配置中的仓库列表，更新项目根目录的 .gitmodules，并注册尚未在 Git 索引中的子模块。
 
-用法：python -m astra.scripts.update_gitmodules <repos.yaml 路径>
-文件格式：YAML，包含 repos: 或 repositories: 或顶层 list，每项为 GitHub 仓库 URL。
-- 会重写 .gitmodules，并对「在 YAML 中但尚未在索引中」的条目执行 git submodule add，
+用法：uv run -m astra.scripts.update_gitmodules
+      uv run -m astra.scripts.update_gitmodules --config-path=exps/skill_collection --config-name=repos
+配置格式：YAML，包含 repos: 或 repositories: 或顶层 list，每项为 GitHub 仓库 URL。
+- 会重写 .gitmodules，并对「在配置中但尚未在索引中」的条目执行 git submodule add，
   使后续 `git submodule update --init --recursive` 能正确拉取。
 - 已存在的子模块仅更新 .gitmodules 中的顺序/ignore，不重复 add。
 """
@@ -15,13 +16,16 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import hydra
 from loguru import logger
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 # 仓库根目录：含 .git 与 .gitmodules
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 GITMODULES = PROJECT_ROOT / ".gitmodules"
+
+_config_path = str(PROJECT_ROOT / "exps" / "skill_collection")
 
 GITHUB_URL_PATTERN = re.compile(
     r"^https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$",
@@ -136,24 +140,13 @@ def load_repos_from_config(conf: Any) -> list[str]:
     return []
 
 
-def main() -> int:
-    if len(sys.argv) < 2:
-        logger.error("用法: uv run python -m astra.scripts.update_gitmodules <repos.yaml 路径>")
-        return 1
-
-    repos_file = Path(sys.argv[1])
-    if not repos_file.is_absolute():
-        repos_file = Path.cwd() / repos_file
-    if not repos_file.exists():
-        logger.error("仓库列表文件不存在: {}", repos_file)
-        return 1
-
+def run(cfg: DictConfig) -> int:
+    """实际执行逻辑，接收 OmegaConf 配置。"""
     if not (PROJECT_ROOT / ".git").exists():
         logger.error("不在 Git 仓库根目录: {}", PROJECT_ROOT)
         return 1
 
-    conf = OmegaConf.load(repos_file)
-    urls = load_repos_from_config(conf)
+    urls = load_repos_from_config(cfg)
     if not urls:
         logger.warning("YAML 中未找到仓库列表（repos / repositories 或顶层 list）")
         return 0
@@ -195,5 +188,14 @@ def main() -> int:
     return 0
 
 
+@hydra.main(
+    config_path=_config_path,
+    config_name="repos",
+    version_base=None,
+)
+def main(cfg: DictConfig) -> None:
+    sys.exit(run(cfg))
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
