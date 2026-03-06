@@ -69,9 +69,9 @@ uv run -m astra.scripts.collect_scripts --config-path=exps/skill_discovery --con
 
 ### 原理
 
-- **领域摘要**：从 `artifacts/multi_turn_func_doc/` 下各 JSON（NDJSON）中抽取 tool 的 `description` 与文件名，归纳成一段「目标领域」说明。
+- **领域摘要**：默认使用包内 `src/astra/scripts/_filter/data/domain_summary.txt`
 - **每个 skill**：用目录名 + 该目录下 **SKILL.md 的全部内容** 作为描述，调用大模型判断是否属于或可覆盖上述任一领域。
-- **输出**：保留列表写入 `skills_kept.txt`（及 Hydra 输出目录）；判定结果会缓存到 `filter_result.json`，支持断点续跑。
+- **输出**：判定为不匹配的 skill 目录会被直接删除；判定结果会缓存到 `filter_result.json`，支持断点续跑。
 
 ### 环境变量（.env）
 
@@ -88,14 +88,14 @@ uv run -m astra.scripts.collect_scripts --config-path=exps/skill_discovery --con
 ```bash
 # 建议在项目根目录执行
 uv run -m astra.scripts.filter_skills_by_domain              # dry_run，不调用 API
-uv run -m astra.scripts.filter_skills_by_domain mode=test     # 仅处理 1 个 skill，验证流程
-uv run -m astra.scripts.filter_skills_by_domain mode=run     # 实际调用 LLM 并写保留列表
+uv run -m astra.scripts.filter_skills_by_domain mode=test     # 随机测试 3 个 skill，验证流程
+uv run -m astra.scripts.filter_skills_by_domain mode=run     # 实际调用 LLM 并删除不匹配的 skill 目录
 uv run -m astra.scripts.filter_skills_by_domain --config-path=exps/skill_discovery --config-name=filter_by_domain mode=run
 ```
 
 | 配置项 | 说明 |
 |--------|------|
 | `skills_dir` | 待过滤的 skills 根目录（默认 `skills`） |
-| `artifacts_func_doc_dir` | multi_turn_func_doc 路径（默认 `artifacts/multi_turn_func_doc`） |
-| `mode` | `dry_run` / `test`（仅处理 1 个 skill）/ `run` |
+| `prompts_dir` | 提示词与领域摘要目录（不配置则使用包内 `src/astra/scripts/_filter/data`，含 `domain_summary.txt`、`filter_system.txt`、`filter_user.txt`） |
+| `mode` | `dry_run` / `test`（随机 3 个 skill）/ `run` |
 | `concurrency` | 并发请求数（默认 5） |
