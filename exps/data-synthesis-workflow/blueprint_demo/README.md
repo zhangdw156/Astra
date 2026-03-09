@@ -34,3 +34,4 @@ python exps/data-synthesis-workflow/blueprint_demo/run_blueprint.py
 
 - 控制台打印完整蓝图（含程序注入的 `blueprint_id`、`skill_name`、`persona_id`）
 - 同目录下写入 `out_blueprint.json`
+- 蓝图中包含模型生成的 `system_message`（助手系统说明）与 `queries`（多轮 query + tool_sequence），供 agent_demo 多轮模拟使用

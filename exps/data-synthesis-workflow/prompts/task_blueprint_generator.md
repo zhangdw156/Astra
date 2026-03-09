@@ -27,6 +27,7 @@ Produce a single JSON object conforming to the following schema. **Note**: `blue
 
 ```json
 {
+  "system_message": "<one short paragraph: the assistant's system instruction for this task, user-facing>",
   "queries": [
     {
       "query": "<natural language question from the user>",
@@ -36,7 +37,8 @@ Produce a single JSON object conforming to the following schema. **Note**: `blue
 }
 ```
 
-Each `queries` item pairs one **user question** with the **ordered list of tool names** (from tools.jsonl) the agent should call to answer it. Only tool names; no arguments.
+- **system_message**: The **assistant's** system instruction for this dialogue: what role it plays and how it should use the skill/tools. This is the user-facing description (e.g. "You are an AI assistant for prediction market analysis. You have access to tools from Polymarket and Kalshi. Use the available tools to answer user questions about prediction markets."). Keep it to one short paragraph; it can be tailored to the skill and persona if needed.
+- **queries**: Each item pairs one **user question** with the **ordered list of tool names** (from tools.jsonl) the agent should call to answer it. Only tool names; no arguments.
 
 ---
 
@@ -78,6 +80,7 @@ Each `queries` item pairs one **user question** with the **ordered list of tool 
 
 ```json
 {
+  "system_message": "You are an AI assistant for prediction market analysis. You have access to tools from Polymarket and Kalshi. Use the available tools to answer user questions about prediction markets.",
   "queries": [
     {
       "query": "I'm tracking Central American political developments. Can you show me what prediction markets are saying about elections in the region?",
