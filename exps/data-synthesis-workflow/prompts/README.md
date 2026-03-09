@@ -27,4 +27,20 @@
 
 **输出**：与参考实现同构的环境目录，包含 `mcp_server.py`、`tools/*.py`、`tools.jsonl`、`docker/`、`mocks/` 等，使 Skill 中描述的命令均以 MCP 工具形式可被调用，且可 Docker 一键启动、无真实 API Key 即可跑通。
 
-**调用方式**：通过 `opencode_demo/run_opencode_env_gen.py` 自动化调用本地 OpenCode CLI 的 `run` 命令；默认使用 `opencode_demo/2896_prediction-trader` 与 `opencode_demo/env_2896_prediction-trader` 作为参考，目标为 `skills_demo/2515_stock-monitor`，输出到 `exps/data-synthesis-workflow/env_2515_stock-monitor`。
+**调用方式**：通过 `opencode_demo/run_opencode_env_gen.py` 自动化调用本地 OpenCode CLI 的 `run` 命令；默认使用 `opencode_demo/2896_prediction-trader` 与 `opencode_demo/env_2896_prediction-trader` 作为参考，目标为 `skills_demo/2515-stock-monitor`，输出到 `exps/data-synthesis-workflow/env_2515_stock-monitor`。
+
+## trajectory_evaluator.md
+
+**用途**：对 `agent_demo/out_trajectory.json` 这类多轮对话轨迹调用大模型做质量评估，产出整体评分、幻觉风险与结构化标签。
+
+**输入**：完整轨迹 JSON（含 `system_message`、`agent_system_prompt`、`tools`、`turns` 等）。
+
+**输出**：一个 JSON 对象，包含：
+
+- `score`：0.0–5.0 轨迹整体质量评分
+- `hallucination_risk`：`none` / `low` / `medium` / `high`
+- `labels`：多种布尔标签（如 `has_hallucination`、`tool_misuse`、`contradicts_tool_results` 等）
+- `reasoning`：summary / strengths / weaknesses
+- `suggested_fixes`：改进建议列表
+
+**调用方式**：由 `trajectory_eval_demo/run_trajectory_eval.py` 注入 `{TRAJECTORY_JSON}` 并调用 LLM。
