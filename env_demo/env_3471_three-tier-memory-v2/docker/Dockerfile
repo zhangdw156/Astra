@@ -8,6 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 COPY pyproject.toml ./
 
 ENV UV_NO_DEV=1
+ENV UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ENV UV_INDEX_STRATEGY=unsafe-first-match
 RUN uv sync --no-install-project
 
 COPY tools/ ./tools/

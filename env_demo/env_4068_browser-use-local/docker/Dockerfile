@@ -43,6 +43,8 @@ COPY pyproject.toml ./
 
 # Install Python dependencies
 ENV UV_NO_DEV=1
+ENV UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ENV UV_INDEX_STRATEGY=unsafe-first-match
 RUN uv sync --no-install-project
 
 # Copy business code

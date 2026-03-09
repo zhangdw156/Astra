@@ -12,6 +12,8 @@ COPY pyproject.toml ./
 
 # 安装依赖（无 lock 时 uv 会解析 pyproject.toml）
 ENV UV_NO_DEV=1
+ENV UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ENV UV_INDEX_STRATEGY=unsafe-first-match
 RUN uv sync --no-install-project
 
 # 复制业务代码
