@@ -1,0 +1,39 @@
+# Browser Use Local MCP Service
+# From project root, run: docker compose -f docker/docker-compose.yaml build|up|down
+
+services:
+  browser-use-local:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: browser-use-local-mcp
+    ports:
+      - "8000:8000"  # MCP Server
+    environment:
+      - MCP_TRANSPORT=http
+      - BROWSER_USE_CLI=browser-use
+      # LLM Configuration - set these for agent runs
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-mock-key}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.moonshot.cn/v1}
+    # Required for headless browser in container
+    shm_size: '2gb'
+    # Chromium needs these capabilities for sandbox
+    security_opt:
+      - seccomp:unconfined
+    cap_add:
+      - SYS_ADMIN
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import browser_use; print('OK')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+# Usage:
+# 1. Build: docker compose -f docker/docker-compose.yaml build
+# 2. Start: docker compose -f docker/docker-compose.yaml up -d
+# 3. View logs: docker compose -f docker/docker-compose.yaml logs -f
+# 4. Stop: docker compose -f docker/docker-compose.yaml down
+#
+# MCP Server: http://localhost:8000
+# Can connect via stdio or SSE mode

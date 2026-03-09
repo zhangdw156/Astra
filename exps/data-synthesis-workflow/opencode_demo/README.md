@@ -61,8 +61,63 @@ python exps/data-synthesis-workflow/opencode_demo/run_opencode_env_gen.py \
 - 按提示词约定，在 `--env-dir` 下生成 MCP 环境（mcp_server.py、tools/、tools.jsonl、docker/、mocks/ 等）
 - 控制台输出 OpenCode 的实时输出与退出码
 
+## 批量生成：batch_env_gen.py
+
+对 `skills_demo/` 下的**所有 skill** 逐个调用 `run_opencode_env_gen`，将生成的环境输出到 `env_demo/env_<skill_name>`。
+
+```bash
+# 预览（不实际调用 opencode）
+python exps/data-synthesis-workflow/opencode_demo/batch_env_gen.py --dry-run
+
+# 仅处理前 3 个 skill（用于试跑）
+python exps/data-synthesis-workflow/opencode_demo/batch_env_gen.py --limit 3
+
+# 跳过已存在 mcp_server.py 的 env（断点续跑）
+python exps/data-synthesis-workflow/opencode_demo/batch_env_gen.py --skip-existing
+
+# 全量生成
+python exps/data-synthesis-workflow/opencode_demo/batch_env_gen.py
+```
+
+| 参数 | 说明 |
+|------|------|
+| `--dry-run` | 只列出 skill 与目标 env，不调用 opencode |
+| `--limit N` | 最多处理 N 个 skill（0 表示不限制） |
+| `--skip-existing` | 若 `env_demo/env_xxx/mcp_server.py` 已存在则跳过 |
+| `--ref-skill-dir` / `--ref-env-dir` | 参考示例目录（与 run_opencode_env_gen 一致） |
+
+输出目录：`env_demo/env_<skill_dir_name>`（如 `env_demo/env_2515_stock-monitor`）。
+
+## 验证 env_demo：validate_env_demo.py
+
+对 `env_demo/` 下所有 MCP 环境执行可复现验证（结构检查、依赖安装、MCP Initialize 响应），可选调用 LLM 生成汇总报告。
+
+```bash
+# 验证所有 env
+python exps/data-synthesis-workflow/opencode_demo/validate_env_demo.py
+
+# 仅验证前 3 个（试跑）
+python exps/data-synthesis-workflow/opencode_demo/validate_env_demo.py --limit 3
+
+# 输出结果 JSON
+python exps/data-synthesis-workflow/opencode_demo/validate_env_demo.py --output validate_results.json
+
+# 验证后调用 LLM 生成中文汇总报告（需 .env 中 OPENAI_API_KEY、OPENAI_MODEL）
+python exps/data-synthesis-workflow/opencode_demo/validate_env_demo.py --llm-report
+```
+
+| 参数 | 说明 |
+|------|------|
+| `--env-demo-dir` | env_demo 根目录（默认项目根下 env_demo） |
+| `--limit N` | 最多验证 N 个 env（0 表示全部） |
+| `--output PATH` | 将结果 JSON 写入指定文件 |
+| `--llm-report` | 验证结束后调用 LLM 生成汇总报告与修复建议 |
+
+验证步骤：1) 结构（mcp_server.py、tools/、pyproject.toml） 2) `uv sync` 3) MCP 服务器启动并响应 Initialize。不包含 Mock 启动与 test_tools（各 env 差异较大）。`--llm-report` 需安装 `python-dotenv` 与 `openai`，且项目根 `.env` 配置 `OPENAI_API_KEY`、`OPENAI_MODEL`。
+
 ## 说明
 
 - 脚本仅使用 Python 标准库（subprocess、pathlib、argparse），无额外依赖
 - 若目标 env 目录已存在，OpenCode 可能在其中增删改文件；建议先备份或使用新建目录
 - 生成耗时取决于 OpenCode 与 LLM 调用，请耐心等待
+- 批量生成全量 skill 耗时较长，建议先用 `--limit` 或 `--dry-run` 验证

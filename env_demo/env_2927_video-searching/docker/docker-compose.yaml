@@ -1,0 +1,31 @@
+# 镜像使用 uv 管理依赖（见 Dockerfile）
+# 从项目根目录执行: docker compose -f docker/docker-compose.yaml build|up|down
+services:
+  video-searching:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: video-searching-mcp
+    ports:
+      - "8000:8000"  # MCP Server
+      - "8001:8001"  # Video API Mock
+    environment:
+      - MCP_TRANSPORT=http
+      - VIDEO_API_BASE=http://localhost:8001
+      - GOOGLE_API_KEY=mock-api-key
+      - YOUTUBE_API_KEY=mock-api-key
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+# 使用方法:
+# 1. 构建镜像: docker compose -f docker/docker-compose.yaml build
+# 2. 启动服务: docker compose -f docker/docker-compose.yaml up -d
+# 3. 查看日志: docker compose -f docker/docker-compose.yaml logs -f
+# 4. 停止服务: docker compose -f docker/docker-compose.yaml down
+#
+# MCP 服务地址: http://localhost:8000
+# 可通过 stdio 或 SSE 模式连接

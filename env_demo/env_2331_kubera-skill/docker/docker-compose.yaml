@@ -1,0 +1,32 @@
+# 镜像使用 uv 管理依赖（见 Dockerfile）
+# 从项目根目录执行: docker compose -f docker/docker-compose.yaml build|up|down
+services:
+  # Kubera MCP Service (包含所有工具和Mock API)
+  kubera:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: kubera-mcp
+    ports:
+      - "8000:8000"  # MCP Server
+      - "8003:8003"  # Kubera Mock API
+    environment:
+      - MCP_TRANSPORT=http
+      - KUBERA_API_BASE=http://localhost:8003
+      - KUBERA_API_KEY=mock-api-key
+      - KUBERA_SECRET=mock-secret
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+# 使用方法（在 env_2331_kubera-skill 目录下执行）:
+# 1. 构建镜像: docker compose -f docker/docker-compose.yaml build
+# 2. 启动服务: docker compose -f docker/docker-compose.yaml up -d
+# 3. 查看日志: docker compose -f docker/docker-compose.yaml logs -f
+# 4. 停止服务: docker compose -f docker/docker-compose.yaml down
+#
+# MCP 服务地址: http://localhost:8000
+# 可通过 stdio 或 SSE 模式连接
