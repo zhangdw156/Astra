@@ -129,6 +129,22 @@ Do **not** hardcode URLs for external services. Read base URL from environment v
 6. **If external APIs are needed**: implement Mocks under mocks/ and start them in Dockerfile CMD.
 7. **Write docker/**: Dockerfile and docker-compose.yaml, exposing MCP and Mock ports.
 8. **Write README.md**: directory layout, how to run, tool list, env vars.
+9. **Validate and fix**: run the validation script and fix any failures before finishing.
+
+---
+
+## Quality gate: Validation (REQUIRED)
+
+After generating the environment at `{ENV_DIR}`, you **must** run the validation script to ensure quality:
+
+```bash
+uv run python exps/data-synthesis-workflow/opencode_demo/validate_env.py {ENV_DIR}
+```
+
+- **Exit 0**: validation passed; the environment is ready.
+- **Exit 1**: validation failed; read the printed error (structure / uv_sync / mcp_initialize) and **fix the issues**, then run the script again until it passes.
+
+The script checks: (1) structure (mcp_server.py, tools/, pyproject.toml exist), (2) `uv sync --no-install-project` succeeds, (3) MCP server starts and responds to Initialize. Do not consider the task complete until validation passes.
 
 ---
 

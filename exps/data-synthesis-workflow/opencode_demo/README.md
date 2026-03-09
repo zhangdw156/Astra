@@ -115,6 +115,21 @@ python exps/data-synthesis-workflow/opencode_demo/validate_env_demo.py --llm-rep
 
 验证步骤：1) 结构（mcp_server.py、tools/、pyproject.toml） 2) `uv sync` 3) MCP 服务器启动并响应 Initialize。不包含 Mock 启动与 test_tools（各 env 差异较大）。`--llm-report` 需安装 `python-dotenv` 与 `openai`，且项目根 `.env` 配置 `OPENAI_API_KEY`、`OPENAI_MODEL`。
 
+## 单环境验证：validate_env.py（供 OpenCode 使用）
+
+OpenCode 生成环境后需通过质量门：运行 `validate_env.py` 验证单个环境，失败则根据输出修复后重试，直到通过。
+
+```bash
+# 在项目根目录执行，传入环境目录路径
+python exps/data-synthesis-workflow/opencode_demo/validate_env.py <ENV_DIR>
+```
+
+- **退出码 0**：通过，环境可运行
+- **退出码 1**：失败，查看输出的 structure/uv_sync/mcp_initialize 错误并修复
+- **退出码 2**：参数错误（目录不存在等）
+
+提示词 `skill_to_environment.md` 与 `run_opencode_env_gen.py` 已将该脚本作为必做步骤纳入生成流程。
+
 ## 说明
 
 - 脚本仅使用 Python 标准库（subprocess、pathlib、argparse），无额外依赖

@@ -1,18 +1,15 @@
 """
 对 env_demo 下所有 MCP 环境执行可复现验证：结构检查、依赖安装、MCP 服务器 Initialize 响应。
 可选调用 LLM 生成汇总报告。
+内部复用 opencode_demo/validate_env.py 的验证逻辑。
 
 运行方式：python exps/data-synthesis-workflow/opencode_demo/validate_env_demo.py [options]
 """
 
 import argparse
 import json
-import os
-import subprocess
 import sys
-import threading
 from pathlib import Path
-from typing import Optional
 
 # 路径
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -20,8 +17,6 @@ WORKFLOW_DIR = SCRIPT_DIR.parent
 PROJECT_ROOT = WORKFLOW_DIR.parent.parent
 
 DEFAULT_ENV_DEMO_DIR = PROJECT_ROOT / "env_demo"
-
-MCP_INITIALIZE_REQUEST = b'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"0.1.0","capabilities":{},"clientInfo":{"name":"validate","version":"1.0"}}}\n'
 
 LLM_REPORT_PROMPT = """你是一名验证报告分析师。根据以下 env_demo 验证结果 JSON，生成一份中文汇总报告。
 
@@ -49,118 +44,14 @@ def get_env_dirs(env_demo_dir: Path) -> list[Path]:
     )
 
 
-def check_structure(env_dir: Path) -> tuple[bool, Optional[str]]:
-    """结构检查：mcp_server.py、tools/、pyproject.toml"""
-    required = [
-        ("mcp_server.py", env_dir / "mcp_server.py"),
-        ("tools/", env_dir / "tools"),
-        ("pyproject.toml", env_dir / "pyproject.toml"),
-    ]
-    for name, path in required:
-        if not path.exists():
-            return False, f"missing {name}"
-    return True, None
-
-
-def run_uv_sync(env_dir: Path, timeout_sec: int = 120) -> tuple[bool, Optional[str]]:
-    """运行 uv sync --no-install-project"""
-    try:
-        result = subprocess.run(
-            ["uv", "sync", "--no-install-project"],
-            cwd=env_dir,
-            capture_output=True,
-            text=True,
-            timeout=timeout_sec,
-        )
-        if result.returncode != 0:
-            err = (result.stderr or result.stdout or "").strip()[:500]
-            return False, f"uv sync failed (exit {result.returncode}): {err}"
-        return True, None
-    except subprocess.TimeoutExpired:
-        return False, f"uv sync timeout ({timeout_sec}s)"
-
-
-def run_mcp_initialize(env_dir: Path, timeout_sec: int = 10) -> tuple[bool, Optional[str]]:
-    """启动 mcp_server，发送 initialize，解析 stdout 中的 JSON-RPC 响应"""
-    proc = None
-
-    def kill_if_timeout():
-        if proc and proc.poll() is None:
-            proc.kill()
-
-    timer = threading.Timer(timeout_sec, kill_if_timeout)
-
-    try:
-        # 使用 uv run 以便使用 env 的 .venv 依赖
-        proc = subprocess.Popen(
-            ["uv", "run", "python", "mcp_server.py"],
-            cwd=env_dir,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env={**os.environ, "PYTHONPATH": str(env_dir)},
-        )
-        timer.start()
-        stdout, stderr = proc.communicate(input=MCP_INITIALIZE_REQUEST, timeout=timeout_sec + 2)
-
-        # 解析 stdout 中的 JSON 行
-        for line in stdout.decode("utf-8", errors="replace").splitlines():
-            line = line.strip()
-            if not line or line.startswith("Loaded tool:") or line.startswith("Stock Monitor") or line.startswith("---"):
-                continue
-            try:
-                obj = json.loads(line)
-                if isinstance(obj, dict) and "result" in obj:
-                    caps = obj.get("result", {}).get("capabilities", {})
-                    if "tools" in caps or "experimental" in caps:
-                        return True, None
-                    return True, None  # 有 result 即视为通过
-                if isinstance(obj, dict) and "error" in obj:
-                    return False, f"JSON-RPC error: {obj['error']}"
-            except json.JSONDecodeError:
-                continue
-
-        err_msg = (stderr.decode("utf-8", errors="replace") or "").strip()[:300]
-        return False, f"no valid JSON-RPC response in stdout" + (f"; stderr: {err_msg}" if err_msg else "")
-
-    except subprocess.TimeoutExpired:
-        if proc:
-            proc.kill()
-            proc.wait()
-        return False, "MCP server timeout"
-    except Exception as e:
-        return False, str(e)[:300]
-    finally:
-        timer.cancel()
-        if proc and proc.poll() is None:
-            proc.kill()
-
-
 def validate_one(env_dir: Path) -> dict:
-    """验证单个 env，返回结果 dict"""
-    env_name = env_dir.name
-    steps = {}
-    error = None
+    """验证单个 env，返回结果 dict（复用 validate_env）"""
+    if str(SCRIPT_DIR) not in sys.path:
+        sys.path.insert(0, str(SCRIPT_DIR))
+    from validate_env import validate as _validate
 
-    # 1. 结构检查
-    ok, err = check_structure(env_dir)
-    steps["structure"] = "pass" if ok else f"fail: {err}"
-    if not ok:
-        return {"ok": False, "steps": steps, "error": err}
-
-    # 2. uv sync
-    ok, err = run_uv_sync(env_dir)
-    steps["uv_sync"] = "pass" if ok else f"fail: {err}"
-    if not ok:
-        return {"ok": False, "steps": steps, "error": err}
-
-    # 3. MCP initialize
-    ok, err = run_mcp_initialize(env_dir)
-    steps["mcp_initialize"] = "pass" if ok else f"fail: {err}"
-    if not ok:
-        return {"ok": False, "steps": steps, "error": err}
-
-    return {"ok": True, "steps": steps, "error": None}
+    _, result = _validate(env_dir)
+    return result
 
 
 def call_llm_report(results: dict) -> str:

@@ -93,6 +93,9 @@ def main() -> int:
         f"- Input skill: {skill_dir}\n"
         f"- Output env: {env_dir}\n"
         "Create the environment at the output path, replicating the patterns from the reference.\n\n"
+        "STEP 3 — Validate (required): After generation, run:\n"
+        f"  python exps/data-synthesis-workflow/opencode_demo/validate_env.py {env_dir}\n"
+        "Fix any validation failures and re-run until exit code 0. Do not finish until validation passes.\n\n"
         "---\n\n"
     )
     task_text = task_prefix + prompt_text
