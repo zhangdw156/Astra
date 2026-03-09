@@ -1,5 +1,23 @@
 # Generate Runnable Environment from Skill (OpenCode Prompt)
 
+## IMPORTANT: Read Reference Example First
+
+**Before generating**, you must **read and study** this reference example pair:
+
+- **Reference skill (input)**: `{REF_SKILL_DIR}` — the source skill with SKILL.md and scripts
+- **Reference environment (output)**: `{REF_ENV_DIR}` — the desired generated structure
+
+Read at least these files in the reference environment:
+- `mcp_server.py` — dynamic tool discovery pattern (scan tools/, register via add_tool)
+- `tools/compare_markets.py` (or any tool) — TOOL_SCHEMA + sync execute()
+- `docker/Dockerfile` — uv sync, uvicorn for mocks, MCP_TRANSPORT
+- `docker/docker-compose.yaml` — port mapping, env vars
+- `mocks/kalshi_api.py` (or any mock) — FastAPI endpoints matching tools
+
+**Replicate the same patterns** (dynamic discovery, sync execute, uv-based Dockerfile, mock API structure) when generating. Do not hardcode tools or use async execute unless the reference does.
+
+---
+
 ## Objective
 
 You are an **environment generator**. Given a **skill directory** (e.g. `{SKILL_DIR}`: contains SKILL.md and optionally scripts, docs, etc.), produce a **runnable MCP environment directory** (e.g. `{ENV_DIR}`) such that:
@@ -116,9 +134,13 @@ Do **not** hardcode URLs for external services. Read base URL from environment v
 
 ## Reference implementation
 
-Replace the placeholders with real paths when running:
+When running, the following placeholders are filled:
 
-- **Skill**: directory at `{SKILL_DIR}` (contains SKILL.md and optionally e.g. scripts).
-- **Environment**: directory at `{ENV_DIR}` (full MCP server, tools/, tools.jsonl, docker/, mocks/).
+| Placeholder | Meaning |
+|-------------|---------|
+| `{REF_SKILL_DIR}` | **Example skill** to study (read its structure and SKILL.md) |
+| `{REF_ENV_DIR}` | **Example environment** to study (read mcp_server, tools, docker, mocks) |
+| `{SKILL_DIR}` | **Your input**: the skill to transform |
+| `{ENV_DIR}` | **Your output**: target directory for the generated environment |
 
-The generated environment should follow the same layout, tool contract, and MCP/Docker usage as that reference, so it plugs into the same workflow for blueprint generation and agent simulation (e.g. run_blueprint.py, run_agent_simulation.py).
+Generate the environment at `{ENV_DIR}` from `{SKILL_DIR}`, replicating the patterns you observed in `{REF_ENV_DIR}`. The result should plug into the data-synthesis-workflow (blueprint generation, agent simulation).

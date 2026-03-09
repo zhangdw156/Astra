@@ -1,0 +1,28 @@
+services:
+  stock-monitor:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: stock-monitor-mcp
+    ports:
+      - "8000:8000"
+      - "8003:8003"
+    environment:
+      - MCP_TRANSPORT=http
+      - YAHOO_FINANCE_BASE=http://localhost:8003
+      - USE_MOCK=true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+# Usage:
+# 1. Build: docker compose -f docker/docker-compose.yaml build
+# 2. Start: docker compose -f docker/docker-compose.yaml up -d
+# 3. Logs: docker compose -f docker/docker-compose.yaml logs -f
+# 4. Stop: docker compose -f docker/docker-compose.yaml down
+#
+# MCP server: http://localhost:8000
+# Mock API: http://localhost:8003

@@ -1,6 +1,6 @@
 # OpenCode 环境生成 Demo
 
-根据 skill 目录，调用本地 OpenCode CLI 的 `run` 命令，使用 `prompts/skill_to_environment.md` 提示词，生成可运行的 MCP 环境目录。
+根据 skill 目录，调用本地 OpenCode CLI 的 `run` 命令，使用 `prompts/skill_to_environment.md` 提示词，生成可运行的 MCP 环境目录。任务会显式指示 OpenCode **先阅读参考示例**（skill → env 的生成前后目录对），再按相同模式生成目标环境。
 
 ## 前置条件
 
@@ -27,25 +27,37 @@ uv run python exps/data-synthesis-workflow/opencode_demo/run_opencode_env_gen.py
 python exps/data-synthesis-workflow/opencode_demo/run_opencode_env_gen.py
 ```
 
+### 参数说明
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--ref-skill-dir` | `opencode_demo/2896_prediction-trader` | 参考 skill 目录（OpenCode 需先阅读） |
+| `--ref-env-dir` | `opencode_demo/env_2896_prediction-trader` | 参考 env 目录（生成的示例） |
+| `--skill-dir` | `skills_demo/2515_stock-monitor` | 要转换的 skill 目录 |
+| `--env-dir` | `exps/data-synthesis-workflow/env_2515_stock-monitor` | 生成环境的目标目录 |
+
 ### 自定义路径
 
 ```bash
 python exps/data-synthesis-workflow/opencode_demo/run_opencode_env_gen.py \
-  --skill-dir /path/to/your/skill-dir \
+  --ref-skill-dir opencode_demo/2896_prediction-trader \
+  --ref-env-dir opencode_demo/env_2896_prediction-trader \
+  --skill-dir /path/to/skill \
   --env-dir /path/to/output/env-dir
 ```
 
 ## 输入
 
 - **提示词**：`exps/data-synthesis-workflow/prompts/skill_to_environment.md`
-- **Skill 目录**（默认）：`exps/data-synthesis-workflow/2896_prediction-trader`
-- **目标环境目录**（默认）：`exps/data-synthesis-workflow/prediction-trader`
+- **参考示例**（默认）：`opencode_demo/2896_prediction-trader` → `opencode_demo/env_2896_prediction-trader`
+- **目标 skill**（默认）：`skills_demo/2515_stock-monitor`
+- **目标 env**（默认）：`exps/data-synthesis-workflow/env_2515_stock-monitor`
 
-脚本会将提示词中的 `{SKILL_DIR}`、`{ENV_DIR}` 占位符替换为实际路径，构造任务后调用 `opencode run`。
+脚本会替换 `{REF_SKILL_DIR}`、`{REF_ENV_DIR}`、`{SKILL_DIR}`、`{ENV_DIR}`，并在任务开头显式指示 OpenCode 先阅读参考目录，再生成。
 
 ## 输出
 
-- OpenCode 在 `--env-dir` 的父目录下作为工作目录运行
+- OpenCode 以项目根为工作目录运行，便于访问参考目录与 `skills_demo`
 - 按提示词约定，在 `--env-dir` 下生成 MCP 环境（mcp_server.py、tools/、tools.jsonl、docker/、mocks/ 等）
 - 控制台输出 OpenCode 的实时输出与退出码
 

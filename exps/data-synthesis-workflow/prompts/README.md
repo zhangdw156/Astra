@@ -17,13 +17,14 @@
 
 ## skill_to_environment.md
 
-**用途**：指导 OpenCode（或代码生成 Agent）根据「Skill 目录」生成「可运行 MCP 环境目录」。
+**用途**：指导 OpenCode（或代码生成 Agent）根据「Skill 目录」生成「可运行 MCP 环境目录」。**显式要求先阅读参考示例**（skill → env 的生成前后目录对），再按相同模式生成。
 
-**输入**：
-- Skill 目录路径（占位符：`{SKILL_DIR}`）
-- SKILL.md 内容（含 Commands、Requirements、Example Usage 等）
-- 可选的 scripts/ 等辅助文件
+**占位符**：
+- `{REF_SKILL_DIR}` — 参考 skill 目录（需先阅读）
+- `{REF_ENV_DIR}` — 参考 env 目录（生成的示例）
+- `{SKILL_DIR}` — 要转换的 skill 目录
+- `{ENV_DIR}` — 生成环境的目标目录
 
-**输出**：与参考实现同构的环境目录（占位符：`{ENV_DIR}`），包含 `mcp_server.py`、`tools/*.py`、`tools.jsonl`、`docker/`、`mocks/`（若依赖外部 API），使 Skill 中描述的命令均以 MCP 工具形式可被调用，且可 Docker 一键启动、无真实 API Key 即可跑通。
+**输出**：与参考实现同构的环境目录，包含 `mcp_server.py`、`tools/*.py`、`tools.jsonl`、`docker/`、`mocks/` 等，使 Skill 中描述的命令均以 MCP 工具形式可被调用，且可 Docker 一键启动、无真实 API Key 即可跑通。
 
-**调用方式**：将本提示词与 Skill 路径/内容一并提供给 OpenCode 或代码生成 Agent，按提示词中的步骤与约定生成目标环境目录。也可通过 `opencode_demo/run_opencode_env_gen.py` 自动化调用本地 OpenCode CLI 的 `run` 命令。
+**调用方式**：通过 `opencode_demo/run_opencode_env_gen.py` 自动化调用本地 OpenCode CLI 的 `run` 命令；默认使用 `opencode_demo/2896_prediction-trader` 与 `opencode_demo/env_2896_prediction-trader` 作为参考，目标为 `skills_demo/2515_stock-monitor`，输出到 `exps/data-synthesis-workflow/env_2515_stock-monitor`。
