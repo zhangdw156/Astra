@@ -15,7 +15,15 @@ sys.path.insert(0, root)
 os.chdir(root)
 
 # 初始化 SQLite 状态库（与 Docker 内一致）
-from state import ensure_schema_and_initial_data
+from state import (
+    create_run,
+    ensure_schema_and_initial_data,
+    export_run_state,
+    log_tool_call,
+    run_context,
+    save_run_snapshot,
+    update_run_status,
+)
 ensure_schema_and_initial_data()
 
 
@@ -118,6 +126,28 @@ def test_polymarket_search():
     print()
 
 
+def test_run_scoped_state():
+    """测试 run_id 作用域内的运行态表写入。"""
+    run_id = "test-run-001"
+    create_run(run_id, skill_name="prediction-trader", status="running", metadata={"source": "test_tools"})
+    with run_context(run_id):
+        log_tool_call(
+            tool_name="polymarket_search",
+            arguments={"query": "bitcoin"},
+            result_text="sample result",
+            turn_index=1,
+        )
+        save_run_snapshot({"note": "runtime smoke test"}, snapshot_kind="final")
+        update_run_status(status="completed", metadata={"smoke_test": True})
+        snapshot = export_run_state(include_static_tables=False)
+
+    print("=" * 50)
+    print("TEST: run_scoped_state")
+    print("=" * 50)
+    print(snapshot)
+    print()
+
+
 if __name__ == "__main__":
     print("\n" + "=" * 50)
     print("Running tool tests (state-backed, no Mock API required)")
@@ -129,6 +159,7 @@ if __name__ == "__main__":
     test_polymarket_trending()
     test_polymarket_crypto()
     test_polymarket_search()
+    test_run_scoped_state()
     test_compare_markets()
     test_trending()
     test_analyze_topic()

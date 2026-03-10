@@ -27,7 +27,7 @@ When generating a new env, **copy reusable files** from the reference (e.g. `mcp
 You are an **environment generator**. Given a **skill directory** (e.g. `{SKILL_DIR}`: contains SKILL.md and optionally scripts, docs, etc.), produce a **runnable MCP environment directory** (e.g. `{ENV_DIR}`) such that:
 
 1. Every **command/capability** described in the skill maps to at least one **MCP tool** callable by an Agent via MCP;
-2. The environment uses a **SQLite state backend** and a **state access layer** so that tools and (optional) Mocks share the same state—deterministic, verifiable, and reproducible;
+2. The environment uses a **SQLite state backend** and a **state access layer** so that tools and (optional) Mocks share the same state—deterministic, verifiable, reproducible, and concurrency-friendly;
 3. The environment can be **started locally (with uv) or with Docker**, and tool calls run without real API keys; **Docker only exposes the MCP server port**;
 4. The output layout and code style match the reference environment structure, so it fits into the data-synthesis-workflow blueprint and agent simulation pipeline.
 
@@ -88,11 +88,19 @@ Under the **target environment directory** `{ENV_DIR}` (one directory, name it f
 ### 2. State backend and state access layer (database/, state.py)
 
 - **database/schema.sql**: Define SQLite tables for all entities the tools need (e.g. markets, events, users). Include indexes for frequent queries.
+- Prefer a **two-layer state model** when the environment is intended for batch trajectory synthesis:
+  - **Shared static tables**: read-only reference data shared by all runs (e.g. market catalogs, seed entities).
+  - **Run-scoped tables**: tables keyed by `run_id` for trajectory metadata, tool call logs, state deltas, outputs, and snapshots.
+- Two supported isolation modes:
+  - **Mode A: dedicated DB per run** — better for strong state, complex transactions, or destructive writes.
+  - **Mode B: shared DB + `run_id` isolation** — preferred for read-only or light-state environments and high-concurrency synthesis.
 - **database/initial_data.sql**: INSERT seed data so that tools have deterministic, reproducible state. Use `INSERT OR REPLACE` where appropriate to avoid duplicates on re-init.
 - **state.py**: Provide a state access layer used by both tools and mocks:
   - `read(table, where=..., order_by=..., limit=...)` — generic query returning list of dicts.
   - Domain helpers if useful (e.g. `read_kalshi_markets(category=..., search_query=..., limit=...)`, `read_polymarket_events(...)`).
   - `ensure_schema_and_initial_data()` — run schema.sql then initial_data.sql if DB is empty; call this at container startup and in test_tools.py so local runs work without manual DB setup.
+- If using Mode B, `state.py` must also provide a **RunContext** abstraction (for example `run_context(run_id)` / `current_run_id()`) so run-scoped tables are automatically filtered by the current run.
+- **Do not expose `run_id` in tool schemas**; it must be injected by the synthesis framework / state layer, not by the LLM agent as a user-visible argument.
 - **STATE_DB_PATH** (env var): Path to the SQLite file; default e.g. `./data/state.db`; in Docker use a path under a mounted volume (e.g. `/app/data/state.db`).
 
 ### 3. Tool modules (tools/*.py)
@@ -106,6 +114,11 @@ Each tool file must define:
 - **execute(...)**: function whose parameters match `inputSchema.properties`, returning **str** (usually Markdown or plain text for the Agent to show the user).
 
 **Tools must read/write state via the state access layer** (e.g. `from state import read_kalshi_markets` and use the returned data). Do **not** have tools call Mock APIs over HTTP; the design is database-driven so tools and mocks share the same SQLite. If the skill has no external API dependency, tools only need the state layer and no mocks are required.
+
+For environments that support concurrent synthesis:
+- tools may read shared static tables directly;
+- any run-scoped write/log/snapshot operation must go through state-layer helpers that automatically bind the current `run_id`;
+- tool code should remain business-focused and should not manually thread `run_id` through `TOOL_SCHEMA` parameters.
 
 ### 4. tools.jsonl
 
@@ -122,7 +135,7 @@ Each tool file must define:
 ### 6. Docker
 
 - **Dockerfile**: Base image with uv/Python 3.13. Copy `pyproject.toml`, `database/`, `state.py`, `tools/`, `mocks/` (if any), `mcp_server.py`. Run `uv sync --no-install-project`. Set `PYTHONPATH`, `STATE_DB_PATH`, `MCP_TRANSPORT=http`. In **CMD**: first run `python -c "from state import ensure_schema_and_initial_data; ensure_schema_and_initial_data()"`, then start Mock API(s) (e.g. uvicorn) and `python mcp_server.py`, then `wait`.
-- **docker-compose.yaml**: Single service, build context = environment root. **Expose only the MCP server port** (e.g. `8000:8000`). Do **not** publish Mock API ports (8001, 8002, etc.) to the host—they run only inside the container for healthcheck or internal use. Optionally mount a volume for `STATE_DB_PATH` so state persists. Healthcheck can curl a Mock's `/health` on localhost inside the container.
+- **docker-compose.yaml**: Single service, build context = environment root. **Expose only the MCP server port** (e.g. `8000:8000`). Do **not** publish Mock API ports (8001, 8002, etc.) to the host—they run only inside the container for healthcheck or internal use. Optionally mount a volume or bind mount for `STATE_DB_PATH` so host-side simulation code and containerized tools can observe the same SQLite state. Healthcheck can curl a Mock's `/health` on localhost inside the container.
 
 ### 7. Mock APIs (mocks/)
 
@@ -131,6 +144,10 @@ Each tool file must define:
 ### 8. Environment variables and README
 
 - In README, list: **MCP port only** (e.g. 8000)—mention that Docker exposes only this port; `STATE_DB_PATH`; and any env vars from the skill. Note that tools and mocks use the state backend, so no real API keys are needed for local/Docker runs.
+- If Mode B is used, README must explicitly document:
+  - what data is **shared static state**;
+  - what data is **run-scoped state**;
+  - how `run_id` is assigned and how outputs / snapshots are stored per run.
 - Documentation language is up to the project; the prompt itself is in English.
 
 ### 9. Running with uv (local)

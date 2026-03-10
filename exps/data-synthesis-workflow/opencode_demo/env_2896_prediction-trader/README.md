@@ -1,15 +1,15 @@
 # Prediction Trader Skill - 完整实现（数据库驱动版）
 
-基于 prediction-trader skill 的完整多轮对话工具调用数据生成环境，按 DATA_SYNTHESIS_TECH_ROUTE 采用 **SQLite 状态后端 + 状态访问层**，工具与 Mock 共享同一状态，可追踪、可复现、可验证。
+基于 prediction-trader skill 的完整多轮对话工具调用数据生成环境，按 DATA_SYNTHESIS_TECH_ROUTE 采用 **SQLite 状态后端 + 状态访问层**，工具与 Mock 共享同一状态，可追踪、可复现、可验证。本环境进一步采用 **共享静态表 + `run_id` 隔离运行态表** 的模式，支持单容器并发收集多条轨迹。
 
 ## 目录结构
 
 ```
 env_2896_prediction-trader/
 ├── database/                   # SQLite 状态后端
-│   ├── schema.sql              # 表结构（kalshi_markets, polymarket_events）
+│   ├── schema.sql              # 表结构（共享静态表 + run 运行态表）
 │   └── initial_data.sql        # 初始种子数据
-├── state.py                    # 状态访问层（read/write/transaction）
+├── state.py                    # 状态访问层（read/write/transaction + run_context）
 ├── docker/
 │   ├── Dockerfile
 │   └── docker-compose.yaml
@@ -43,7 +43,7 @@ uv sync
 python test_tools.py
 ```
 
-会先初始化 `data/state.db`（执行 schema + initial_data），再跑全部工具测试。工具直接读状态层，无需启动 Mock。
+会先初始化 `data/state.db`（执行 schema + initial_data），再跑全部工具测试。工具直接读状态层，无需启动 Mock。测试中还会写入一条示例 `run_id` 的运行态日志和快照。
 
 ### 2. Docker 启动服务
 
@@ -53,7 +53,7 @@ docker compose -f docker/docker-compose.yaml up -d
 docker compose -f docker/docker-compose.yaml logs -f
 ```
 
-容器启动时会自动执行 `ensure_schema_and_initial_data()`，状态持久化到卷 `prediction-trader-data`。
+容器启动时会自动执行 `ensure_schema_and_initial_data()`，并通过 `../data:/app/data` 与宿主机共享 SQLite 文件，使宿主机的轨迹采集脚本与容器内工具可以观察同一份状态。
 
 ### 3. 容器内测试工具
 
@@ -99,6 +99,13 @@ result = client.call_tool("kalshi_fed", {"limit": 5})
 | `UNIFAI_AGENT_API_KEY` | mock-api-key | UnifAI API Key |
 
 ## 数据合成工作流
+
+### 运行态隔离模型
+
+- **共享静态表**：`kalshi_markets`、`polymarket_events`。所有 run 共用，只读。
+- **运行态表**：`trajectory_runs`、`tool_call_logs`、`run_outputs`、`run_snapshots`。所有写入按 `run_id` 隔离。
+- **RunContext**：由数据合成框架在启动单条轨迹时生成 `run_id` 并绑定到 `state.py`，工具 schema 不暴露 `run_id`。
+- **输出路径**：推荐写到 `agent_demo/runs/<run_id>/out_trajectory.json` 与 `trajectory_eval_demo/runs/<run_id>/out_trajectory_eval.json`。
 
 ### 步骤 1: 准备场景
 
@@ -177,5 +184,6 @@ Assistant: 让我帮你查一下当前热门的预测市场。
 ## 注意事项
 
 - **状态后端**：工具与 Mock 均通过 `state.py` 访问同一 SQLite，数据一致、可验证。
-- **可复现**：初始数据由 `database/initial_data.sql` 固定，相同环境得到相同结果。
+- **可复现**：共享静态种子数据由 `database/initial_data.sql` 固定；运行态数据通过 `run_id` 隔离保存。
+- **并发友好**：只读查询型轨迹可以在单容器内并发运行，不同 run 通过运行态表和输出目录隔离。
 - 不需要真实 API Key；本地测试无需启动 Mock，直接 `python test_tools.py` 即可。

@@ -35,15 +35,15 @@
 - `{SKILL_DIR}` — 要转换的 skill 目录
 - `{ENV_DIR}` — 生成环境的目标目录
 
-**输出**：与参考实现同构的环境目录，包含 `mcp_server.py`、`tools/*.py`、`tools.jsonl`、`docker/`、`mocks/` 等，使 Skill 中描述的命令均以 MCP 工具形式可被调用，且可 Docker 一键启动、无真实 API Key 即可跑通。
+**输出**：与参考实现同构的环境目录，包含 `mcp_server.py`、`tools/*.py`、`tools.jsonl`、`docker/`、`mocks/` 等，使 Skill 中描述的命令均以 MCP 工具形式可被调用，且可 Docker 一键启动、无真实 API Key 即可跑通。新版约定支持并发合成友好的状态建模：共享静态表 + `run_id` 隔离运行态表，或在强状态环境下退回到每 run 独立 DB。
 
-**调用方式**：通过 `opencode_demo/run_opencode_env_gen.py` 自动化调用本地 OpenCode CLI 的 `run` 命令；默认使用 `opencode_demo/2896_prediction-trader` 与 `opencode_demo/env_2896_prediction-trader` 作为参考，目标为 `skills_demo/2515-stock-monitor`，输出到 `exps/data-synthesis-workflow/env_2515_stock-monitor`。
+**调用方式**：通过 `opencode_demo/run_opencode_env_gen.py` 自动化调用本地 OpenCode CLI 的 `run` 命令；默认使用 `opencode_demo/2896_prediction-trader` 与 `opencode_demo/env_2896_prediction-trader` 作为参考，目标为 `skills_demo/2515-stock-monitor`，输出到 `exps/data-synthesis-workflow/env_2515_stock-monitor`。生成的新环境应说明 `run_id` 如何与轨迹、快照、日志和评估结果关联。
 
 ## trajectory_evaluator.md
 
-**用途**：对 `agent_demo/out_trajectory.json` 这类多轮对话轨迹调用大模型做质量评估，产出整体评分、幻觉风险、任务完成度与理由。
+**用途**：对 `agent_demo/runs/<run_id>/out_trajectory.json` 这类多轮对话轨迹调用大模型做质量评估，产出整体评分、幻觉风险、任务完成度与理由。
 
-**输入**：完整轨迹 JSON（含 `turns`、`final_state_snapshot`、`expected_output`、`expected_final_state` 等）。支持 turn-based 与 flat 两种 `turns` 格式。
+**输入**：完整轨迹 JSON（含 `run_id`、`turns`、`final_state_snapshot`、`expected_output`、`expected_final_state` 等）。支持 turn-based 与 flat 两种 `turns` 格式。新的 `final_state_snapshot` 优先使用 run-scoped 结构，并可附带共享静态表。
 
 **输出**：JSON 含 `score`（0.0–5.0）、`hallucination_risk`、`task_completion_score`（0.0–1.0）、`reason`。评估前可先进行程序化验证，结果作为上下文供 LLM 参考。
 

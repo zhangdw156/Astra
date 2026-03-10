@@ -22,11 +22,13 @@ MCP_INITIALIZE_REQUEST = b'{"jsonrpc":"2.0","id":1,"method":"initialize","params
 
 
 def check_structure(env_dir: Path) -> tuple[bool, Optional[str]]:
-    """结构检查：mcp_server.py、tools/、pyproject.toml"""
+    """结构检查：mcp_server.py、tools/、pyproject.toml、database/、state.py（与 skill_to_environment 约定一致）"""
     required = [
         ("mcp_server.py", env_dir / "mcp_server.py"),
         ("tools/", env_dir / "tools"),
         ("pyproject.toml", env_dir / "pyproject.toml"),
+        ("database/", env_dir / "database"),
+        ("state.py", env_dir / "state.py"),
     ]
     for name, path in required:
         if not path.exists():

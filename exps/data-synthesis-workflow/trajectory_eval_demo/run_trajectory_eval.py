@@ -1,8 +1,8 @@
 """
-轨迹质量评估 Demo：调用大模型，对 agent_demo/out_trajectory.json 这样的多轮轨迹做质量 / 幻觉打分。
+轨迹质量评估 Demo：调用大模型，对单条 run 轨迹做质量 / 幻觉打分。
 
 支持程序化验证：若轨迹含 expected_output、expected_final_state、final_state_snapshot，
-先做基于输出与基于状态的简单检查，结果作为上下文供 LLM 参考。
+先做基于输出、run_id 与 run-scoped 状态的简单检查，结果作为上下文供 LLM 参考。
 
 支持两种 turns 格式：turn-based（含 user_message、assistant_message、tool_calls）
 与 flat（role/content）。
@@ -13,7 +13,7 @@
 
 运行（在项目根目录）：
   python exps/data-synthesis-workflow/trajectory_eval_demo/run_trajectory_eval.py \
-    --trajectory exps/data-synthesis-workflow/agent_demo/out_trajectory.json
+    --trajectory exps/data-synthesis-workflow/agent_demo/runs/<run_id>/out_trajectory.json
 """
 
 from __future__ import annotations
@@ -34,6 +34,11 @@ PROJECT_ROOT = WORKFLOW_DIR.parent.parent
 
 PROMPT_PATH = WORKFLOW_DIR / "prompts" / "trajectory_evaluator.md"
 DEFAULT_TRAJECTORY_PATH = WORKFLOW_DIR / "agent_demo" / "out_trajectory.json"
+
+
+def build_default_eval_output_path(run_id: str) -> Path:
+    """为每条轨迹构造独立评估结果路径。"""
+    return SCRIPT_DIR / "runs" / run_id / "out_trajectory_eval.json"
 
 
 def load_env_and_client() -> tuple[OpenAI, str]:
@@ -63,11 +68,13 @@ def load_trajectory(path: Path) -> dict:
 def compute_programmatic_validation(trajectory: dict) -> dict:
     """
     程序化验证：基于输出与状态的简单检查。
-    返回 {"task_completion_score": float, "output_check": str, "state_check": str}
+    返回 {"task_completion_score": float, "output_check": str, "run_check": str, "state_check": str}
     """
     result = {
+        "run_id": trajectory.get("run_id", ""),
         "task_completion_score": 0.0,
         "output_check": "skipped",
+        "run_check": "skipped",
         "state_check": "skipped",
     }
 
@@ -75,6 +82,7 @@ def compute_programmatic_validation(trajectory: dict) -> dict:
     expected_output = trajectory.get("expected_output")
     expected_final_state = trajectory.get("expected_final_state")
     final_state_snapshot = trajectory.get("final_state_snapshot")
+    run_id = trajectory.get("run_id", "")
 
     # 获取最后一轮助手回复
     last_assistant_msg = ""
@@ -90,17 +98,32 @@ def compute_programmatic_validation(trajectory: dict) -> dict:
     if expected_output:
         if last_assistant_msg and "[Error]" not in last_assistant_msg:
             result["output_check"] = "pass (assistant replied; compare with expected_output manually)"
-            result["task_completion_score"] = 0.5  # 占位，LLM 可细化
+            result["task_completion_score"] = 0.4  # 占位，LLM 可细化
         else:
             result["output_check"] = "fail (no valid final reply)"
     else:
         result["output_check"] = "no expected_output in trajectory"
 
+    if run_id:
+        result["run_check"] = f"pass (run_id={run_id})"
+    else:
+        result["run_check"] = "fail (missing run_id)"
+
     # 基于状态的验证
     if expected_final_state and final_state_snapshot:
         if isinstance(final_state_snapshot, dict) and len(final_state_snapshot) > 0:
-            result["state_check"] = f"pass (snapshot has {list(final_state_snapshot.keys())})"
-            result["task_completion_score"] = max(result["task_completion_score"], 0.5)
+            snapshot_run_id = final_state_snapshot.get("run_id", "")
+            tool_call_logs = final_state_snapshot.get("tool_call_logs", [])
+            trajectory_run = final_state_snapshot.get("trajectory_run")
+            if run_id and snapshot_run_id and run_id == snapshot_run_id and trajectory_run:
+                result["state_check"] = (
+                    f"pass (run-scoped snapshot for {run_id}; "
+                    f"{len(tool_call_logs)} tool logs)"
+                )
+                result["task_completion_score"] = max(result["task_completion_score"], 0.8)
+            else:
+                result["state_check"] = "partial (snapshot exists but run-scoped metadata is incomplete)"
+                result["task_completion_score"] = max(result["task_completion_score"], 0.5)
         else:
             result["state_check"] = "fail (empty snapshot)"
     elif final_state_snapshot is None:
@@ -161,7 +184,7 @@ def main() -> None:
         "-o",
         type=Path,
         default=None,
-        help="评估结果输出路径（默认: trajectory_eval_demo/out_trajectory_eval.json）",
+        help="评估结果输出路径（默认: trajectory_eval_demo/runs/<run_id>/out_trajectory_eval.json）",
     )
     args = parser.parse_args()
 
@@ -196,6 +219,7 @@ def main() -> None:
         raise SystemExit(f"Failed to parse JSON from model output: {e}") from e
 
     # 合并程序化验证结果
+    eval_result["run_id"] = trajectory.get("run_id", "")
     if "task_completion_score" not in eval_result:
         eval_result["task_completion_score"] = programmatic.get("task_completion_score", 0.0)
     eval_result["programmatic_validation"] = programmatic
@@ -204,9 +228,13 @@ def main() -> None:
     print(json.dumps(eval_result, ensure_ascii=False, indent=2))
     print("-" * 60)
 
-    out_path = args.output or (SCRIPT_DIR / "out_trajectory_eval.json")
+    run_id = trajectory.get("run_id", "").strip()
+    out_path = args.output or (
+        build_default_eval_output_path(run_id) if run_id else (SCRIPT_DIR / "out_trajectory_eval.json")
+    )
     if not out_path.is_absolute():
         out_path = SCRIPT_DIR / out_path
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(eval_result, ensure_ascii=False, indent=2), encoding="utf-8")
     print("Written to:", out_path)
 

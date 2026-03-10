@@ -13,7 +13,7 @@
 3. **逐轮模拟**：
    - 动态模式：User Agent 生成 user 消息 → Assistant 响应（含工具调用）→ 循环直到 `[TASK_END]` 或 `max_turns`
    - 静态模式：按 `queries` 逐轮发送 user 消息
-4. **轨迹收集**：保存 turn 结构（`user_message`、`assistant_message`、`tool_calls` 等）、`final_state_snapshot`、`validation` 结果
+4. **轨迹收集**：保存 turn 结构（`user_message`、`assistant_message`、`tool_calls` 等）、`run_id`、run-scoped `final_state_snapshot`、`validation` 结果
 
 ## 依赖
 
@@ -57,17 +57,18 @@ python exps/data-synthesis-workflow/agent_demo/run_agent_simulation.py
 可选参数：
 
 - `--blueprint <path>`：蓝图 JSON 路径（默认 `blueprint_demo/out_blueprint.json`）
-- `--output / -o <path>`：轨迹输出路径（默认 `agent_demo/out_trajectory.json`）
+- `--output / -o <path>`：轨迹输出路径（默认 `agent_demo/runs/<run_id>/out_trajectory.json`）
+- `--run-id <id>`：本次轨迹采集的运行 ID；默认自动生成 UUID
 - `--no-docker`：不自动启动 Docker，仅检查 MCP 是否可达
 
 ## 输出格式
 
-`out_trajectory.json`：
+`runs/<run_id>/out_trajectory.json`：
 
-- `trajectory_id`、`blueprint_id`、`skill_name`、`persona_id`
+- `run_id`、`trajectory_id`、`blueprint_id`、`skill_name`、`persona_id`
 - `system_message`、`agent_system_prompt`、`tools`
 - `turns`：每轮含 `turn_index`、`user_message`、`assistant_thinking`、`assistant_message`、`tool_calls`、`execution_time_ms`
-- `final_state_snapshot`：任务结束后的数据库状态（若可获取）
+- `final_state_snapshot`：任务结束后的 run-scoped 状态视图（`trajectory_run`、`tool_call_logs`、`run_output`、`run_snapshots`，并可附带共享静态表）
 - `validation`：基于输出与状态的简单验证结果
 - `expected_output`、`expected_final_state`：来自蓝图，供评估使用
 
@@ -75,5 +76,6 @@ python exps/data-synthesis-workflow/agent_demo/run_agent_simulation.py
 
 - **User Agent**：动态模式下，`prompts/user_agent.md` 指导 LLM 生成每轮用户消息；需符合 APIGen-MT 原则（不知工具、逐步透露、自然表达）。
 - **MCP 连接**：当前使用 `mcpServers.prediction-trader.url` 连接 SSE 服务。
-- **final_state_snapshot**：当环境在 Docker 内运行时，宿主机可能无法读取 `data/state.db`，此时为 `null`。
+- **并发隔离**：多个 run 可共享同一个 MCP 服务与共享静态市场表，但运行态日志、快照和输出必须按 `run_id` 绑定。
+- **共享数据库**：Docker 通过 `../data:/app/data` 绑定挂载到宿主机，宿主机脚本与容器内工具共同读写同一份 SQLite。
 - **模型**：推荐使用支持 tool calling 的模型（如 gpt-4o-mini、qwen3-max 等）。

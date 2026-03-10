@@ -24,6 +24,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -31,6 +32,7 @@ import subprocess
 import sys
 import time
 import uuid
+from contextlib import nullcontext
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -210,6 +212,55 @@ def create_agent(system_message: str) -> tuple:
     return agent, msg, tools
 
 
+def load_env_state_module():
+    """按文件路径加载环境 state.py，避免与其他模块重名。"""
+    state_path = PREDICTION_TRADER / "state.py"
+    if not state_path.exists():
+        return None
+    spec = importlib.util.spec_from_file_location("prediction_trader_state", state_path)
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def build_default_output_path(run_id: str) -> Path:
+    """为每条轨迹构造独立输出目录。"""
+    return SCRIPT_DIR / "runs" / run_id / "out_trajectory.json"
+
+
+def record_turn_runtime(state_module, turn: dict, run_id: str) -> None:
+    """将一轮中的工具调用写入运行态日志表。"""
+    if state_module is None:
+        return
+    tool_calls = turn.get("tool_calls", [])
+    if not tool_calls:
+        return
+    with state_module.run_context(run_id):
+        for item in tool_calls:
+            args = item.get("arguments", {})
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except json.JSONDecodeError:
+                    args = {"raw_arguments": args}
+            state_module.log_tool_call(
+                tool_name=item.get("name", ""),
+                arguments=args if isinstance(args, dict) else {"value": args},
+                result_text=item.get("result", ""),
+                turn_index=turn.get("turn_index"),
+            )
+
+
+def get_final_state_snapshot(state_module, run_id: str) -> dict | None:
+    """导出当前 run 的状态视图；包含运行态和共享静态表。"""
+    if state_module is None:
+        return None
+    with state_module.run_context(run_id):
+        return state_module.export_run_state(include_static_tables=True)
+
+
 def _format_conversation_for_user_agent(messages: list[dict]) -> str:
     """将 messages 格式化为 User Agent 可读的对话历史。"""
     lines: list[str] = []
@@ -379,7 +430,7 @@ def _assistant_response_to_turn(
     return turn
 
 
-def run_dynamic_simulation(agent, blueprint: dict) -> list[dict]:
+def run_dynamic_simulation(agent, blueprint: dict, state_module=None, run_id: str = "") -> list[dict]:
     """
     动态模式：User Agent 逐轮生成 user 消息，与 Assistant 交互直到 [TASK_END] 或 max_turns。
     返回 turn 列表。
@@ -420,6 +471,7 @@ def run_dynamic_simulation(agent, blueprint: dict) -> list[dict]:
             turn = _assistant_response_to_turn(user_msg, last_response, start_time)
             turn["turn_index"] = turn_idx
             turns.append(turn)
+            record_turn_runtime(state_module, turn, run_id)
 
         except Exception as e:
             print(f"  Error: {e}")
@@ -436,7 +488,7 @@ def run_dynamic_simulation(agent, blueprint: dict) -> list[dict]:
     return turns
 
 
-def run_static_simulation(agent, blueprint: dict) -> list[dict]:
+def run_static_simulation(agent, blueprint: dict, state_module=None, run_id: str = "") -> list[dict]:
     """
     静态模式：按 queries 逐轮发送 user 消息，收集 assistant 响应。
     返回 turn 列表（与动态模式结构一致）。
@@ -475,6 +527,7 @@ def run_static_simulation(agent, blueprint: dict) -> list[dict]:
             turn = _assistant_response_to_turn(query, last_response, start_time)
             turn["turn_index"] = i + 1
             turns.append(turn)
+            record_turn_runtime(state_module, turn, run_id)
 
         except Exception as e:
             print(f"  Error: {e}")
@@ -533,29 +586,6 @@ def validate_trajectory(
     return result
 
 
-def get_final_state_snapshot() -> dict | None:
-    """尝试从 env 的 data/state.db 读取状态快照；无法读取时返回 None。"""
-    db_path = PREDICTION_TRADER / "data" / "state.db"
-    if not db_path.exists():
-        return None
-    try:
-        import sqlite3
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
-        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
-        tables = [r[0] for r in cur.fetchall()]
-        snapshot: dict = {}
-        for t in tables:
-            cur.execute(f"SELECT * FROM {t}")
-            rows = cur.fetchall()
-            snapshot[t] = [dict(r) for r in rows]
-        conn.close()
-        return snapshot
-    except Exception:
-        return None
-
-
 def save_trajectory(
     turns: list[dict],
     blueprint: dict,
@@ -563,11 +593,13 @@ def save_trajectory(
     system_message: str,
     agent_system_prompt: str,
     tools: list,
+    run_id: str,
     final_state_snapshot: dict | None = None,
     validation_result: dict | None = None,
 ) -> None:
     """保存轨迹及元数据。"""
     out = {
+        "run_id": run_id,
         "trajectory_id": str(uuid.uuid4()),
         "blueprint_id": blueprint.get("blueprint_id", ""),
         "skill_name": blueprint.get("skill_name", ""),
@@ -582,6 +614,7 @@ def save_trajectory(
     }
     if validation_result:
         out["validation"] = validation_result
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n轨迹已保存到: {out_path}")
 
@@ -599,9 +632,10 @@ def main() -> None:
         "-o",
         type=Path,
         default=None,
-        help="输出轨迹 JSON 路径（默认: agent_demo/out_trajectory.json）",
+        help="输出轨迹 JSON 路径（默认: agent_demo/runs/<run_id>/out_trajectory.json）",
     )
     parser.add_argument("--no-docker", action="store_true", help="不自动启动 Docker，仅检查 MCP 是否可达")
+    parser.add_argument("--run-id", type=str, default="", help="本次轨迹采集的运行 ID；默认自动生成")
     args = parser.parse_args()
 
     load_env()
@@ -613,6 +647,7 @@ def main() -> None:
         raise SystemExit(f"蓝图文件不存在: {blueprint_path}")
 
     blueprint = load_blueprint(blueprint_path)
+    run_id = args.run_id.strip() or str(uuid.uuid4())
     mode = blueprint.get("_mode", "static")
     if mode == "dynamic":
         print(f"加载蓝图（动态模式）: {blueprint_path}, max_turns={blueprint.get('max_turns', 8)}")
@@ -624,38 +659,82 @@ def main() -> None:
 
     _patch_mcp_tool_params()
 
-    agent, system_message, tools = create_agent(system_message=blueprint["system_message"])
-    print("Agent 已创建，MCP 工具已加载")
-
-    agent_system_prompt = get_agent_system_prompt(agent)
-
-    if mode == "dynamic":
-        turns = run_dynamic_simulation(agent, blueprint)
+    state_module = load_env_state_module()
+    state_scope = nullcontext()
+    if state_module is not None:
+        state_module.ensure_schema_and_initial_data()
+        state_scope = state_module.run_context(run_id)
     else:
-        turns = run_static_simulation(agent, blueprint)
+        print("(未加载环境 state.py，将跳过 run_id 运行态写入)")
 
-    final_state_snapshot = get_final_state_snapshot()
-    if final_state_snapshot is None:
-        print("(未获取到 final_state_snapshot，可能环境在容器内运行)")
-
-    validation_result = validate_trajectory(turns, blueprint, final_state_snapshot)
-    print("\n轨迹验证:")
-    print("  输出验证:", validation_result["output_based"]["passed"], "-", validation_result["output_based"]["reason"])
-    print("  状态验证:", validation_result["state_based"]["reason"])
-
-    out_path = args.output or (SCRIPT_DIR / "out_trajectory.json")
+    out_path = args.output or build_default_output_path(run_id)
     if not out_path.is_absolute():
         out_path = SCRIPT_DIR / out_path
-    save_trajectory(
-        turns,
-        blueprint,
-        out_path,
-        system_message,
-        agent_system_prompt,
-        tools,
-        final_state_snapshot=final_state_snapshot,
-        validation_result=validation_result,
-    )
+
+    with state_scope:
+        if state_module is not None:
+            state_module.create_run(
+                run_id,
+                blueprint_id=blueprint.get("blueprint_id", ""),
+                skill_name=blueprint.get("skill_name", ""),
+                persona_id=blueprint.get("persona_id", ""),
+                status="running",
+                metadata={
+                    "mode": mode,
+                    "blueprint_path": str(blueprint_path),
+                    "output_path": str(out_path),
+                },
+            )
+
+        try:
+            agent, system_message, tools = create_agent(system_message=blueprint["system_message"])
+            print("Agent 已创建，MCP 工具已加载")
+
+            agent_system_prompt = get_agent_system_prompt(agent)
+
+            if mode == "dynamic":
+                turns = run_dynamic_simulation(agent, blueprint, state_module=state_module, run_id=run_id)
+            else:
+                turns = run_static_simulation(agent, blueprint, state_module=state_module, run_id=run_id)
+            run_status = "completed"
+            final_state_snapshot = get_final_state_snapshot(state_module, run_id)
+            if final_state_snapshot is None:
+                print("(未获取到 final_state_snapshot，可能环境在容器内运行)")
+
+            validation_result = validate_trajectory(turns, blueprint, final_state_snapshot)
+            print("\n轨迹验证:")
+            print("  输出验证:", validation_result["output_based"]["passed"], "-", validation_result["output_based"]["reason"])
+            print("  状态验证:", validation_result["state_based"]["reason"])
+
+            save_trajectory(
+                turns,
+                blueprint,
+                out_path,
+                system_message,
+                agent_system_prompt,
+                tools,
+                run_id=run_id,
+                final_state_snapshot=final_state_snapshot,
+                validation_result=validation_result,
+            )
+
+            if state_module is not None:
+                state_module.save_run_snapshot(final_state_snapshot or {}, snapshot_kind="final")
+                state_module.update_run_status(status=run_status, metadata={"turn_count": len(turns)})
+                state_module.save_run_output(
+                    trajectory_path=str(out_path),
+                    output_json={
+                        "run_id": run_id,
+                        "turn_count": len(turns),
+                        "validation": validation_result,
+                        "final_state_snapshot": final_state_snapshot,
+                    },
+                    validation=validation_result,
+                )
+        except Exception as e:
+            if state_module is not None:
+                state_module.update_run_status(status="failed", metadata={"error": str(e)})
+            raise
 
 
 if __name__ == "__main__":

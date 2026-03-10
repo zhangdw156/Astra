@@ -24,13 +24,17 @@ You are a **strict but fair** judge: you reward solid grounding in tools, cohere
 You will receive a single JSON object with at least the following fields:
 
 - `skill_name`: name of the skill / environment used (e.g. `"prediction-trader"`).
+- `run_id` (optional but recommended): unique run identifier for this trajectory. When present, use it to verify that snapshots / logs belong to the same run.
 - `system_message`: original system message given to the assistant.
 - `agent_system_prompt`: the full system prompt actually seen by the agent (may include tool descriptions).
 - `tools`: list of tool names available to the agent.
 - `turns`: the full ordered list of messages or turn objects. Two formats are supported:
   - **Turn-based format** (new): Each turn is an object with `turn_index`, `user_message`, `assistant_thinking`, `assistant_message`, `tool_calls` (list of `name`, `arguments`, `result`), and optionally `interaction_outcome`, `execution_time_ms`.
   - **Flat format** (legacy): Each item has `role` (`"user"`, `"assistant"`, or `"function"`), `content`, and optionally `reasoning_content`, `function_call`, `name`.
-- `final_state_snapshot` (optional): Database state after task completion. When present, use it to assess task completion: check whether key data changed or persisted as expected. Include this in your `reason` when relevant.
+- `final_state_snapshot` (optional): Database state after task completion. It may be either:
+  - a legacy full-database snapshot; or
+  - a run-scoped snapshot containing fields such as `run_id`, `trajectory_run`, `tool_call_logs`, `run_output`, `run_snapshots`, plus optional shared static tables.
+  When present, use it to assess task completion and whether the state is correctly scoped to the current run. Include this in your `reason` when relevant.
 - `validation` (optional): Pre-computed validation results (`output_based`, `state_based`). You may reference these but form your own judgment.
 - `expected_output` (optional): From the blueprint; what the assistant's final reply should contain. Use it to judge task completion.
 - `expected_final_state` (optional): From the blueprint; description of desired state after completion.
@@ -99,7 +103,12 @@ When evaluating the trajectory, follow these principles:
    - You may use `reasoning_content` (if present) to understand the assistant's intent and whether it tried to be grounded.
    - However, you judge **the final user-visible `content`**, not the private chain-of-thought itself.
 
-5. **Scoring Heuristics**
+5. **Run-Scoped State Checks**
+   - If `run_id` is present, prefer snapshots and logs that explicitly match this `run_id`.
+   - If the snapshot mixes unrelated data or lacks run-scoped metadata in a workflow that claims run isolation, treat this as a quality weakness.
+   - Run-scoped `tool_call_logs` and `trajectory_run` metadata should increase confidence in validation and reproducibility.
+
+6. **Scoring Heuristics**
    - Start from 5.0 and subtract for each issue:
      - -1.0 to -2.0 for minor issues (slightly vague summary, could use tools more).
      - -2.0 to -3.0 for clear hallucinations or contradictions.
