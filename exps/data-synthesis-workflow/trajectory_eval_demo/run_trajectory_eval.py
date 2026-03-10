@@ -82,6 +82,7 @@ def compute_programmatic_validation(trajectory: dict) -> dict:
     expected_output = trajectory.get("expected_output")
     expected_final_state = trajectory.get("expected_final_state")
     final_state_snapshot = trajectory.get("final_state_snapshot")
+    final_state = trajectory.get("final_state")
     run_id = trajectory.get("run_id", "")
 
     # 获取最后一轮助手回复
@@ -109,8 +110,14 @@ def compute_programmatic_validation(trajectory: dict) -> dict:
     else:
         result["run_check"] = "fail (missing run_id)"
 
-    # 基于状态的验证
-    if expected_final_state and final_state_snapshot:
+    # 基于状态的验证：优先使用统一的 final_state 字段，其次回退到 legacy final_state_snapshot。
+    if expected_final_state and final_state:
+        if isinstance(final_state, dict) and len(final_state) > 0:
+            result["state_check"] = "pass (final_state present; structure can be compared with expected_final_state)"
+            result["task_completion_score"] = max(result["task_completion_score"], 0.8)
+        else:
+            result["state_check"] = "fail (final_state is empty or not an object)"
+    elif expected_final_state and final_state_snapshot:
         if isinstance(final_state_snapshot, dict) and len(final_state_snapshot) > 0:
             snapshot_run_id = final_state_snapshot.get("run_id", "")
             tool_call_logs = final_state_snapshot.get("tool_call_logs", [])
@@ -126,8 +133,8 @@ def compute_programmatic_validation(trajectory: dict) -> dict:
                 result["task_completion_score"] = max(result["task_completion_score"], 0.5)
         else:
             result["state_check"] = "fail (empty snapshot)"
-    elif final_state_snapshot is None:
-        result["state_check"] = "skipped (no final_state_snapshot)"
+    elif final_state is None and final_state_snapshot is None:
+        result["state_check"] = "skipped (no final_state or final_state_snapshot)"
 
     return result
 

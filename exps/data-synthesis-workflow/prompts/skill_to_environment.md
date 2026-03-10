@@ -129,7 +129,13 @@ For environments that support concurrent synthesis:
 ### 5. mcp_server.py
 
 - Use **FastMCP**; service name should match the environment name (the value used for `{ENV_DIR}` / `<env_name>`).
-- **Discovery**: scan all `.py` under `tools/` (skip `__init__.py` and names starting with `_`), load modules dynamically; if a module has `TOOL_SCHEMA` and `execute`, register it as an MCP tool.
+- **Strong vs Light modes**:
+  - **Strong mode**: database-driven environment with `database/` + `state.py` + `tools/`. `mcp_server.py` must scan `tools/` (skip `__init__.py` and names starting with `_`), load modules dynamically, and, for each module that has `TOOL_SCHEMA` and `execute`, register it as an MCP tool whose implementation **uses the state layer**.
+  - **Light (json-only) mode**: minimal environment that only requires `mcp_server.py`, `pyproject.toml`, and `tools.jsonl`. In this mode, tools are not implemented as Python files under `tools/`; instead, `mcp_server.py` must parse `tools.jsonl` and register generic handlers that call an LLM (e.g. via a helper like `llm_response.generate_tool_response(...)`) to generate tool responses and maintain a JSON KV session state.
+- **Mode selection (ENV_MODE)**:
+  - `ENV_MODE=strong`: require `tools/` + `database/` + `state.py` to exist; fail validation if missing.
+  - `ENV_MODE=light`: require `tools.jsonl`; ignore `tools/` and `database/` / `state.py` if absent.
+  - `ENV_MODE=auto` (recommended default): prefer **strong** when valid `tools/` modules exist; otherwise fall back to **light** when `tools.jsonl` is present.
 - **Transport**: when env var `MCP_TRANSPORT=http` (or `sse`), use SSE and listen on 0.0.0.0:8000; otherwise use stdio for local or IDE use.
 
 ### 6. Docker

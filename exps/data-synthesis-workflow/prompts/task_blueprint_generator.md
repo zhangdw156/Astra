@@ -32,7 +32,8 @@ High-level task elements that guide what the User Agent and Assistant should ach
 - **task_id**: A short, unique task identifier (e.g. `"compare_bitcoin_markets"` or `"explore_trending_crypto"`).
 - **user_intent**: Abstract description of the user's goal in natural language. What does the user want to accomplish? One or two sentences. Example: "The user wants to explore prediction markets related to Bitcoin and El Salvador politics, then compare odds across Polymarket and Kalshi."
 - **expected_tool_calls**: Ordered list of **tool names** (from tools.jsonl) the agent should call to complete the task. Only names; no arguments. Example: `["polymarket_search", "kalshi_search", "compare_markets"]`.
-- **expected_final_state**: Text description of what the environment/database state should look like after task completion (e.g. "User has received market comparison results; no persistent state changes for read-only tasks").
+- **initial_state**: JSON object (or `null`) describing the minimal initial conversation/business state relevant to this skill (e.g. `{"bookings": [], "cart": []}`).
+- **expected_final_state**: JSON object (or `null`) describing the desired final state after successful task completion (e.g. `{"bookings": [{"destination": "Tokyo", "status": "confirmed"}]}`).
 - **expected_output**: Brief description of what the assistant's final reply should contain or accomplish (e.g. "Summary of Bitcoin-related markets from both platforms with odds comparison").
 
 ### Interaction Generation Config
@@ -52,7 +53,8 @@ Config for the dynamic User Agent and dialogue bounds.
   "task_id": "<short identifier>",
   "user_intent": "<abstract user goal, 1–2 sentences>",
   "expected_tool_calls": ["<tool_name>", "..."],
-  "expected_final_state": "<text description of state after completion>",
+  "initial_state": { },
+  "expected_final_state": { },
   "expected_output": "<what the assistant's final reply should contain>",
   "system_message": "<assistant system instruction, one paragraph>",
   "user_agent_config": {

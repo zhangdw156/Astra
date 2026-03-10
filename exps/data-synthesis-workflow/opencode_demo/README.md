@@ -55,6 +55,17 @@ python exps/data-synthesis-workflow/opencode_demo/run_opencode_env_gen.py \
 
 脚本会替换 `{REF_SKILL_DIR}`、`{REF_ENV_DIR}`、`{SKILL_DIR}`、`{ENV_DIR}`，并在任务开头显式指示 OpenCode 先阅读参考目录，再生成。
 
+默认生成的环境采用 **strong（强状态）模式**：
+
+- 包含 `database/`、`state.py`、`tools/`，工具通过状态层访问 SQLite；
+- `mcp_server.py` 扫描 `tools/` 中的 TOOL_SCHEMA + execute 注册 MCP 工具，真实执行数据库查询与写入。
+
+改造后的 `mcp_server.py` 同时支持基于 `tools.jsonl` 的 **light（轻量/json-only）模式**，由环境变量 `ENV_MODE` 控制：
+
+- `ENV_MODE=strong`：强制要求 `tools/` + `database/` + `state.py` 存在；
+- `ENV_MODE=light`：仅要求 `mcp_server.py`、`pyproject.toml`、`tools.jsonl`，工具实现由 LLM（基于 `tools.jsonl` Schema）直接生成回复与会话状态；
+- `ENV_MODE=auto`（默认）：优先检测 `tools/` 走 strong 模式，否则退回 `tools.jsonl` 的 light 模式。
+
 ## 输出
 
 - OpenCode 以项目根为工作目录运行，便于访问参考目录与 `skills_demo`

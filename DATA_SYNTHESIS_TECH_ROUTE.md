@@ -28,6 +28,11 @@
 
 工具与接口合成阶段接收数据库Schema和初始状态作为输入，输出包含MCP服务器、工具实现和Mock服务的完整代码。该阶段在原有方案的基础上进行了增强，工具实现通过统一的状态访问层来操作数据库，而非直接访问外部服务或文件系统。状态访问层封装了SQLite数据库的读写接口，提供了read、write、delete和transaction等核心方法。这种设计有几个重要优势：状态变更可追踪和回滚、便于实现事务性操作、支持状态验证。对于批量数据合成场景，状态访问层还应提供 `run_id` 作用域管理能力，由上层框架在启动单条轨迹时创建 `run_id` 并注入 `RunContext`，随后由状态层自动将运行态读写绑定到当前 `run_id`。这样工具 schema 无需暴露 `run_id` 参数，工具实现也能保持简洁。Mock服务的设计也做了相应调整，Mock不再返回静态JSON，而是从同一个SQLite数据库中读取数据返回给工具，这样可以保证工具看到的数据与环境的实际状态一致。
 
+在具体工程实现上，本项目区分了两类环境模式：
+
+- **强状态环境（strong）**：环境目录中包含 `database/`、`state.py` 与 `tools/`，MCP 服务在 strong 模式下扫描 `tools/` 中的 TOOL_SCHEMA + execute，将其注册为 MCP 工具并通过状态层对 SQLite 执行真实读写。轨迹采集结束后，从数据库导出的 run-scoped 视图作为 `db_snapshot` 写入统一的 `final_state`。
+- **轻量环境（light/json-only）**：环境目录中不强制要求 `database/`、`state.py`、`tools/`，而只要求 `mcp_server.py`、`pyproject.toml` 与 `tools.jsonl`。MCP 服务根据 `tools.jsonl` 注册通用工具 handler，通过 LLM 在进程内的 KV 中维护 JSON 会话状态（即「环境 state」），每次工具调用后产生新的完整 state，并在轨迹结束时写入 `final_state`。这种模式适合只读或弱状态场景，不再依赖 SQLite 作为唯一真值源，但仍遵循统一的 `run_id` / `final_state` 协议，便于与强状态环境共用评估与分析链路。
+
 自验证与修复阶段是实现高质量生成的关键机制，借鉴了Agent World Model的自我纠正设计理念。该阶段执行多轮验证和修复循环，直到环境通过所有验证或达到最大迭代次数。验证内容包括结构验证、依赖验证、运行时验证和功能验证四个层面。自动修复机制在检测到错误后会自动分析错误类型，将错误描述和上下文反馈给大语言模型进行修复，修复后的代码会重新经过验证流程。
 
 ### 3.2 场景规划详细设计
@@ -214,7 +219,13 @@ Planner、User、Assistant、Tool 四类 Agent 协同工作，使蓝图从“静
 
 主体为 **turns** 数组，每元素对应一轮对话。每轮 **turn** 结构包含：turn_index；**user_message**（本轮用户消息，由用户 Agent **动态生成**）；**user_agent_thinking**（可选，用户 Agent 生成该条消息时的思考过程）；assistant_thinking、assistant_message、tool_calls（工具名称、输入参数、执行结果）、execution_time_ms、state_changes；以及 **interaction_outcome**（可选，该轮交互后的任务完成状态或进度标记）。
 
-轨迹仍包含 **final_state_snapshot**，记录任务结束后的数据库状态快照，供程序化验证与 LLM 评估使用，保证评估的一致性与可验证性。在共享数据库 + `run_id` 模式下，`final_state_snapshot` 应优先导出当前 `run_id` 的运行态视图（如 `trajectory_run`、`tool_call_logs`、`run_output`、`run_snapshots`），并可按需附带共享静态表摘要，而不是直接暴露全局混合状态。
+为了统一强状态与轻量环境的终态表示，轨迹顶层引入标准化字段 **`final_state`**：
+
+- 对于强状态环境，`final_state` 至少包含 `{"db_snapshot": <run-scoped 数据库快照>}`，与 legacy 的 `final_state_snapshot` 保持兼容；
+- 对于轻量环境，`final_state` 直接使用 KV 中维护的 JSON 会话状态（如购物车、预订列表等）；
+- blueprint 中的 `expected_final_state` 同样以 JSON 形式给出，两者在评估阶段用于程序化对比和 LLM 辅助判断。
+
+同时保留 **`final_state_snapshot`** 作为兼容字段，用于存放数据库级快照（若存在），但评估和下游消费应以 `final_state` 为主、`final_state_snapshot` 为辅。
 
 ## 七、轨迹评估
 

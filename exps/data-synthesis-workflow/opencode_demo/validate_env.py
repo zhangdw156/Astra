@@ -22,18 +22,35 @@ MCP_INITIALIZE_REQUEST = b'{"jsonrpc":"2.0","id":1,"method":"initialize","params
 
 
 def check_structure(env_dir: Path) -> tuple[bool, Optional[str]]:
-    """结构检查：mcp_server.py、tools/、pyproject.toml、database/、state.py（与 skill_to_environment 约定一致）"""
-    required = [
-        ("mcp_server.py", env_dir / "mcp_server.py"),
-        ("tools/", env_dir / "tools"),
-        ("pyproject.toml", env_dir / "pyproject.toml"),
-        ("database/", env_dir / "database"),
-        ("state.py", env_dir / "state.py"),
-    ]
-    for name, path in required:
-        if not path.exists():
-            return False, f"missing {name}"
-    return True, None
+    """
+    结构检查：
+    - strong 模式：mcp_server.py、tools/、pyproject.toml、database/、state.py
+    - light/json-only 模式：mcp_server.py、pyproject.toml、tools.jsonl
+
+    实际模式选择由 mcp_server.py 内部 ENV_MODE=strong|light|auto 控制，
+    这里仅做静态存在性检查，允许两类环境通过。
+    """
+    mcp_server = env_dir / "mcp_server.py"
+    pyproject = env_dir / "pyproject.toml"
+    tools_dir = env_dir / "tools"
+    database_dir = env_dir / "database"
+    state_py = env_dir / "state.py"
+    tools_jsonl = env_dir / "tools.jsonl"
+
+    if not mcp_server.exists():
+        return False, "missing mcp_server.py"
+    if not pyproject.exists():
+        return False, "missing pyproject.toml"
+
+    # strong 路径：tools/ + database/ + state.py
+    if tools_dir.exists() and database_dir.exists() and state_py.exists():
+        return True, None
+
+    # light 路径：tools.jsonl 存在即可（工具由 JSON Schema 驱动）
+    if tools_jsonl.exists():
+        return True, None
+
+    return False, "missing tools/ + database/ + state.py (strong) or tools.jsonl (light)"
 
 
 def run_uv_sync(env_dir: Path, timeout_sec: int = 120) -> tuple[bool, Optional[str]]:

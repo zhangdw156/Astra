@@ -72,6 +72,7 @@ REQUIRED_FIELDS = [
     "task_id",
     "user_intent",
     "expected_tool_calls",
+    "initial_state",
     "expected_final_state",
     "expected_output",
     "system_message",
@@ -89,6 +90,10 @@ def validate_blueprint(data: dict) -> list[str]:
     for field in REQUIRED_FIELDS:
         if field not in data:
             errors.append(f"缺少必填字段: {field}")
+    # initial_state / expected_final_state: 允许为对象或 null
+    for key in ("initial_state", "expected_final_state"):
+        if key in data and data[key] is not None and not isinstance(data[key], dict):
+            errors.append(f"{key} 必须为 JSON 对象或 null")
     if "expected_tool_calls" in data and not isinstance(data["expected_tool_calls"], list):
         errors.append("expected_tool_calls 必须为数组")
     if "user_agent_config" in data:

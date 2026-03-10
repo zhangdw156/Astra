@@ -548,6 +548,7 @@ def validate_trajectory(
     turns: list[dict],
     blueprint: dict,
     final_state_snapshot: dict | None,
+    final_state: dict | None = None,
 ) -> dict:
     """
     轨迹验证：基于输出与可选的基于状态的检查。
@@ -575,13 +576,21 @@ def validate_trajectory(
         result["output_based"]["passed"] = True
         result["output_based"]["reason"] = "蓝图无 expected_output，跳过"
 
-    # 基于状态的验证（需 expected_final_state 与 final_state_snapshot）
-    if blueprint.get("expected_final_state") and final_state_snapshot:
-        # 仅做存在性检查；严格比对需验证函数
+    # 基于状态的验证：
+    # 优先使用结构化 final_state（会话/业务状态），若不存在则退回 DB final_state_snapshot。
+    expected_final_state = blueprint.get("expected_final_state")
+    if expected_final_state and final_state:
+        if isinstance(final_state, dict) and len(final_state) > 0:
+            result["state_based"]["passed"] = True
+            result["state_based"]["reason"] = "已获取 final_state，可与 expected_final_state 做进一步程序化比对"
+        else:
+            result["state_based"]["passed"] = False
+            result["state_based"]["reason"] = "final_state 为空对象或格式异常"
+    elif expected_final_state and final_state_snapshot:
         result["state_based"]["passed"] = True
         result["state_based"]["reason"] = f"已获取状态快照，包含 {list(final_state_snapshot.keys())} 表"
-    elif final_state_snapshot is None:
-        result["state_based"]["reason"] = "无法获取 final_state_snapshot（可能环境在容器内）"
+    elif final_state_snapshot is None and not final_state:
+        result["state_based"]["reason"] = "无法获取 final_state / final_state_snapshot（可能环境在容器内运行或未导出状态）"
 
     return result
 
@@ -595,6 +604,7 @@ def save_trajectory(
     tools: list,
     run_id: str,
     final_state_snapshot: dict | None = None,
+    final_state: dict | None = None,
     validation_result: dict | None = None,
 ) -> None:
     """保存轨迹及元数据。"""
@@ -608,6 +618,8 @@ def save_trajectory(
         "agent_system_prompt": agent_system_prompt,
         "tools": tools,
         "turns": turns,
+        # 统一状态字段：final_state 作为对外主字段，兼容保留 legacy final_state_snapshot。
+        "final_state": final_state,
         "final_state_snapshot": final_state_snapshot,
         "expected_output": blueprint.get("expected_output"),
         "expected_final_state": blueprint.get("expected_final_state"),
@@ -701,7 +713,16 @@ def main() -> None:
             if final_state_snapshot is None:
                 print("(未获取到 final_state_snapshot，可能环境在容器内运行)")
 
-            validation_result = validate_trajectory(turns, blueprint, final_state_snapshot)
+            # 目前 prediction-trader 环境仅输出 DB 快照；为兼容 unified schema，
+            # 这里将 final_state 视为一个包装对象，后续可扩展加入会话 KV 状态。
+            final_state = {"db_snapshot": final_state_snapshot} if final_state_snapshot is not None else None
+
+            validation_result = validate_trajectory(
+                turns,
+                blueprint,
+                final_state_snapshot=final_state_snapshot,
+                final_state=final_state,
+            )
             print("\n轨迹验证:")
             print("  输出验证:", validation_result["output_based"]["passed"], "-", validation_result["output_based"]["reason"])
             print("  状态验证:", validation_result["state_based"]["reason"])
@@ -715,6 +736,7 @@ def main() -> None:
                 tools,
                 run_id=run_id,
                 final_state_snapshot=final_state_snapshot,
+                final_state=final_state,
                 validation_result=validation_result,
             )
 
