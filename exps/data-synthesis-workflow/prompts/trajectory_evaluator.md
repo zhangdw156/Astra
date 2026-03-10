@@ -25,7 +25,7 @@ You will receive a single JSON object with at least the following fields:
 
 - `skill_name`: name of the skill / environment used (e.g. `"prediction-trader"`).
 - `run_id` (optional but recommended): unique run identifier for this trajectory. When present, use it to verify that snapshots / logs belong to the same run.
-- `system_message`: original system message given to the assistant.
+- `system_message` (optional): original system message given to the assistant. In the new blueprint schema, this may be empty or minimal (only tool list); the assistant receives no task-specific system prompt.
 - `agent_system_prompt`: the full system prompt actually seen by the agent (may include tool descriptions).
 - `tools`: list of tool names available to the agent.
 - `turns`: the full ordered list of messages or turn objects. Two formats are supported:
@@ -36,7 +36,7 @@ You will receive a single JSON object with at least the following fields:
   - a run-scoped snapshot containing fields such as `run_id`, `trajectory_run`, `tool_call_logs`, `run_output`, `run_snapshots`, plus optional shared static tables.
   When present, use it to assess task completion and whether the state is correctly scoped to the current run. Include this in your `reason` when relevant.
 - `validation` (optional): Pre-computed validation results (`output_based`, `state_based`). You may reference these but form your own judgment.
-- `expected_output` (optional): From the blueprint; what the assistant's final reply should contain. Use it to judge task completion.
+- `expected_output` (optional): From the blueprint; what the assistant's final reply should contain. The new blueprint schema may omit this; when absent, judge task completion by `expected_final_state`, dialogue coherence, and tool usage.
 - `expected_final_state` (optional): From the blueprint; description of desired state after completion.
 
 The full trajectory JSON will be injected into the JSON block below.
@@ -76,7 +76,7 @@ Return a single JSON object with the following schema (no extra top-level fields
 - `task_completion_score`:
   - A **float between 0.0 and 1.0** (inclusive). Optional; default 0.0 if not applicable.
   - 1.0 = task fully completed per `expected_output` / `expected_final_state`; 0.0 = not completed.
-  - Use `final_state_snapshot` and `expected_output` / `expected_final_state` when available.
+  - Use `final_state_snapshot` and `expected_output` / `expected_final_state` when available. If `expected_output` is absent (new blueprint schema), infer from `expected_final_state`, dialogue coherence, and whether the assistant addressed user goals.
 
 - `reason`:
   - A short natural-language explanation (in English or Chinese) of **why** you gave this score and hallucination risk.

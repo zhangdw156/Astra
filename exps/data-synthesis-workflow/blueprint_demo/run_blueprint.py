@@ -1,8 +1,8 @@
 """
 使用 task_blueprint_generator 提示词 + SKILL.md / tools.jsonl / persona 调用大模型生成任务蓝图。
 
-新方案输出任务配置（task_id、user_intent、expected_tool_calls、expected_final_state、expected_output）
-与交互生成配置（system_message、user_agent_config、max_turns、end_condition），无 queries 数组。
+输出：task_id、goals、possible_tool_calls（[[tools],[tools],...]）、initial_state、expected_final_state、
+user_agent_config、end_condition。不生成 system_message、queries、expected_output、max_turns。
 
 依赖项目根目录 .env 中的 OPENAI_API_KEY、OPENAI_MODEL，可选 OPENAI_BASE_URL。
 运行方式（在项目根或本目录）：python exps/data-synthesis-workflow/blueprint_demo/run_blueprint.py
@@ -59,43 +59,84 @@ def read_prompt_and_inputs() -> tuple[str, str]:
 
 
 def extract_json_from_response(text: str) -> dict:
-    """从模型回复中提取 JSON（允许被 markdown 代码块包裹）。"""
+    """从模型回复中提取 JSON（允许被 markdown 代码块包裹或前后有说明文字）。"""
     text = text.strip()
-    # 尝试 ```json ... ``` 或 ``` ... ```
+    # 1) 尝试 ```json ... ``` 或 ``` ... ```
     m = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
     if m:
         return json.loads(m.group(1).strip())
+    # 2) 截取第一个 { 到最后一个 } 再解析（应对模型输出前有说明文字）
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        return json.loads(text[start : end + 1])
     return json.loads(text)
 
 
 REQUIRED_FIELDS = [
     "task_id",
-    "user_intent",
-    "expected_tool_calls",
+    "goals",
+    "possible_tool_calls",
     "initial_state",
-    "expected_final_state",
-    "expected_output",
-    "system_message",
     "user_agent_config",
-    "max_turns",
     "end_condition",
 ]
 
 USER_AGENT_CONFIG_KEYS = ("role", "personality", "knowledge_boundary")
 
 
-def validate_blueprint(data: dict) -> list[str]:
+def get_tool_names_from_jsonl(tools_path: Path) -> set[str]:
+    """从 tools.jsonl 解析出所有工具名，用于校验 possible_tool_calls。"""
+    names: set[str] = set()
+    if not tools_path.exists():
+        return names
+    for line in tools_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+            if isinstance(obj, dict) and "name" in obj:
+                names.add(str(obj["name"]))
+        except json.JSONDecodeError:
+            continue
+    return names
+
+
+def validate_blueprint(data: dict, allowed_tool_names: set[str] | None = None) -> list[str]:
     """校验蓝图格式，返回错误列表；空列表表示通过。"""
     errors: list[str] = []
     for field in REQUIRED_FIELDS:
         if field not in data:
             errors.append(f"缺少必填字段: {field}")
-    # initial_state / expected_final_state: 允许为对象或 null
+    # initial_state / expected_final_state: 允许为对象或 null；expected_final_state 可选
     for key in ("initial_state", "expected_final_state"):
         if key in data and data[key] is not None and not isinstance(data[key], dict):
             errors.append(f"{key} 必须为 JSON 对象或 null")
-    if "expected_tool_calls" in data and not isinstance(data["expected_tool_calls"], list):
-        errors.append("expected_tool_calls 必须为数组")
+    if "possible_tool_calls" in data:
+        ptc = data["possible_tool_calls"]
+        goals = data.get("goals", [])
+        if not isinstance(ptc, list):
+            errors.append("possible_tool_calls 必须为数组")
+        elif not all(isinstance(inner, list) for inner in ptc):
+            errors.append("possible_tool_calls 必须为嵌套数组 [[tools],[tools],...]")
+        elif len(ptc) != len(goals):
+            errors.append(f"possible_tool_calls 长度 ({len(ptc)}) 必须与 goals 长度 ({len(goals)}) 一致")
+        elif allowed_tool_names is not None:
+            for i, inner in enumerate(ptc):
+                for name in inner:
+                    if name not in allowed_tool_names:
+                        errors.append(f"possible_tool_calls[{i}] 中含非法工具名: {name!r}，应在 tools.jsonl 的 name 列表中")
+    if "goals" in data:
+        g = data["goals"]
+        if not isinstance(g, list):
+            errors.append("goals 必须为数组")
+        elif len(g) == 0:
+            errors.append("goals 不能为空，应包含至少一个目标")
+        else:
+            for i, item in enumerate(g):
+                if not isinstance(item, str) or not item.strip():
+                    errors.append(f"goals[{i}] 必须为非空字符串")
     if "user_agent_config" in data:
         uac = data["user_agent_config"]
         if not isinstance(uac, dict):
@@ -104,10 +145,6 @@ def validate_blueprint(data: dict) -> list[str]:
             for k in USER_AGENT_CONFIG_KEYS:
                 if k not in uac:
                     errors.append(f"user_agent_config 缺少字段: {k}")
-    if "max_turns" in data:
-        mt = data["max_turns"]
-        if not isinstance(mt, int) or mt < 1:
-            errors.append("max_turns 必须为正整数")
     return errors
 
 
@@ -133,12 +170,18 @@ def main() -> None:
         print(raw)
         raise SystemExit(f"Failed to parse JSON: {e}") from e
 
-    # 格式校验
-    validation_errors = validate_blueprint(data)
+    # 程序注入字段不应由模型输出，若存在则移除避免覆盖
+    for key in ("blueprint_id", "skill_name", "persona_id", "created_at"):
+        data.pop(key, None)
+
+    allowed_tool_names = get_tool_names_from_jsonl(TOOLS_PATH)
+    validation_errors = validate_blueprint(data, allowed_tool_names=allowed_tool_names)
     if validation_errors:
         print("蓝图格式校验失败:")
         for e in validation_errors:
             print("  -", e)
+        print("当前解析出的蓝图（前 2000 字符）:")
+        print(json.dumps(data, ensure_ascii=False, indent=2)[:2000])
         raise SystemExit("请检查 prompt 与模型输出是否符合新 schema")
 
     # 程序注入字段
@@ -147,6 +190,15 @@ def main() -> None:
     data["skill_name"] = SKILL_NAME
     data["persona_id"] = persona_obj.get("id", "")
     data["created_at"] = datetime.now(timezone.utc).isoformat()
+
+    # 若 initial_state 仅包含空值（如空数组/对象），则视为无状态环境，可省略 expected_final_state
+    initial_state = data.get("initial_state")
+    if isinstance(initial_state, dict):
+        if all(
+            (v == [] or v == {} or v is None)
+            for v in initial_state.values()
+        ):
+            data.pop("expected_final_state", None)
 
     print("Blueprint (with program-injected fields):")
     print(json.dumps(data, ensure_ascii=False, indent=2))

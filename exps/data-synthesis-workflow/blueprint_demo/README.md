@@ -37,6 +37,6 @@ python exps/data-synthesis-workflow/blueprint_demo/run_blueprint.py
 - 控制台打印完整蓝图（含程序注入的 `blueprint_id`、`skill_name`、`persona_id`、`created_at`）
 - 同目录下写入 `out_blueprint.json`
 - 蓝图结构：
-  - **任务配置**：`task_id`、`user_intent`、`expected_tool_calls`、`expected_final_state`、`expected_output`
-  - **交互生成配置**：`system_message`、`user_agent_config`（role、personality、knowledge_boundary）、`max_turns`、`end_condition`
+  - **任务配置**：`task_id`、`goals`、`possible_tool_calls`（可能的工具调用，与 goals 一一对应）、`expected_final_state`
+  - **交互生成配置**：`user_agent_config`（role、personality、knowledge_boundary）、`end_condition`
 - 供 agent_demo 动态用户模拟使用

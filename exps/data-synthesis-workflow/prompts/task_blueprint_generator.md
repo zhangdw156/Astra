@@ -5,7 +5,7 @@
 You are a **task blueprint designer** for synthetic dialogue generation. Your job is to produce a **multi-turn dialogue tool-calling task blueprint** that:
 1. Matches a given user **persona** (background, expertise, interests)
 2. Exercises the **skill** described in SKILL.md using the **tools** defined in tools.jsonl
-3. Defines task intent, expected tool flow, and interaction config—**not** pre-written user queries. User messages will be **dynamically generated** by a User Agent during simulation, so you output a **task configuration** and **interaction generation config** only.
+3. Defines **goals** (ordered list of what the user wants to achieve at each step) and **possible_tool_calls** per goal. During simulation, a User Agent will use these goals to decide: answer the assistant's follow-up, initiate the next goal, or ask a follow-up. You do **not** output system prompts or pre-written user queries.
 
 ---
 
@@ -23,46 +23,40 @@ You will receive three inputs:
 
 ## Output: Task Blueprint Schema
 
-Produce a single JSON object conforming to the following schema. **Note**: `blueprint_id`, `skill_name`, and `persona_id` are **injected by the program**; do not generate them.
+Produce a single JSON object conforming to the following schema.
+
+**Important**: Do **not** output `blueprint_id`, `skill_name`, `persona_id`, or `created_at`—they are injected by the program. Output only the fields listed below.
 
 ### Task Configuration (Task Config)
 
-High-level task elements that guide what the User Agent and Assistant should achieve. No concrete dialogue text.
+High-level task elements that guide the User Agent and Assistant. No concrete dialogue text, no system prompt.
 
 - **task_id**: A short, unique task identifier (e.g. `"compare_bitcoin_markets"` or `"explore_trending_crypto"`).
-- **user_intent**: Abstract description of the user's goal in natural language. What does the user want to accomplish? One or two sentences. Example: "The user wants to explore prediction markets related to Bitcoin and El Salvador politics, then compare odds across Polymarket and Kalshi."
-- **expected_tool_calls**: Ordered list of **tool names** (from tools.jsonl) the agent should call to complete the task. Only names; no arguments. Example: `["polymarket_search", "kalshi_search", "compare_markets"]`.
-- **initial_state**: JSON object (or `null`) describing the minimal initial conversation/business state relevant to this skill (e.g. `{"bookings": [], "cart": []}`).
-- **expected_final_state**: JSON object (or `null`) describing the desired final state after successful task completion (e.g. `{"bookings": [{"destination": "Tokyo", "status": "confirmed"}]}`).
-- **expected_output**: Brief description of what the assistant's final reply should contain or accomplish (e.g. "Summary of Bitcoin-related markets from both platforms with odds comparison").
+- **goals**: Ordered array of **user goals** (strings), one per logical step. Each goal describes what the user wants to achieve at that step. Example: `["Explore El Salvador and Bitcoin prediction markets on Polymarket and Kalshi", "Compare odds across both platforms"]`. Typically 2–6 goals.
+- **possible_tool_calls**: Array of arrays; each inner array lists the **possible tool names** (from tools.jsonl) that may be used to achieve the corresponding goal. Length must match `goals`. Example: `[["polymarket_search", "kalshi_search"], ["compare_markets"]]`.
+- **initial_state**: JSON object (or `null`) describing the minimal initial state relevant to this skill (e.g. `{"markets": [], "comparisons": []}`).
+- **expected_final_state**: JSON object (or `null`) describing the desired state after all goals are achieved (e.g. `{"markets": [...], "comparisons": [...]}`).
 
 ### Interaction Generation Config
 
-Config for the dynamic User Agent and dialogue bounds.
-
-- **system_message**: The **assistant's** system instruction for this task: role, capability, and how to use the skill/tools. One short paragraph. User-facing.
 - **user_agent_config**: Object describing the User Agent's role and style:
   - `role`: Short label (e.g. `"political analyst"`, `"curious investor"`).
   - `personality`: 1–2 sentences (e.g. "Focused, analytical, prefers concise answers").
   - `knowledge_boundary`: What the user (does not) know (e.g. "Does not know tool names or API; asks in natural language").
-- **max_turns**: Integer (e.g. 6–10). Maximum number of user turns before simulation stops.
-- **end_condition**: Text description of when the task is done (e.g. "User has received comparison and expresses satisfaction or asks no further questions").
+- **end_condition**: Text description of when the task is done (e.g. "User has achieved all goals and expresses satisfaction or asks no further questions").
 
 ```json
 {
   "task_id": "<short identifier>",
-  "user_intent": "<abstract user goal, 1–2 sentences>",
-  "expected_tool_calls": ["<tool_name>", "..."],
+  "goals": ["<goal 1>", "<goal 2>", "..."],
+  "possible_tool_calls": [["<tool_name>", "..."], ["<tool_name>", "..."]],
   "initial_state": { },
   "expected_final_state": { },
-  "expected_output": "<what the assistant's final reply should contain>",
-  "system_message": "<assistant system instruction, one paragraph>",
   "user_agent_config": {
     "role": "<user role label>",
     "personality": "<1–2 sentences>",
     "knowledge_boundary": "<what user knows/does not know>"
   },
-  "max_turns": "<positive integer, typically 6–12>",
   "end_condition": "<when task is considered done>"
 }
 ```
@@ -73,52 +67,71 @@ Config for the dynamic User Agent and dialogue bounds.
 
 ### Planner-Style Design
 
-Plan the **conversation flow** as steps, not scripts:
-- Analyze the task intent and available tools.
-- Define a logical sequence of steps (e.g. search → compare → analyze).
-- Ensure `expected_tool_calls` reflects this sequence.
-- Do **not** write specific user utterances; the User Agent will generate them dynamically.
+Plan the **conversation flow** as steps with **goals** (not pre-written queries):
+- Analyze the task and available tools.
+- Define a logical sequence of goals (e.g. explore markets → compare odds → optional analysis).
+- **Write `goals`**: ordered list of what the user wants at each step. Each goal is 1–2 sentences. The User Agent will generate natural-language messages to achieve these goals and may respond to assistant follow-ups.
+- **Write `possible_tool_calls`**: each inner array lists tools for the corresponding goal. All tool names must be from tools.jsonl.
 
 ### Persona as User Role
 
-- The persona shapes `user_intent` and `user_agent_config`. When the persona fits the skill (e.g. trader, economist), intent and config should reflect expertise. When the fit is weak, use discovery-style intent.
+- The persona shapes `goals` and `user_agent_config`. When the persona fits the skill (e.g. trader, economist), goals reflect expertise. When the fit is weak, use discovery-style goals.
 - `user_agent_config.role` and `personality` should align with the persona.
 
 ### Tool Usage Rules
 
-- Use only tool names listed in tools.jsonl (e.g. `"polymarket_search"`, `"compare_markets"`).
-- `expected_tool_calls` is an ordered sequence. Early tools may be exploratory; later tools may drill down or compare.
-- Ensure the sequence is executable: tool parameters must be inferrable from prior context or user intent.
+- Use **only** tool names that appear in the injected **tools.jsonl** (each line has a `"name"` field). Every entry in each inner array of `possible_tool_calls` must be a valid tool name.
+- `possible_tool_calls` length must equal `goals` length. Each inner array corresponds to one goal.
+- Ensure the sequence is executable: tool parameters must be inferrable from prior context or the goal description.
+
+### State Schema (initial_state / expected_final_state)
+
+- **Same top-level keys**: `initial_state` and `expected_final_state` should use the **same set of top-level keys** (e.g. both have `markets`, `comparisons`).
+- **Semantic meaning**: `initial_state` = state before any tool runs; `expected_final_state` = state after the agent has successfully achieved all goals.
+- Prefer **simple, comparable structures**: lists of minimal objects (e.g. `{"platform": "...", "topic": "..."}`) rather than long free text.
 
 ### Format Validation
 
 Output must satisfy:
-- `user_intent` is clear and actionable.
-- `expected_tool_calls` uses valid tool names from tools.jsonl.
-- `expected_final_state` and `expected_output` are specific enough for validation.
-- `max_turns` is a positive integer (typically 6–12).
+- `goals` is a non-empty array of non-empty strings (typically 2–6 items).
+- `possible_tool_calls` is an array of arrays; length equals `goals` length; each inner element is a valid tool name from tools.jsonl.
+- `initial_state` is a JSON object or `null` (never a free-text string).
+- `expected_final_state` is a JSON object or `null` (never a free-text string).
 
 ---
 
 ## Example Blueprint (Skeleton)
 
-`blueprint_id`, `skill_name`, `persona_id` are filled by the program; the LLM outputs only the following:
+Below is an example for a **prediction-market** skill; adapt to the actual SKILL.md and tools.jsonl. `blueprint_id`, `skill_name`, `persona_id` are filled by the program; the LLM outputs only the following:
 
 ```json
 {
   "task_id": "compare_bitcoin_el_salvador",
-  "user_intent": "The user wants to explore prediction markets related to Bitcoin and El Salvador politics, then compare odds across Polymarket and Kalshi.",
-  "expected_tool_calls": ["polymarket_search", "kalshi_search", "compare_markets"],
-  "expected_final_state": "Read-only task; no persistent state changes. User has received market search and comparison results.",
-  "expected_output": "Summary of Bitcoin and Salvadoran political markets from both platforms, with odds comparison.",
-  "system_message": "You are an AI assistant for prediction market analysis. You have access to tools from Polymarket and Kalshi. Use the available tools to answer user questions about prediction markets.",
+  "goals": [
+    "Explore El Salvador and Bitcoin prediction markets on Polymarket and Kalshi",
+    "Compare odds across both platforms"
+  ],
+  "possible_tool_calls": [
+    ["polymarket_search", "kalshi_search"],
+    ["compare_markets"]
+  ],
+  "initial_state": {
+    "markets": [],
+    "comparisons": []
+  },
+  "expected_final_state": {
+    "markets": [
+      {"platform": "polymarket", "topic": "bitcoin"},
+      {"platform": "kalshi", "topic": "bitcoin"}
+    ],
+    "comparisons": [{"topic": "bitcoin", "has_cross_platform_comparison": true}]
+  },
   "user_agent_config": {
     "role": "political analyst",
     "personality": "Focused on Central America; prefers concise, data-driven answers.",
     "knowledge_boundary": "Does not know tool names or API; asks in natural language."
   },
-  "max_turns": 6,
-  "end_condition": "User has received comparison results and expresses satisfaction or asks no further questions."
+  "end_condition": "User has achieved all goals and expresses satisfaction or asks no further questions."
 }
 ```
 

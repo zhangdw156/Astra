@@ -11,7 +11,7 @@
 - `tools.jsonl` — 工具 schema 列表
 - `persona` — 用户画像（含 `persona` 与 `id`）
 
-**输出**：任务配置（`task_id`、`user_intent`、`expected_tool_calls`、`expected_final_state`、`expected_output`）与交互生成配置（`system_message`、`user_agent_config`、`max_turns`、`end_condition`）。**无** `queries` 数组；用户消息由 agent_demo 阶段 User Agent 动态生成。
+**输出**：任务配置（`task_id`、`goals`、`possible_tool_calls`、`expected_final_state` 等）与交互生成配置（`user_agent_config`、`end_condition`）。**无** `queries` 数组；用户消息由 agent_demo 阶段 User Agent 动态生成。
 
 **调用方式**：由 `blueprint_demo/run_blueprint.py` 注入占位符后调用 LLM，程序注入 `blueprint_id`、`skill_name`、`persona_id`、`created_at` 后写入蓝图文件。
 

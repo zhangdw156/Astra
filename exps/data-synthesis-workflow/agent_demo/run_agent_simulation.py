@@ -1,17 +1,14 @@
 """
 多轮对话模拟：使用 qwen-agent + prediction-trader MCP 执行蓝图，收集完整轨迹。
 
-支持两种蓝图格式：
-1. **动态模式**（新）：蓝图为任务配置 + 交互生成配置，无 queries。由 User Agent 根据对话上下文
-   逐轮生成用户消息，与助手 Agent 多轮交互直到任务完成或达到 max_turns。
-2. **静态模式**（兼容）：蓝图为 system_message + queries 数组。按 queries 逐轮发送预定义 user 消息。
+蓝图为 goals + possible_tool_calls 格式；无 system_message，Assistant 仅注册 MCP 工具。
+User Agent 根据 goals 与对话历史生成用户消息，与 Assistant 交互直到 [TASK_END] 或安全上限（20 轮）。
 
 流程：
 1. 启动 prediction-trader MCP Docker 容器（需事先运行）
-2. 创建 qwen-agent Assistant，连接 MCP 与工具
-3. 动态模式：User Agent 生成 user 消息 -> Assistant 响应 -> 循环直到 [TASK_END] 或 max_turns
-   静态模式：按 queries 逐轮发送 user 消息
-4. 收集所有轮次的轨迹（turn 结构），并尝试获取 final_state_snapshot
+2. 创建 qwen-agent Assistant（无系统提示，仅 MCP 工具）
+3. User Agent 生成 user 消息 -> Assistant 响应 -> 循环直到 [TASK_END]
+4. 收集所有轮次的轨迹（turn 结构）；轻量环境下 final_state 为 None
 
 依赖：
 - pip install "qwen-agent[mcp]" openai python-dotenv
@@ -24,7 +21,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import os
 import re
@@ -32,7 +28,6 @@ import subprocess
 import sys
 import time
 import uuid
-from contextlib import nullcontext
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -59,15 +54,21 @@ def load_env() -> None:
     load_dotenv(PROJECT_ROOT / ".env")
 
 
-def ensure_mcp_running() -> bool:
-    """检查 MCP 服务是否可达，若未运行则尝试启动 Docker。"""
+def _mcp_reachable() -> bool:
+    """检查 MCP SSE 端点是否可连接。"""
     try:
         from urllib.request import urlopen
 
         with urlopen(MCP_SSE_URL, timeout=3):
             return True
     except Exception:
-        pass
+        return False
+
+
+def ensure_mcp_running() -> bool:
+    """检查 MCP 服务是否可达，若未运行则尝试启动 Docker，并轮询直到就绪或超时。"""
+    if _mcp_reachable():
+        return True
 
     # 尝试启动 Docker
     compose_path = PREDICTION_TRADER / "docker" / "docker-compose.yaml"
@@ -82,31 +83,38 @@ def ensure_mcp_running() -> bool:
             cwd=PREDICTION_TRADER,
             check=True,
         )
-        time.sleep(5)  # 等待服务就绪
     except subprocess.CalledProcessError as e:
         print(f"Docker 启动失败: {e}")
         return False
 
-    return True
+    # 轮询等待服务就绪（首次 uv sync 可能需 30–60 秒）
+    max_wait = 90
+    interval = 3
+    elapsed = 0
+    while elapsed < max_wait:
+        time.sleep(interval)
+        elapsed += interval
+        if _mcp_reachable():
+            print(f"MCP 服务已就绪（等待约 {elapsed}s）")
+            return True
+        print(f"  等待 MCP 就绪... ({elapsed}s)")
+
+    print("MCP 服务超时未就绪。可运行以下命令排查：")
+    print("  docker ps -a --filter name=prediction-trader")
+    print("  docker logs prediction-trader-mcp")
+    return False
 
 
 def load_blueprint(path: Path) -> dict:
     """
-    加载任务蓝图。支持两种格式：
-    - 新格式：user_intent、user_agent_config、max_turns、end_condition、system_message（无 queries）
-    - 旧格式：system_message、queries 数组
+    加载任务蓝图。格式：goals、possible_tool_calls、user_agent_config、end_condition。
     """
     data = json.loads(path.read_text(encoding="utf-8"))
-    if "system_message" not in data:
-        raise ValueError("蓝图中缺少 system_message 字段")
-    # 新格式：动态用户模拟
-    if "queries" not in data:
-        for f in ("user_intent", "user_agent_config", "max_turns", "end_condition"):
-            if f not in data:
-                raise ValueError(f"新格式蓝图中缺少 {f} 字段")
-        data["_mode"] = "dynamic"
-    else:
-        data["_mode"] = "static"
+    for f in ("goals", "user_agent_config", "end_condition"):
+        if f not in data:
+            raise ValueError(f"蓝图中缺少 {f} 字段")
+    if not isinstance(data.get("goals"), list) or len(data["goals"]) == 0:
+        raise ValueError("goals 必须为非空数组")
     return data
 
 
@@ -200,65 +208,20 @@ def _patch_mcp_tool_params():
         warnings.warn(f"MCP params 容错 patch 未生效: {e}", RuntimeWarning)
 
 
-def create_agent(system_message: str) -> tuple:
-    """创建 qwen-agent Assistant，带 MCP 工具。返回 (agent, system_message, tools)。"""
+def create_agent() -> tuple:
+    """创建 qwen-agent Assistant，仅 MCP 工具，无系统提示。返回 (agent, tools)。"""
     from qwen_agent.agents import Assistant
 
-    msg = system_message.strip()
     llm_cfg = build_llm_config()
     mcp_cfg = build_mcp_config()
-    agent = Assistant(llm=llm_cfg, system_message=msg, function_list=[mcp_cfg])
+    agent = Assistant(llm=llm_cfg, system_message="", function_list=[mcp_cfg])
     tools = list(agent.function_map.keys())
-    return agent, msg, tools
-
-
-def load_env_state_module():
-    """按文件路径加载环境 state.py，避免与其他模块重名。"""
-    state_path = PREDICTION_TRADER / "state.py"
-    if not state_path.exists():
-        return None
-    spec = importlib.util.spec_from_file_location("prediction_trader_state", state_path)
-    if spec is None or spec.loader is None:
-        return None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return agent, tools
 
 
 def build_default_output_path(run_id: str) -> Path:
     """为每条轨迹构造独立输出目录。"""
     return SCRIPT_DIR / "runs" / run_id / "out_trajectory.json"
-
-
-def record_turn_runtime(state_module, turn: dict, run_id: str) -> None:
-    """将一轮中的工具调用写入运行态日志表。"""
-    if state_module is None:
-        return
-    tool_calls = turn.get("tool_calls", [])
-    if not tool_calls:
-        return
-    with state_module.run_context(run_id):
-        for item in tool_calls:
-            args = item.get("arguments", {})
-            if isinstance(args, str):
-                try:
-                    args = json.loads(args)
-                except json.JSONDecodeError:
-                    args = {"raw_arguments": args}
-            state_module.log_tool_call(
-                tool_name=item.get("name", ""),
-                arguments=args if isinstance(args, dict) else {"value": args},
-                result_text=item.get("result", ""),
-                turn_index=turn.get("turn_index"),
-            )
-
-
-def get_final_state_snapshot(state_module, run_id: str) -> dict | None:
-    """导出当前 run 的状态视图；包含运行态和共享静态表。"""
-    if state_module is None:
-        return None
-    with state_module.run_context(run_id):
-        return state_module.export_run_state(include_static_tables=True)
 
 
 def _format_conversation_for_user_agent(messages: list[dict]) -> str:
@@ -282,10 +245,10 @@ def _format_conversation_for_user_agent(messages: list[dict]) -> str:
     return "\n\n".join(lines) if lines else "(No messages yet)"
 
 
-def generate_user_message(blueprint: dict, messages: list[dict], current_turn: int) -> str:
+def generate_user_message(blueprint: dict, messages: list[dict]) -> str:
     """
-    调用 User Agent LLM，根据 user_intent、user_agent_config 与对话历史生成下一句 user 消息。
-    返回已剥离 <think> 的用户可见消息；若应结束则返回 TASK_END_MARKER。不返回思考内容，轨迹也不保存。
+    调用 User Agent LLM，根据 goals、user_agent_config 与对话历史生成下一句 user 消息。
+    返回已剥离 <think> 的用户可见消息；若应结束则返回 TASK_END_MARKER。
     """
     from openai import OpenAI
 
@@ -297,7 +260,9 @@ def generate_user_message(blueprint: dict, messages: list[dict], current_turn: i
         raise SystemExit("请在项目根 .env 中配置 OPENAI_API_KEY 和 OPENAI_MODEL")
 
     prompt_text = USER_AGENT_PROMPT_PATH.read_text(encoding="utf-8")
-    prompt_text = prompt_text.replace("{USER_INTENT}", blueprint.get("user_intent", ""))
+    goals = blueprint.get("goals") or []
+    goals_str = "\n".join(f"{i}. {g}" for i, g in enumerate(goals, 1)) if goals else "(无目标)"
+    prompt_text = prompt_text.replace("{GOALS}", goals_str.strip())
     prompt_text = prompt_text.replace(
         "{USER_AGENT_CONFIG}",
         json.dumps(blueprint.get("user_agent_config", {}), ensure_ascii=False),
@@ -306,8 +271,6 @@ def generate_user_message(blueprint: dict, messages: list[dict], current_turn: i
         "{CONVERSATION_HISTORY}",
         _format_conversation_for_user_agent(messages),
     )
-    prompt_text = prompt_text.replace("{CURRENT_TURN}", str(current_turn))
-    prompt_text = prompt_text.replace("{MAX_TURNS}", str(blueprint.get("max_turns", 8)))
     prompt_text = prompt_text.replace("{END_CONDITION}", blueprint.get("end_condition", ""))
 
     client = OpenAI(api_key=api_key, base_url=base_url)
@@ -430,18 +393,21 @@ def _assistant_response_to_turn(
     return turn
 
 
-def run_dynamic_simulation(agent, blueprint: dict, state_module=None, run_id: str = "") -> list[dict]:
+# 动态模式安全上限，防止无限循环
+MAX_TURNS_SAFETY = 20
+
+
+def run_dynamic_simulation(agent, blueprint: dict) -> list[dict]:
     """
-    动态模式：User Agent 逐轮生成 user 消息，与 Assistant 交互直到 [TASK_END] 或 max_turns。
+    User Agent 逐轮生成 user 消息，与 Assistant 交互直到 [TASK_END] 或达到安全上限。
     返回 turn 列表。
     """
     messages: list[dict] = []
     turns: list[dict] = []
-    max_turns = int(blueprint.get("max_turns", 8))
 
-    for turn_idx in range(1, max_turns + 1):
+    for turn_idx in range(1, MAX_TURNS_SAFETY + 1):
         start_time = time.perf_counter()
-        user_msg = generate_user_message(blueprint, messages, turn_idx)
+        user_msg = generate_user_message(blueprint, messages)
         if user_msg == TASK_END_MARKER:
             print(f"\n[Turn {turn_idx}] User Agent 结束任务")
             break
@@ -471,7 +437,6 @@ def run_dynamic_simulation(agent, blueprint: dict, state_module=None, run_id: st
             turn = _assistant_response_to_turn(user_msg, last_response, start_time)
             turn["turn_index"] = turn_idx
             turns.append(turn)
-            record_turn_runtime(state_module, turn, run_id)
 
         except Exception as e:
             print(f"  Error: {e}")
@@ -485,144 +450,27 @@ def run_dynamic_simulation(agent, blueprint: dict, state_module=None, run_id: st
             }
             turns.append(turn)
 
-    return turns
-
-
-def run_static_simulation(agent, blueprint: dict, state_module=None, run_id: str = "") -> list[dict]:
-    """
-    静态模式：按 queries 逐轮发送 user 消息，收集 assistant 响应。
-    返回 turn 列表（与动态模式结构一致）。
-    """
-    messages: list[dict] = []
-    turns: list[dict] = []
-
-    for i, item in enumerate(blueprint["queries"]):
-        query = item.get("query", "")
-        if not query:
-            continue
-
-        start_time = time.perf_counter()
-        user_dict = {"role": "user", "content": query}
-        messages.append(user_dict)
-
-        print(f"\n[Turn {i + 1}] User: {query[:80]}...")
-
-        try:
-            last_response: list = []
-            for response in agent.run(messages=messages):
-                last_response = response if isinstance(response, list) else [response]
-
-            for msg in last_response:
-                msgs_dict = _message_to_dict(msg)
-                if msgs_dict:
-                    messages.append(msgs_dict)
-
-            for m in last_response:
-                role = m.get("role", "")
-                if role == "assistant" and m.get("content"):
-                    print(f"  Assistant: {str(m['content'])[:120]}...")
-                elif role == "function":
-                    print(f"  Tool: {m.get('name', '')} -> {len(str(m.get('content', '')))} chars")
-
-            turn = _assistant_response_to_turn(query, last_response, start_time)
-            turn["turn_index"] = i + 1
-            turns.append(turn)
-            record_turn_runtime(state_module, turn, run_id)
-
-        except Exception as e:
-            print(f"  Error: {e}")
-            turn = {
-                "turn_index": i + 1,
-                "user_message": query,
-                "assistant_thinking": "",
-                "assistant_message": f"[Error] {e}",
-                "tool_calls": [],
-                "execution_time_ms": int((time.perf_counter() - start_time) * 1000),
-            }
-            turns.append(turn)
-
-    return turns
-
-
-def validate_trajectory(
-    turns: list[dict],
-    blueprint: dict,
-    final_state_snapshot: dict | None,
-    final_state: dict | None = None,
-) -> dict:
-    """
-    轨迹验证：基于输出与可选的基于状态的检查。
-    返回 {"output_based": {"passed": bool, "reason": str}, "state_based": {"passed": bool|None, "reason": str}}
-    """
-    result: dict = {
-        "output_based": {"passed": False, "reason": ""},
-        "state_based": {"passed": None, "reason": "skipped"},
-    }
-
-    # 基于输出的验证
-    expected_output = blueprint.get("expected_output", "")
-    last_assistant_msg = ""
-    if turns:
-        last_assistant_msg = turns[-1].get("assistant_message", "")
-    if expected_output:
-        # 简单检查：最终回复非空且非错误
-        if last_assistant_msg and "[Error]" not in last_assistant_msg:
-            result["output_based"]["passed"] = True
-            result["output_based"]["reason"] = "助手已生成最终回复，可与 expected_output 人工对比"
-        else:
-            result["output_based"]["passed"] = False
-            result["output_based"]["reason"] = f"最终回复异常或为空。expected_output: {expected_output[:100]}..."
-    else:
-        result["output_based"]["passed"] = True
-        result["output_based"]["reason"] = "蓝图无 expected_output，跳过"
-
-    # 基于状态的验证：
-    # 优先使用结构化 final_state（会话/业务状态），若不存在则退回 DB final_state_snapshot。
-    expected_final_state = blueprint.get("expected_final_state")
-    if expected_final_state and final_state:
-        if isinstance(final_state, dict) and len(final_state) > 0:
-            result["state_based"]["passed"] = True
-            result["state_based"]["reason"] = "已获取 final_state，可与 expected_final_state 做进一步程序化比对"
-        else:
-            result["state_based"]["passed"] = False
-            result["state_based"]["reason"] = "final_state 为空对象或格式异常"
-    elif expected_final_state and final_state_snapshot:
-        result["state_based"]["passed"] = True
-        result["state_based"]["reason"] = f"已获取状态快照，包含 {list(final_state_snapshot.keys())} 表"
-    elif final_state_snapshot is None and not final_state:
-        result["state_based"]["reason"] = "无法获取 final_state / final_state_snapshot（可能环境在容器内运行或未导出状态）"
-
-    return result
+    # 返回 assistant agent 实际看到的消息列表（messages）
+    return messages
 
 
 def save_trajectory(
-    turns: list[dict],
+    messages: list[dict],
     blueprint: dict,
     out_path: Path,
-    system_message: str,
-    agent_system_prompt: str,
     tools: list,
     run_id: str,
-    final_state_snapshot: dict | None = None,
-    final_state: dict | None = None,
     validation_result: dict | None = None,
 ) -> None:
-    """保存轨迹及元数据。"""
+    """保存轨迹及元数据（精简版：只保留元信息与 messages 列表）。"""
     out = {
         "run_id": run_id,
         "trajectory_id": str(uuid.uuid4()),
         "blueprint_id": blueprint.get("blueprint_id", ""),
         "skill_name": blueprint.get("skill_name", ""),
         "persona_id": blueprint.get("persona_id", ""),
-        "system_message": system_message,
-        "agent_system_prompt": agent_system_prompt,
         "tools": tools,
-        "turns": turns,
-        # 统一状态字段：final_state 作为对外主字段，兼容保留 legacy final_state_snapshot。
-        "final_state": final_state,
-        "final_state_snapshot": final_state_snapshot,
-        "expected_output": blueprint.get("expected_output"),
-        "expected_final_state": blueprint.get("expected_final_state"),
+        "messages": messages,
     }
     if validation_result:
         out["validation"] = validation_result
@@ -660,103 +508,52 @@ def main() -> None:
 
     blueprint = load_blueprint(blueprint_path)
     run_id = args.run_id.strip() or str(uuid.uuid4())
-    mode = blueprint.get("_mode", "static")
-    if mode == "dynamic":
-        print(f"加载蓝图（动态模式）: {blueprint_path}, max_turns={blueprint.get('max_turns', 8)}")
-    else:
-        print(f"加载蓝图（静态模式）: {blueprint_path}, 共 {len(blueprint['queries'])} 轮查询")
+    print(f"加载蓝图: {blueprint_path}, goals={len(blueprint.get('goals', []))}")
 
     if not args.no_docker and not ensure_mcp_running():
         raise SystemExit("无法连接到 MCP 服务，请确保 prediction-trader 容器已启动。")
 
     _patch_mcp_tool_params()
 
-    state_module = load_env_state_module()
-    state_scope = nullcontext()
-    if state_module is not None:
-        state_module.ensure_schema_and_initial_data()
-        state_scope = state_module.run_context(run_id)
-    else:
-        print("(未加载环境 state.py，将跳过 run_id 运行态写入)")
-
     out_path = args.output or build_default_output_path(run_id)
     if not out_path.is_absolute():
         out_path = SCRIPT_DIR / out_path
 
-    with state_scope:
-        if state_module is not None:
-            state_module.create_run(
-                run_id,
-                blueprint_id=blueprint.get("blueprint_id", ""),
-                skill_name=blueprint.get("skill_name", ""),
-                persona_id=blueprint.get("persona_id", ""),
-                status="running",
-                metadata={
-                    "mode": mode,
-                    "blueprint_path": str(blueprint_path),
-                    "output_path": str(out_path),
-                },
-            )
+    try:
+        agent, tools = create_agent()
+        print("Agent 已创建，MCP 工具已加载")
 
-        try:
-            agent, system_message, tools = create_agent(system_message=blueprint["system_message"])
-            print("Agent 已创建，MCP 工具已加载")
+        # 仍保留 agent_system_prompt 获取逻辑，方便必要时调试，但不写入轨迹
+        _ = get_agent_system_prompt(agent)
 
-            agent_system_prompt = get_agent_system_prompt(agent)
+        messages = run_dynamic_simulation(agent, blueprint)
 
-            if mode == "dynamic":
-                turns = run_dynamic_simulation(agent, blueprint, state_module=state_module, run_id=run_id)
-            else:
-                turns = run_static_simulation(agent, blueprint, state_module=state_module, run_id=run_id)
-            run_status = "completed"
-            final_state_snapshot = get_final_state_snapshot(state_module, run_id)
-            if final_state_snapshot is None:
-                print("(未获取到 final_state_snapshot，可能环境在容器内运行)")
+        # 轻量 prediction-trader 环境不导出结构化状态，仅做基于输出的简单验证
+        last_assistant_msg = ""
+        for m in reversed(messages):
+            if m.get("role") == "assistant":
+                last_assistant_msg = (m.get("content") or "").strip()
+                if last_assistant_msg:
+                    break
+        validation_result = {
+            "output_based": {
+                "passed": bool(last_assistant_msg) and "[Error]" not in last_assistant_msg,
+                "reason": "助手已生成最终回复" if last_assistant_msg and "[Error]" not in last_assistant_msg else "最终回复异常或为空",
+            }
+        }
+        print("\n轨迹验证:")
+        print("  输出验证:", validation_result["output_based"]["passed"], "-", validation_result["output_based"]["reason"])
 
-            # 目前 prediction-trader 环境仅输出 DB 快照；为兼容 unified schema，
-            # 这里将 final_state 视为一个包装对象，后续可扩展加入会话 KV 状态。
-            final_state = {"db_snapshot": final_state_snapshot} if final_state_snapshot is not None else None
-
-            validation_result = validate_trajectory(
-                turns,
-                blueprint,
-                final_state_snapshot=final_state_snapshot,
-                final_state=final_state,
-            )
-            print("\n轨迹验证:")
-            print("  输出验证:", validation_result["output_based"]["passed"], "-", validation_result["output_based"]["reason"])
-            print("  状态验证:", validation_result["state_based"]["reason"])
-
-            save_trajectory(
-                turns,
-                blueprint,
-                out_path,
-                system_message,
-                agent_system_prompt,
-                tools,
-                run_id=run_id,
-                final_state_snapshot=final_state_snapshot,
-                final_state=final_state,
-                validation_result=validation_result,
-            )
-
-            if state_module is not None:
-                state_module.save_run_snapshot(final_state_snapshot or {}, snapshot_kind="final")
-                state_module.update_run_status(status=run_status, metadata={"turn_count": len(turns)})
-                state_module.save_run_output(
-                    trajectory_path=str(out_path),
-                    output_json={
-                        "run_id": run_id,
-                        "turn_count": len(turns),
-                        "validation": validation_result,
-                        "final_state_snapshot": final_state_snapshot,
-                    },
-                    validation=validation_result,
-                )
-        except Exception as e:
-            if state_module is not None:
-                state_module.update_run_status(status="failed", metadata={"error": str(e)})
-            raise
+        save_trajectory(
+            messages,
+            blueprint,
+            out_path,
+            tools,
+            run_id,
+            validation_result=validation_result,
+        )
+    except Exception as e:
+        raise
 
 
 if __name__ == "__main__":
