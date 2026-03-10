@@ -1,6 +1,9 @@
 """
 使用 task_blueprint_generator 提示词 + SKILL.md / tools.jsonl / persona 调用大模型生成任务蓝图。
 
+新方案输出任务配置（task_id、user_intent、expected_tool_calls、expected_final_state、expected_output）
+与交互生成配置（system_message、user_agent_config、max_turns、end_condition），无 queries 数组。
+
 依赖项目根目录 .env 中的 OPENAI_API_KEY、OPENAI_MODEL，可选 OPENAI_BASE_URL。
 运行方式（在项目根或本目录）：python exps/data-synthesis-workflow/blueprint_demo/run_blueprint.py
 """
@@ -9,6 +12,7 @@ import json
 import os
 import re
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -64,6 +68,44 @@ def extract_json_from_response(text: str) -> dict:
     return json.loads(text)
 
 
+REQUIRED_FIELDS = [
+    "task_id",
+    "user_intent",
+    "expected_tool_calls",
+    "expected_final_state",
+    "expected_output",
+    "system_message",
+    "user_agent_config",
+    "max_turns",
+    "end_condition",
+]
+
+USER_AGENT_CONFIG_KEYS = ("role", "personality", "knowledge_boundary")
+
+
+def validate_blueprint(data: dict) -> list[str]:
+    """校验蓝图格式，返回错误列表；空列表表示通过。"""
+    errors: list[str] = []
+    for field in REQUIRED_FIELDS:
+        if field not in data:
+            errors.append(f"缺少必填字段: {field}")
+    if "expected_tool_calls" in data and not isinstance(data["expected_tool_calls"], list):
+        errors.append("expected_tool_calls 必须为数组")
+    if "user_agent_config" in data:
+        uac = data["user_agent_config"]
+        if not isinstance(uac, dict):
+            errors.append("user_agent_config 必须为对象")
+        else:
+            for k in USER_AGENT_CONFIG_KEYS:
+                if k not in uac:
+                    errors.append(f"user_agent_config 缺少字段: {k}")
+    if "max_turns" in data:
+        mt = data["max_turns"]
+        if not isinstance(mt, int) or mt < 1:
+            errors.append("max_turns 必须为正整数")
+    return errors
+
+
 def main() -> None:
     client, model = load_env_and_client()
     prompt, persona_line = read_prompt_and_inputs()
@@ -86,11 +128,20 @@ def main() -> None:
         print(raw)
         raise SystemExit(f"Failed to parse JSON: {e}") from e
 
+    # 格式校验
+    validation_errors = validate_blueprint(data)
+    if validation_errors:
+        print("蓝图格式校验失败:")
+        for e in validation_errors:
+            print("  -", e)
+        raise SystemExit("请检查 prompt 与模型输出是否符合新 schema")
+
     # 程序注入字段
     persona_obj = json.loads(persona_line)
     data["blueprint_id"] = str(uuid.uuid4())
     data["skill_name"] = SKILL_NAME
     data["persona_id"] = persona_obj.get("id", "")
+    data["created_at"] = datetime.now(timezone.utc).isoformat()
 
     print("Blueprint (with program-injected fields):")
     print(json.dumps(data, ensure_ascii=False, indent=2))

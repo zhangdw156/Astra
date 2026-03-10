@@ -1,6 +1,12 @@
 """
 轨迹质量评估 Demo：调用大模型，对 agent_demo/out_trajectory.json 这样的多轮轨迹做质量 / 幻觉打分。
 
+支持程序化验证：若轨迹含 expected_output、expected_final_state、final_state_snapshot，
+先做基于输出与基于状态的简单检查，结果作为上下文供 LLM 参考。
+
+支持两种 turns 格式：turn-based（含 user_message、assistant_message、tool_calls）
+与 flat（role/content）。
+
 依赖：
 - 项目根 .env：OPENAI_API_KEY、OPENAI_MODEL，OPENAI_BASE_URL（可选）
 - pip install openai python-dotenv
@@ -14,7 +20,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 from pathlib import Path
 
@@ -49,17 +54,68 @@ def load_trajectory(path: Path) -> dict:
     if not path.exists():
         raise SystemExit(f"轨迹文件不存在: {path}")
     data = json.loads(path.read_text(encoding="utf-8"))
-    # 简单结构校验
     if "turns" not in data or not isinstance(data["turns"], list):
         raise SystemExit("轨迹 JSON 缺少 turns 字段或格式不正确")
     return data
 
 
-def build_prompt(trajectory: dict) -> str:
-    """从模板与轨迹 JSON 构造最终提示词。"""
+def compute_programmatic_validation(trajectory: dict) -> dict:
+    """
+    程序化验证：基于输出与状态的简单检查。
+    返回 {"task_completion_score": float, "output_check": str, "state_check": str}
+    """
+    result = {
+        "task_completion_score": 0.0,
+        "output_check": "skipped",
+        "state_check": "skipped",
+    }
+
+    turns = trajectory.get("turns", [])
+    expected_output = trajectory.get("expected_output")
+    expected_final_state = trajectory.get("expected_final_state")
+    final_state_snapshot = trajectory.get("final_state_snapshot")
+
+    # 获取最后一轮助手回复
+    last_assistant_msg = ""
+    if turns:
+        last = turns[-1]
+        if isinstance(last, dict):
+            if "assistant_message" in last:
+                last_assistant_msg = last.get("assistant_message", "") or ""
+            elif last.get("role") == "assistant":
+                last_assistant_msg = last.get("content", "") or ""
+
+    # 基于输出的验证
+    if expected_output:
+        if last_assistant_msg and "[Error]" not in last_assistant_msg:
+            result["output_check"] = "pass (assistant replied; compare with expected_output manually)"
+            result["task_completion_score"] = 0.5  # 占位，LLM 可细化
+        else:
+            result["output_check"] = "fail (no valid final reply)"
+    else:
+        result["output_check"] = "no expected_output in trajectory"
+
+    # 基于状态的验证
+    if expected_final_state and final_state_snapshot:
+        if isinstance(final_state_snapshot, dict) and len(final_state_snapshot) > 0:
+            result["state_check"] = f"pass (snapshot has {list(final_state_snapshot.keys())})"
+            result["task_completion_score"] = max(result["task_completion_score"], 0.5)
+        else:
+            result["state_check"] = "fail (empty snapshot)"
+    elif final_state_snapshot is None:
+        result["state_check"] = "skipped (no final_state_snapshot)"
+
+    return result
+
+
+def build_prompt(trajectory: dict, programmatic: dict | None = None) -> str:
+    """从模板与轨迹 JSON 构造最终提示词。若提供 programmatic 验证结果，注入为上下文。"""
     prompt_text = PROMPT_PATH.read_text(encoding="utf-8")
     traj_json = json.dumps(trajectory, ensure_ascii=False, indent=2)
     prompt_text = prompt_text.replace("{TRAJECTORY_JSON}", traj_json)
+    if programmatic:
+        prog_json = json.dumps(programmatic, ensure_ascii=False)
+        prompt_text += f"\n\n## Programmatic Validation (for reference)\n{prog_json}\n"
     return prompt_text
 
 
@@ -116,7 +172,9 @@ def main() -> None:
         traj_path = PROJECT_ROOT / traj_path
 
     trajectory = load_trajectory(traj_path)
-    prompt = build_prompt(trajectory)
+    programmatic = compute_programmatic_validation(trajectory)
+    print("Programmatic validation:", programmatic)
+    prompt = build_prompt(trajectory, programmatic)
 
     print("Calling model:", model)
     print("Prompt length:", len(prompt), "chars")
@@ -135,6 +193,11 @@ def main() -> None:
         print("Model output (raw):")
         print(raw)
         raise SystemExit(f"Failed to parse JSON from model output: {e}") from e
+
+    # 合并程序化验证结果
+    if "task_completion_score" not in eval_result:
+        eval_result["task_completion_score"] = programmatic.get("task_completion_score", 0.0)
+    eval_result["programmatic_validation"] = programmatic
 
     print("Evaluation result:")
     print(json.dumps(eval_result, ensure_ascii=False, indent=2))

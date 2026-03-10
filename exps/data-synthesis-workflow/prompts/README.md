@@ -4,16 +4,26 @@
 
 ## task_blueprint_generator.md
 
-**用途**：根据 Skill 文档、工具列表和用户画像，生成多轮对话工具调用任务蓝图。
+**用途**：根据 Skill 文档、工具列表和用户画像，生成多轮对话工具调用**任务蓝图**（两阶段设计）。
 
 **输入**：
-- `exps/data-synthesis-workflow/2896_prediction-trader/SKILL.md` — Skill 定义
-- `exps/data-synthesis-workflow/prediction-trader/tools.jsonl` — 工具 schema 列表
-- `persona/persona_5K.jsonl` 中的一行 — 用户画像（含 `persona` 与 `id`）
+- `SKILL.md` — Skill 定义
+- `tools.jsonl` — 工具 schema 列表
+- `persona` — 用户画像（含 `persona` 与 `id`）
 
-**输出**：LLM 只产出 `queries` 数组（每项含 `query` 与 `tool_sequence`）。程序侧注入 `blueprint_id`、`skill_name`、`persona_id` 后写入蓝图文件。
+**输出**：任务配置（`task_id`、`user_intent`、`expected_tool_calls`、`expected_final_state`、`expected_output`）与交互生成配置（`system_message`、`user_agent_config`、`max_turns`、`end_condition`）。**无** `queries` 数组；用户消息由 agent_demo 阶段 User Agent 动态生成。
 
-**调用方式**：将上述三个输入内容注入提示词后，发给 LLM；将返回的 JSON 追加到蓝图文件（如 `blueprints.jsonl`）供后续数据合成使用。
+**调用方式**：由 `blueprint_demo/run_blueprint.py` 注入占位符后调用 LLM，程序注入 `blueprint_id`、`skill_name`、`persona_id`、`created_at` 后写入蓝图文件。
+
+## user_agent.md
+
+**用途**：指导 User Agent（LLM）根据任务意图与对话历史**动态生成**下一句用户消息。遵循 APIGen-MT 原则：不知工具/API、逐步透露、任务达成时输出 `[TASK_END]`、自然语言表达。
+
+**输入**：`user_intent`、`user_agent_config`、`conversation_history`、`current_turn`、`max_turns`、`end_condition`
+
+**输出**：单条用户消息字符串，或 `[TASK_END]` 表示结束。
+
+**调用方式**：由 `agent_demo/run_agent_simulation.py` 在动态模式下每轮调用。
 
 ## skill_to_environment.md
 
@@ -31,16 +41,10 @@
 
 ## trajectory_evaluator.md
 
-**用途**：对 `agent_demo/out_trajectory.json` 这类多轮对话轨迹调用大模型做质量评估，产出整体评分、幻觉风险与结构化标签。
+**用途**：对 `agent_demo/out_trajectory.json` 这类多轮对话轨迹调用大模型做质量评估，产出整体评分、幻觉风险、任务完成度与理由。
 
-**输入**：完整轨迹 JSON（含 `system_message`、`agent_system_prompt`、`tools`、`turns` 等）。
+**输入**：完整轨迹 JSON（含 `turns`、`final_state_snapshot`、`expected_output`、`expected_final_state` 等）。支持 turn-based 与 flat 两种 `turns` 格式。
 
-**输出**：一个 JSON 对象，包含：
+**输出**：JSON 含 `score`（0.0–5.0）、`hallucination_risk`、`task_completion_score`（0.0–1.0）、`reason`。评估前可先进行程序化验证，结果作为上下文供 LLM 参考。
 
-- `score`：0.0–5.0 轨迹整体质量评分
-- `hallucination_risk`：`none` / `low` / `medium` / `high`
-- `labels`：多种布尔标签（如 `has_hallucination`、`tool_misuse`、`contradicts_tool_results` 等）
-- `reasoning`：summary / strengths / weaknesses
-- `suggested_fixes`：改进建议列表
-
-**调用方式**：由 `trajectory_eval_demo/run_trajectory_eval.py` 注入 `{TRAJECTORY_JSON}` 并调用 LLM。
+**调用方式**：由 `trajectory_eval_demo/run_trajectory_eval.py` 注入 `{TRAJECTORY_JSON}` 及程序化验证结果后调用 LLM。

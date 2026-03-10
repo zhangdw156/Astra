@@ -27,11 +27,13 @@ You will receive a single JSON object with at least the following fields:
 - `system_message`: original system message given to the assistant.
 - `agent_system_prompt`: the full system prompt actually seen by the agent (may include tool descriptions).
 - `tools`: list of tool names available to the agent.
-- `turns`: the full ordered list of messages in the trajectory. Each item has:
-  - `role`: `"user"`, `"assistant"`, or `"function"`.
-  - `content`: natural language text (user or assistant), or serialized tool result (for `function` role).
-  - Optional: `reasoning_content`: the assistant's internal thinking (if present, you may use it to understand intent, but you primarily judge based on the final `content`).
-  - Optional: `function_call`: when `role == "assistant"`, describes the tool call (`name`, `arguments` JSON as string).
+- `turns`: the full ordered list of messages or turn objects. Two formats are supported:
+  - **Turn-based format** (new): Each turn is an object with `turn_index`, `user_message`, `assistant_thinking`, `assistant_message`, `tool_calls` (list of `{name`, `arguments`, `result`}), and optionally `user_agent_thinking`, `interaction_outcome`, `execution_time_ms`.
+  - **Flat format** (legacy): Each item has `role` (`"user"`, `"assistant"`, or `"function"`), `content`, and optionally `reasoning_content`, `function_call`, `name`.
+- `final_state_snapshot` (optional): Database state after task completion. When present, use it to assess task completion: check whether key data changed or persisted as expected. Include this in your `reason` when relevant.
+- `validation` (optional): Pre-computed validation results (`output_based`, `state_based`). You may reference these but form your own judgment.
+- `expected_output` (optional): From the blueprint; what the assistant's final reply should contain. Use it to judge task completion.
+- `expected_final_state` (optional): From the blueprint; description of desired state after completion.
 
 The full JSON will be injected into the placeholder `{TRAJECTORY_JSON}` below.
 
@@ -51,6 +53,7 @@ Return a single JSON object with the following schema (no extra top-level fields
 {
   "score": 0.0,
   "hallucination_risk": "none",
+  "task_completion_score": 0.0,
   "reason": ""
 }
 ```
@@ -65,6 +68,11 @@ Return a single JSON object with the following schema (no extra top-level fields
 - `hallucination_risk`:
   - One of: `"none"`, `"low"`, `"medium"`, `"high"`.
   - It should reflect how likely the trajectory contains hallucinations or contradictions with tool outputs.
+
+- `task_completion_score`:
+  - A **float between 0.0 and 1.0** (inclusive). Optional; default 0.0 if not applicable.
+  - 1.0 = task fully completed per `expected_output` / `expected_final_state`; 0.0 = not completed.
+  - Use `final_state_snapshot` and `expected_output` / `expected_final_state` when available.
 
 - `reason`:
   - A short natural-language explanation (in English or Chinese) of **why** you gave this score and hallucination risk.
