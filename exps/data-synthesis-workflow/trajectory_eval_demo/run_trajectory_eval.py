@@ -25,6 +25,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from openai import OpenAI
+import os
 
 # 路径
 SCRIPT_DIR = Path(__file__).resolve().parent

@@ -80,13 +80,13 @@ Output **exactly one** of:
 
 ## Placeholder Injection
 
-Before invoking, replace:
+Before invoking:
 
-- `{USER_INTENT}` → the `user_intent` string from the blueprint
-- `{USER_AGENT_CONFIG}` → JSON string of `user_agent_config`
-- `{CONVERSATION_HISTORY}` → formatted conversation (e.g. "User: ...\nAssistant: ...\n...")
-- `{CURRENT_TURN}` → integer
-- `{MAX_TURNS}` → integer
-- `{END_CONDITION}` → the `end_condition` string from the blueprint
+- Fill the user intent slot with the blueprint's `user_intent`
+- Fill the user agent config slot with the JSON string of `user_agent_config`
+- Fill the conversation history slot with formatted dialogue history (e.g. "User: ...\nAssistant: ...\n...")
+- Fill the current turn slot with the current turn index
+- Fill the max turns slot with the maximum turn count
+- Fill the end condition slot with the blueprint's `end_condition`
 
 **Output**: The model returns a single user message string, or `[TASK_END]`.

@@ -371,8 +371,10 @@ def _assistant_response_to_turn(
                 tool_calls.append({"name": name, "arguments": args, "result": result[:500]})
         i += 1
 
-    turn["assistant_thinking"] = final_reasoning
-    turn["assistant_message"] = final_assistant_content
+    # 不保存 assistant_thinking；assistant_message 只保存剥离 <think> 后的用户可见内容
+    _, message_only = _extract_reasoning(final_assistant_content)
+    turn["assistant_thinking"] = ""
+    turn["assistant_message"] = (message_only or final_assistant_content).strip()
     turn["tool_calls"] = tool_calls
     return turn
 

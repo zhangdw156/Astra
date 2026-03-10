@@ -60,7 +60,7 @@ Config for the dynamic User Agent and dialogue bounds.
     "personality": "<1–2 sentences>",
     "knowledge_boundary": "<what user knows/does not know>"
   },
-  "max_turns": 8,
+  "max_turns": "<positive integer, typically 6–12>",
   "end_condition": "<when task is considered done>"
 }
 ```
@@ -115,7 +115,7 @@ Output must satisfy:
     "personality": "Focused on Central America; prefers concise, data-driven answers.",
     "knowledge_boundary": "Does not know tool names or API; asks in natural language."
   },
-  "max_turns": 8,
+  "max_turns": 6,
   "end_condition": "User has received comparison results and expresses satisfaction or asks no further questions."
 }
 ```
@@ -126,11 +126,8 @@ Output must satisfy:
 
 Placeholders are for **text content** to be injected, not file paths. Before invoking:
 
-1. Read the file contents and substitute:
-   - `{SKILL_MD_CONTENT}` → full text of SKILL.md
-   - `{TOOLS_JSONL_CONTENT}` → full text of tools.jsonl
-   - `{PERSONA_CONTENT}` → one line from persona JSONL (e.g. from `persona/persona_5K.jsonl`)
-
-2. Pass the prompt with all placeholders replaced by the actual content to the LLM.
+1. Read the skill spec, tool schema list, and one persona record.
+2. Inject those contents into the three input slots shown in the table near the top of this prompt.
+3. Pass the prompt with those three slots filled to the LLM.
 
 **Output**: Merge the LLM output with program-injected fields (`blueprint_id`, `skill_name`, `persona_id`, `created_at`), then save the complete blueprint as JSON for downstream agent simulation.
