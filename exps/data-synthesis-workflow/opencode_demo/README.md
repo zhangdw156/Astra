@@ -34,7 +34,8 @@ python exps/data-synthesis-workflow/opencode_demo/run_opencode_env_gen.py
 | `--ref-skill-dir` | `opencode_demo/2896_prediction-trader` | 参考 skill 目录（OpenCode 需先阅读） |
 | `--ref-env-dir` | `opencode_demo/env_2896_prediction-trader` | 参考 env 目录（生成的示例） |
 | `--skill-dir` | `skills_demo/2515_stock-monitor` | 要转换的 skill 目录 |
-| `--env-dir` | `exps/data-synthesis-workflow/env_2515_stock-monitor` | 生成环境的目标目录 |
+| `--env-dir` | `env_demo/env_2515_stock-monitor` | 生成环境的目标目录（默认输出到项目根下的 `env_demo`） |
+| `--validate-script` | `exps/data-synthesis-workflow/opencode_demo/validate_env.py` | 单环境验证脚本路径，脚本会把它注入提示词中的 `{VALIDATE_ENV_SCRIPT}` 占位符 |
 
 ### 自定义路径
 
@@ -43,7 +44,8 @@ python exps/data-synthesis-workflow/opencode_demo/run_opencode_env_gen.py \
   --ref-skill-dir opencode_demo/2896_prediction-trader \
   --ref-env-dir opencode_demo/env_2896_prediction-trader \
   --skill-dir /path/to/skill \
-  --env-dir /path/to/output/env-dir
+  --env-dir /path/to/output/env-dir \
+  --validate-script exps/data-synthesis-workflow/opencode_demo/validate_env.py
 ```
 
 ## 输入
@@ -53,7 +55,7 @@ python exps/data-synthesis-workflow/opencode_demo/run_opencode_env_gen.py \
 - **目标 skill**（默认）：`skills_demo/2515_stock-monitor`
 - **目标 env**（默认）：`exps/data-synthesis-workflow/env_2515_stock-monitor`
 
-脚本会替换 `{REF_SKILL_DIR}`、`{REF_ENV_DIR}`、`{SKILL_DIR}`、`{ENV_DIR}`，并在任务开头显式指示 OpenCode 先阅读参考目录，再生成。
+脚本会替换 `{REF_SKILL_DIR}`、`{REF_ENV_DIR}`、`{SKILL_DIR}`、`{ENV_DIR}`、`{VALIDATE_ENV_SCRIPT}`，并在任务开头显式指示 OpenCode 先阅读参考目录，再生成。
 
 默认生成的环境采用 **strong（强状态）模式**：
 
@@ -96,6 +98,7 @@ python exps/data-synthesis-workflow/opencode_demo/batch_env_gen.py
 | `--limit N` | 最多处理 N 个 skill（0 表示不限制） |
 | `--skip-existing` | 若 `env_demo/env_xxx/mcp_server.py` 已存在则跳过 |
 | `--ref-skill-dir` / `--ref-env-dir` | 参考示例目录（与 run_opencode_env_gen 一致） |
+| `--validate-script` | 单环境验证脚本路径（转发给 `run_opencode_env_gen.py`，用于填充 `{VALIDATE_ENV_SCRIPT}`） |
 
 输出目录：`env_demo/env_<skill_dir_name>`（如 `env_demo/env_2515_stock-monitor`）。
 
@@ -128,7 +131,7 @@ python exps/data-synthesis-workflow/opencode_demo/validate_env_demo.py --llm-rep
 
 ## 单环境验证：validate_env.py（供 OpenCode 使用）
 
-OpenCode 生成环境后需通过质量门：运行 `validate_env.py` 验证单个环境，失败则根据输出修复后重试，直到通过。
+OpenCode 生成环境后需通过质量门：运行 `validate_env.py`（或你在 `--validate-script` 中指定的脚本）验证单个环境，失败则根据输出修复后重试，直到通过。
 
 ```bash
 # 在项目根目录执行，传入环境目录路径

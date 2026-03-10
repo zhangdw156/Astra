@@ -63,6 +63,12 @@ def main() -> int:
         default=SCRIPT_DIR / "env_2896_prediction-trader",
         help="Reference env dir",
     )
+    parser.add_argument(
+        "--validate-script",
+        type=Path,
+        default=None,
+        help="Optional path to single-env validation script (forwarded to run_opencode_env_gen.py)",
+    )
     args = parser.parse_args()
 
     skill_dirs = get_skill_dirs()
@@ -104,17 +110,22 @@ def main() -> int:
             processed += 1
             continue
 
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(RUN_SCRIPT),
-                "--ref-skill-dir", str(args.ref_skill_dir),
-                "--ref-env-dir", str(args.ref_env_dir),
-                "--skill-dir", str(skill_dir),
-                "--env-dir", str(env_dir),
-            ],
-            cwd=PROJECT_ROOT,
-        )
+        cmd = [
+            sys.executable,
+            str(RUN_SCRIPT),
+            "--ref-skill-dir",
+            str(args.ref_skill_dir),
+            "--ref-env-dir",
+            str(args.ref_env_dir),
+            "--skill-dir",
+            str(skill_dir),
+            "--env-dir",
+            str(env_dir),
+        ]
+        if args.validate_script is not None:
+            cmd.extend(["--validate-script", str(args.validate_script.resolve())])
+
+        result = subprocess.run(cmd, cwd=PROJECT_ROOT)
 
         if result.returncode == 0:
             print(f"  OK: {env_name}")

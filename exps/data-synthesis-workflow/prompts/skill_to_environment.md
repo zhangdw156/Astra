@@ -16,9 +16,14 @@ Read at least these files in the reference environment:
 - `docker/docker-compose.yaml` — **only expose MCP server port (e.g. 8000)**; Mock ports are internal only
 - `mocks/kalshi_api.py` (or any mock) — FastAPI app **reading from the same SQLite via state layer**
 
+If the reference environment is a **light/json-only** env (no `database/` or `state.py`, like `{REF_ENV_DIR}` in this project), focus on:
+- `mcp_server.py` (or `src/app/mcp_server.py`) — how it loads tools and wires FastMCP
+- `tools.jsonl` — tool schemas and descriptions
+- any app package (e.g. `src/app/`) that defines shared helpers or LLM response utilities
+
 **Replicate the same patterns**: database-driven state, state access layer, tools and mocks both use state; dynamic discovery; sync execute; uv-based build and run; **docker-compose exposes only the MCP port**. Do not hardcode tools or use async execute unless the reference does.
 
-When generating a new env, **copy reusable files** from the reference (e.g. `mcp_server.py`, `.dockerignore`, `scripts/export_tool_schemas.py`, then with substitution: `docker-compose.yaml`, `pyproject.toml`, `Dockerfile`) and **generate per skill** only `state.py`, `database/`, `tools/*.py`, `mocks/*.py`, `tools.jsonl`, `test_tools.py`, `README.md`. See **§10 Reusable vs skill-specific files** for the full list.
+When generating a new env, **copy reusable files** from the reference (e.g. `mcp_server.py`, then with substitution: `docker-compose.yaml`, `pyproject.toml`, `Dockerfile`) and **generate per skill** only `state.py`, `database/`, `tools/*.py`, `mocks/*.py`, `tools.jsonl`, `test_tools.py`, `README.md`. See **§10 Reusable vs skill-specific files** for the full list.
 
 ---
 
@@ -158,7 +163,7 @@ For environments that support concurrent synthesis:
 
 ### 9. Running with uv (local)
 
-- The **local environment is assumed to have uv**. For any Python entrypoint (scripts, tests, validation), **prefer running with uv**: e.g. `uv run python test_tools.py`, `uv run python scripts/export_tool_schemas.py`, `uv sync` for install. In README and validation instructions, use `uv run python ...` so that the correct virtualenv and dependencies are used without requiring the user to activate a venv manually.
+- The **local environment is assumed to have uv**. For any Python entrypoint (scripts, tests, validation), **prefer running with uv**: e.g. `uv run python test_tools.py`, `uv sync` for install. In README and validation instructions, use `uv run python ...` so that the correct virtualenv and dependencies are used without requiring the user to activate a venv manually.
 
 ### 10. Reusable vs skill-specific files (copy from reference vs generate)
 
@@ -166,10 +171,10 @@ When creating a new environment from a skill, you can **copy some files directly
 
 | Category | Files | Action |
 |----------|--------|--------|
-| **Copy as-is** | `mcp_server.py`, `.dockerignore`, `.python-version`, `tools/__init__.py`, `scripts/export_tool_schemas.py` | Copy from reference; no edits. `mcp_server.py` uses the **current directory name** as MCP name, so it works in any env folder. |
+| **Copy as-is** | `mcp_server.py`, `.python-version`, `tools/__init__.py` | Copy from reference; no edits. `mcp_server.py` uses the **current directory name** as MCP name, so it works in any env folder. |
 | **Copy then substitute** | `docker/docker-compose.yaml`, `opencode.json.example`, `pyproject.toml` | Copy from reference, then replace placeholders: service name / container name / volume name / MCP key with **the new env directory name** (e.g. `env_2896_prediction-trader` → `env_1234_my-skill`); update `pyproject.toml` name and description for the new skill. |
 | **Copy structure, adapt content** | `docker/Dockerfile` | Copy layout (base image, uv sync, COPY list, STATE_DB_PATH, init DB in CMD). Adapt: env vars and CMD lines for **which mock apps to start** (or omit mocks if the skill has none). |
-| **Generate per skill** | `state.py`, `database/schema.sql`, `database/initial_data.sql`, `tools/*.py` (except `__init__.py`), `mocks/*.py`, `tools.jsonl`, `test_tools.py`, `README.md` | Do **not** copy from reference; create from SKILL.md and your state/tool design. Schema, state helpers, tool logic, mock endpoints, and tests are all skill-specific. Emit `tools.jsonl` from tool schemas (or run `scripts/export_tool_schemas.py` after creating tools). |
+| **Generate per skill** | `state.py`, `database/schema.sql`, `database/initial_data.sql`, `tools/*.py` (except `__init__.py`), `mocks/*.py`, `tools.jsonl`, `test_tools.py`, `README.md` | Do **not** copy from reference; create from SKILL.md and your state/tool design. Schema, state helpers, tool logic, mock endpoints, and tests are all skill-specific. Emit `tools.jsonl` from tool schemas. |
 
 Do **not** copy `.venv/` or `uv.lock`; the new env should run `uv sync` to create its own venv and lockfile.
 
@@ -182,8 +187,8 @@ Do **not** copy `.venv/` or `uv.lock`; the new env should run `uv sync` to creat
 3. **Create database/**: schema.sql and initial_data.sql; then **state.py** with read/write/transaction and ensure_schema_and_initial_data() (generate per skill; do not copy from reference).
 4. **List tools**: for each command/usage, one tool name and parameters (inputSchema).
 5. **Create tools/*.py**: TOOL_SCHEMA and execute() that **call the state layer**; add `tools/__init__.py` (copy from reference or minimal stub).
-6. **Emit tools.jsonl**: one line per tool from TOOL_SCHEMA, or run `scripts/export_tool_schemas.py` after tools exist.
-7. **Copy reusable files from reference**: copy **mcp_server.py**, **.dockerignore**, **.python-version**, **scripts/export_tool_schemas.py** from `{REF_ENV_DIR}` as-is (no edits). Copy **docker/docker-compose.yaml**, **opencode.json.example**, **pyproject.toml** then substitute the **new env directory name** for service names, MCP key, and project name/description. Copy **docker/Dockerfile** and adapt only the mock-related ENV and CMD lines for this skill’s mocks (or remove if no mocks).
+6. **Emit tools.jsonl**: one line per tool from TOOL_SCHEMA.
+7. **Copy reusable files from reference**: copy **mcp_server.py** and **.python-version** from `{REF_ENV_DIR}` as-is (no edits). Copy **docker/docker-compose.yaml**, **opencode.json.example**, **pyproject.toml** then substitute the **new env directory name** for service names, MCP key, and project name/description. Copy **docker/Dockerfile** and adapt only the mock-related ENV and CMD lines for this skill’s mocks (or remove if no mocks).
 8. **If external APIs are needed**: implement Mocks under mocks/ that **read from the state layer**; ensure Dockerfile CMD starts them.
 9. **Write test_tools.py**: call ensure_schema_and_initial_data(), then run each tool execute() (skill-specific tool list).
 10. **Write README.md**: directory layout, how to run with **uv** and Docker, tool list, STATE_DB_PATH and env vars; state that only MCP port is exposed.
@@ -196,7 +201,7 @@ Do **not** copy `.venv/` or `uv.lock`; the new env should run `uv sync` to creat
 After generating the environment at `{ENV_DIR}`, you **must** run the validation script to ensure quality. **Use uv to run Python** (the local environment has uv):
 
 ```bash
-uv run python exps/data-synthesis-workflow/opencode_demo/validate_env.py {ENV_DIR}
+uv run python {VALIDATE_ENV_SCRIPT} {ENV_DIR}
 ```
 
 - **Exit 0**: validation passed; the environment is ready.
@@ -216,5 +221,6 @@ When running, the following placeholders are filled:
 | `{REF_ENV_DIR}` | **Example environment** to study (read mcp_server, tools, docker, mocks) |
 | `{SKILL_DIR}` | **Your input**: the skill to transform |
 | `{ENV_DIR}` | **Your output**: target directory for the generated environment |
+| `{VALIDATE_ENV_SCRIPT}` | Path to the single-env validation script (e.g. `exps/data-synthesis-workflow/opencode_demo/validate_env.py`), injected by the caller |
 
 Generate the environment at `{ENV_DIR}` from `{SKILL_DIR}`, replicating the patterns you observed in `{REF_ENV_DIR}`. The result should plug into the data-synthesis-workflow (blueprint generation, agent simulation). Remember: **each environment's docker-compose.yaml must only expose the MCP server port**; and when running any `.py` script locally, **prefer `uv run python ...`** so that uv manages the environment and dependencies.

@@ -23,7 +23,7 @@ DEFAULT_REF_ENV_DIR = SCRIPT_DIR / "env_2896_prediction-trader"
 
 # 默认生成目标：skill 输入与环境输出
 DEFAULT_SKILL_DIR = PROJECT_ROOT / "skills_demo" / "2515_stock-monitor"
-DEFAULT_ENV_DIR = WORKFLOW_DIR / "env_2515_stock-monitor"
+DEFAULT_ENV_DIR = PROJECT_ROOT / "env_demo" / "env_2515_stock-monitor"
 
 
 def parse_args() -> argparse.Namespace:
@@ -54,6 +54,12 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_ENV_DIR,
         help=f"Target environment directory to generate (default: {DEFAULT_ENV_DIR})",
     )
+    parser.add_argument(
+        "--validate-script",
+        type=Path,
+        default=SCRIPT_DIR / "validate_env.py",
+        help="Path to single-env validation script used in the prompt (default: validate_env.py beside this script)",
+    )
     return parser.parse_args()
 
 
@@ -63,6 +69,7 @@ def main() -> int:
     ref_env_dir = args.ref_env_dir.resolve()
     skill_dir = args.skill_dir.resolve()
     env_dir = args.env_dir.resolve()
+    validate_script = args.validate_script.resolve()
 
     if not PROMPT_PATH.exists():
         print(f"Error: Prompt file not found: {PROMPT_PATH}")
@@ -83,6 +90,7 @@ def main() -> int:
     prompt_text = prompt_text.replace("{REF_ENV_DIR}", str(ref_env_dir))
     prompt_text = prompt_text.replace("{SKILL_DIR}", str(skill_dir))
     prompt_text = prompt_text.replace("{ENV_DIR}", str(env_dir))
+    prompt_text = prompt_text.replace("{VALIDATE_ENV_SCRIPT}", str(validate_script))
 
     task_prefix = (
         "STEP 1 — Read the reference example pair first:\n"
@@ -94,7 +102,7 @@ def main() -> int:
         f"- Output env: {env_dir}\n"
         "Create the environment at the output path, replicating the patterns from the reference.\n\n"
         "STEP 3 — Validate (required): After generation, run:\n"
-        f"  uv run python exps/data-synthesis-workflow/opencode_demo/validate_env.py {env_dir}\n"
+        f"  uv run python {validate_script} {env_dir}\n"
         "Fix any validation failures and re-run until exit code 0. Do not finish until validation passes.\n\n"
         "---\n\n"
     )
