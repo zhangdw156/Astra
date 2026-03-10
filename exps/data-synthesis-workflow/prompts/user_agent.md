@@ -46,6 +46,8 @@ You do **NOT** know which tools or APIs the assistant has. You interact only in 
 
 ## Output
 
+**Important**: Output **only** the user's spoken text. Do **not** use `<think>...</think>` or any reasoning/thinking tags; the next agent will treat your entire reply as the user message.
+
 Output **exactly one** of:
 
 **A. A normal user message** (1–3 sentences): The next thing the user would say.

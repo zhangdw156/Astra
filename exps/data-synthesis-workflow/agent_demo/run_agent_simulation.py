@@ -234,7 +234,7 @@ def _format_conversation_for_user_agent(messages: list[dict]) -> str:
 def generate_user_message(blueprint: dict, messages: list[dict], current_turn: int) -> str:
     """
     调用 User Agent LLM，根据 user_intent、user_agent_config 与对话历史生成下一句 user 消息。
-    返回 user 消息内容，或 [TASK_END] 表示结束。
+    返回已剥离 <think> 的用户可见消息；若应结束则返回 TASK_END_MARKER。不返回思考内容，轨迹也不保存。
     """
     from openai import OpenAI
 
@@ -268,7 +268,27 @@ def generate_user_message(blueprint: dict, messages: list[dict], current_turn: i
     raw = (resp.choices[0].message.content or "").strip()
     if TASK_END_MARKER in raw:
         return TASK_END_MARKER
-    return raw
+    # 剥离 <think>，只保留用户可见消息；思考内容不保存到轨迹
+    cleaned, _ = _strip_think_from_user_agent(raw)
+    return cleaned
+
+
+def _strip_think_from_user_agent(text: str) -> tuple[str, str]:
+    """
+    从 User Agent 的原始输出中剥离 <think>...</think>，返回 (用户可见消息, 思考内容)。
+    若模型把 chain-of-thought 放进回复，避免写入 user_message 污染轨迹。
+    """
+    if not text:
+        return "", ""
+    pattern = r"<think>(.*?)</think>"
+    thinking_parts: list[str] = []
+    for m in re.finditer(pattern, text, re.DOTALL):
+        thinking_parts.append(m.group(1).strip())
+    if thinking_parts:
+        thinking = "\n\n".join(thinking_parts)
+        clean = re.sub(pattern, "", text, flags=re.DOTALL).strip()
+        return clean, thinking
+    return text, ""
 
 
 def _extract_reasoning(content: str) -> tuple[str, str]:
@@ -312,17 +332,14 @@ def _message_to_dict(msg) -> dict | None:
 
 def _assistant_response_to_turn(
     user_message: str,
-    user_agent_thinking: str | None,
     last_response: list,
     start_time: float,
 ) -> dict:
-    """将一轮 user + assistant 响应转换为 turn 结构。"""
+    """将一轮 user + assistant 响应转换为 turn 结构。不保存 User Agent 的思考内容。"""
     turn: dict = {
         "user_message": user_message,
         "execution_time_ms": int((time.perf_counter() - start_time) * 1000),
     }
-    if user_agent_thinking:
-        turn["user_agent_thinking"] = user_agent_thinking
 
     tool_calls: list[dict] = []
     final_assistant_content = ""
@@ -377,6 +394,7 @@ def run_dynamic_simulation(agent, blueprint: dict) -> list[dict]:
             break
 
         print(f"\n[Turn {turn_idx}] User: {user_msg[:80]}...")
+        # Assistant 只允许看到“用户说出的话”（user_msg），绝不能看到 user_thinking
         user_dict = {"role": "user", "content": user_msg}
         messages.append(user_dict)
 
@@ -397,7 +415,7 @@ def run_dynamic_simulation(agent, blueprint: dict) -> list[dict]:
                 elif role == "function":
                     print(f"  Tool: {m.get('name', '')} -> {len(str(m.get('content', '')))} chars")
 
-            turn = _assistant_response_to_turn(user_msg, None, last_response, start_time)
+            turn = _assistant_response_to_turn(user_msg, last_response, start_time)
             turn["turn_index"] = turn_idx
             turns.append(turn)
 
@@ -452,7 +470,7 @@ def run_static_simulation(agent, blueprint: dict) -> list[dict]:
                 elif role == "function":
                     print(f"  Tool: {m.get('name', '')} -> {len(str(m.get('content', '')))} chars")
 
-            turn = _assistant_response_to_turn(query, None, last_response, start_time)
+            turn = _assistant_response_to_turn(query, last_response, start_time)
             turn["turn_index"] = i + 1
             turns.append(turn)
 

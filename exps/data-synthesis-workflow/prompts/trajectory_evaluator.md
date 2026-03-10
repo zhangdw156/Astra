@@ -28,7 +28,7 @@ You will receive a single JSON object with at least the following fields:
 - `agent_system_prompt`: the full system prompt actually seen by the agent (may include tool descriptions).
 - `tools`: list of tool names available to the agent.
 - `turns`: the full ordered list of messages or turn objects. Two formats are supported:
-  - **Turn-based format** (new): Each turn is an object with `turn_index`, `user_message`, `assistant_thinking`, `assistant_message`, `tool_calls` (list of `{name`, `arguments`, `result`}), and optionally `user_agent_thinking`, `interaction_outcome`, `execution_time_ms`.
+  - **Turn-based format** (new): Each turn is an object with `turn_index`, `user_message`, `assistant_thinking`, `assistant_message`, `tool_calls` (list of `{name`, `arguments`, `result`}), and optionally `interaction_outcome`, `execution_time_ms`.
   - **Flat format** (legacy): Each item has `role` (`"user"`, `"assistant"`, or `"function"`), `content`, and optionally `reasoning_content`, `function_call`, `name`.
 - `final_state_snapshot` (optional): Database state after task completion. When present, use it to assess task completion: check whether key data changed or persisted as expected. Include this in your `reason` when relevant.
 - `validation` (optional): Pre-computed validation results (`output_based`, `state_based`). You may reference these but form your own judgment.
