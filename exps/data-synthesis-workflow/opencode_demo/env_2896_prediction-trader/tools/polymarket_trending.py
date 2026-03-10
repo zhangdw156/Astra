@@ -1,13 +1,8 @@
 """
-Polymarket Trending Tool - 获取Polymarket热门预测市场
+Polymarket Trending Tool - 获取 Polymarket 热门预测市场
 
-Polymarket 是一个基于 Polygon 的离岸预测市场，提供加密货币、政治、体育等预测。
-通过 UnifAI Agent API 访问。
+通过状态访问层读取（见 DATA_SYNTHESIS_TECH_ROUTE）。
 """
-
-import json
-import os
-import urllib.request
 
 TOOL_SCHEMA = {
     "name": "polymarket_trending",
@@ -20,46 +15,29 @@ TOOL_SCHEMA = {
     }
 }
 
-UNIFAI_API_BASE = os.environ.get("UNIFAI_API_BASE", "http://localhost:8001")
-UNIFAI_API_KEY = os.environ.get("UNIFAI_AGENT_API_KEY", "mock-api-key")
-
 
 def execute() -> str:
-    """
-    获取Polymarket热门预测市场
+    """从状态层读取 Polymarket 热门事件。"""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from state import read_polymarket_events
 
-    Returns:
-        格式化的热门市场数据
-    """
-    try:
-        url = f"{UNIFAI_API_BASE}/v1/agent/trending"
+    events = read_polymarket_events(category="trending")
+    if not events:
+        return "No trending markets found"
 
-        request = urllib.request.Request(url)
-        request.add_header("Authorization", f"Bearer {UNIFAI_API_KEY}")
-
-        with urllib.request.urlopen(request, timeout=30) as response:
-            data = json.loads(response.read().decode())
-
-        if not data.get("data"):
-            return "No trending markets found"
-
-        events = data["data"]["events"]
-        output = "## Polymarket - Trending Events\n\n"
-        output += "*Offshore prediction market on Polygon*\n\n"
-
-        for event in events:
-            output += f"**{event['question']}**\n"
-            output += f"- YES: ${event['yes']:.2f} ({event['yes']*100:.0f}%)\n"
-            output += f"- NO: ${event['no']:.2f} ({event['no']*100:.0f}%)\n"
-            output += f"- Volume: {event['volume']}\n"
-            if event.get("description"):
-                output += f"- {event['description']}\n"
-            output += "\n"
-
-        return output
-
-    except Exception as e:
-        return f"Error fetching trending markets: {str(e)}"
+    output = "## Polymarket - Trending Events\n\n"
+    output += "*Offshore prediction market on Polygon*\n\n"
+    for e in events:
+        output += f"**{e['question']}**\n"
+        output += f"- YES: ${e['yes_price']:.2f} ({e['yes_price']*100:.0f}%)\n"
+        output += f"- NO: ${e['no_price']:.2f} ({e['no_price']*100:.0f}%)\n"
+        output += f"- Volume: {e.get('volume_display', 'N/A')}\n"
+        if e.get("description"):
+            output += f"- {e['description']}\n"
+        output += "\n"
+    return output
 
 
 if __name__ == "__main__":

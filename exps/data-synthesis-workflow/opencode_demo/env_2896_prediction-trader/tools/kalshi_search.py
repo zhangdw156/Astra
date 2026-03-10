@@ -1,13 +1,8 @@
 """
-Kalshi Search Tool - 搜索Kalshi预测市场
+Kalshi Search Tool - 搜索 Kalshi 预测市场
 
-在Kalshi预测市场中搜索特定主题的市场。
+通过状态访问层按 title 模糊查询（见 DATA_SYNTHESIS_TECH_ROUTE）。
 """
-
-import json
-import os
-import urllib.request
-import urllib.parse
 
 TOOL_SCHEMA = {
     "name": "kalshi_search",
@@ -30,46 +25,27 @@ TOOL_SCHEMA = {
     }
 }
 
-KALSHI_API_BASE = os.environ.get("KALSHI_API_BASE", "http://localhost:8002")
-
 
 def execute(query: str, limit: int = 10) -> str:
-    """
-    搜索Kalshi预测市场
+    """从状态层搜索 Kalshi 市场。"""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from state import read_kalshi_markets
 
-    Args:
-        query: 搜索关键词
-        limit: 最大返回数量
+    markets = read_kalshi_markets(search_query=query, limit=limit)
+    if not markets:
+        return f"No markets found for query: {query}"
 
-    Returns:
-        格式化的搜索结果
-    """
-    try:
-        encoded_query = urllib.parse.quote(query)
-        url = f"{KALSHI_API_BASE}/markets/search?q={encoded_query}&limit={limit}"
-
-        with urllib.request.urlopen(url, timeout=30) as response:
-            data = json.loads(response.read().decode())
-
-        if not data.get("markets"):
-            return f"No markets found for query: {query}"
-
-        # 格式化输出
-        output = f"## Kalshi Search: {query}\n\n"
-        output += f"*Found {data['total']} markets*\n\n"
-
-        for m in data["markets"]:
-            yes_pct = m["yes_price"] * 100
-            output += f"**{m['title']}**\n"
-            output += f"- YES: ${m['yes_price']:.2f} ({yes_pct:.0f}%)\n"
-            output += f"- NO: ${m['no_price']:.2f} ({100-yes_pct:.0f}%)\n"
-            output += f"- Volume: ${m['volume']:,}\n"
-            output += "\n"
-
-        return output
-
-    except Exception as e:
-        return f"Error searching markets: {str(e)}"
+    output = f"## Kalshi Search: {query}\n\n"
+    output += f"*Found {len(markets)} markets*\n\n"
+    for m in markets:
+        yes_pct = m["yes_price"] * 100
+        output += f"**{m['title']}**\n"
+        output += f"- YES: ${m['yes_price']:.2f} ({yes_pct:.0f}%)\n"
+        output += f"- NO: ${m['no_price']:.2f} ({100-yes_pct:.0f}%)\n"
+        output += f"- Volume: ${m['volume']:,}\n\n"
+    return output
 
 
 if __name__ == "__main__":

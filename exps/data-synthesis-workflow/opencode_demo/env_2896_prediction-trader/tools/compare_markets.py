@@ -1,13 +1,8 @@
 """
 Compare Markets Tool - 比较两个平台的预测市场
 
-比较特定主题在 Polymarket 和 Kalshi 上的预测市场。
+通过状态访问层按主题搜索 Kalshi 与 Polymarket（见 DATA_SYNTHESIS_TECH_ROUTE）。
 """
-
-import json
-import os
-import urllib.request
-import urllib.parse
 
 TOOL_SCHEMA = {
     "name": "compare_markets",
@@ -32,66 +27,37 @@ TOOL_SCHEMA = {
     }
 }
 
-UNIFAI_API_BASE = os.environ.get("UNIFAI_API_BASE", "http://localhost:8001")
-KALSHI_API_BASE = os.environ.get("KALSHI_API_BASE", "http://localhost:8002")
-UNIFAI_API_KEY = os.environ.get("UNIFAI_AGENT_API_KEY", "mock-api-key")
-
 
 def execute(topic: str, limit: int = 5) -> str:
-    """
-    比较两个平台的预测市场
+    """从状态层按 topic 比较两平台市场。"""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from state import read_kalshi_markets, read_polymarket_events
 
-    Args:
-        topic: 比较主题
-        limit: 每个平台返回的数量
-
-    Returns:
-        格式化的比较结果
-    """
     output = f"## Prediction Markets: {topic}\n\n"
 
-    # 搜索 Kalshi
-    try:
-        encoded_topic = urllib.parse.quote(topic)
-        url = f"{KALSHI_API_BASE}/markets/search?q={encoded_topic}&limit={limit}"
+    kalshi = read_kalshi_markets(search_query=topic, limit=limit)
+    output += "### Kalshi (CFTC-Regulated)\n\n"
+    if kalshi:
+        for m in kalshi:
+            output += f"**{m['title']}**\n"
+            output += f"- YES: ${m['yes_price']:.2f} ({m['yes_price']*100:.0f}%)\n"
+            output += f"- NO: ${m['no_price']:.2f} ({m['no_price']*100:.0f}%)\n"
+            output += f"- Volume: ${m['volume']:,}\n\n"
+    else:
+        output += "No markets found\n\n"
 
-        with urllib.request.urlopen(url, timeout=30) as response:
-            data = json.loads(response.read().decode())
-
-        output += "### Kalshi (CFTC-Regulated)\n\n"
-
-        if data.get("markets"):
-            for m in data["markets"]:
-                output += f"**{m['title']}**\n"
-                output += f"- YES: ${m['yes_price']:.2f} ({m['yes_price']*100:.0f}%)\n"
-                output += f"- NO: ${m['no_price']:.2f} ({m['no_price']*100:.0f}%)\n"
-                output += f"- Volume: ${m['volume']:,}\n\n"
-        else:
-            output += "No markets found\n\n"
-
-    except Exception as e:
-        output += f"Error searching Kalshi: {str(e)}\n\n"
-
-    # 搜索 Polymarket
-    try:
-        encoded_topic = urllib.parse.quote(topic)
-        url = f"{UNIFAI_API_BASE}/v1/agent/search?q={encoded_topic}"
-
-        request = urllib.request.Request(url)
-        request.add_header("Authorization", f"Bearer {UNIFAI_API_KEY}")
-
-        with urllib.request.urlopen(request, timeout=30) as response:
-            data = json.loads(response.read().decode())
-
-        output += "### Polymarket\n\n"
-
-        if data.get("response"):
-            output += data["response"] + "\n\n"
-        else:
-            output += "No markets found\n\n"
-
-    except Exception as e:
-        output += f"Error searching Polymarket: {str(e)}\n"
+    poly = read_polymarket_events(search_query=topic, limit=limit)
+    output += "### Polymarket\n\n"
+    if poly:
+        for e in poly:
+            output += f"**{e['question']}**\n"
+            output += f"- YES: ${e['yes_price']:.2f} ({e['yes_price']*100:.0f}%)\n"
+            output += f"- NO: ${e['no_price']:.2f} ({e['no_price']*100:.0f}%)\n"
+            output += f"- Volume: {e.get('volume_display', 'N/A')}\n\n"
+    else:
+        output += "No markets found\n\n"
 
     return output
 

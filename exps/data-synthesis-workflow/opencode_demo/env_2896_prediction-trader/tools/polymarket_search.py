@@ -1,13 +1,8 @@
 """
-Polymarket Search Tool - 在Polymarket搜索预测市场
+Polymarket Search Tool - 在 Polymarket 搜索预测市场
 
-在Polymarket预测市场中搜索特定主题。
+通过状态访问层按 question 模糊查询（见 DATA_SYNTHESIS_TECH_ROUTE）。
 """
-
-import json
-import os
-import urllib.request
-import urllib.parse
 
 TOOL_SCHEMA = {
     "name": "polymarket_search",
@@ -26,37 +21,31 @@ TOOL_SCHEMA = {
     }
 }
 
-UNIFAI_API_BASE = os.environ.get("UNIFAI_API_BASE", "http://localhost:8001")
-UNIFAI_API_KEY = os.environ.get("UNIFAI_AGENT_API_KEY", "mock-api-key")
-
 
 def execute(query: str) -> str:
-    """
-    在Polymarket搜索预测市场
+    """从状态层搜索 Polymarket 并返回格式化文本（与 UnifAI 搜索风格一致）。"""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from state import read_polymarket_events, read_kalshi_markets
 
-    Args:
-        query: 搜索关键词
+    poly = read_polymarket_events(search_query=query, limit=10)
+    kalshi = read_kalshi_markets(search_query=query, limit=5)
 
-    Returns:
-        格式化的搜索结果
-    """
-    try:
-        encoded_query = urllib.parse.quote(query)
-        url = f"{UNIFAI_API_BASE}/v1/agent/search?q={encoded_query}"
-
-        request = urllib.request.Request(url)
-        request.add_header("Authorization", f"Bearer {UNIFAI_API_KEY}")
-
-        with urllib.request.urlopen(request, timeout=30) as response:
-            data = json.loads(response.read().decode())
-
-        if not data.get("response"):
-            return f"No results found for query: {query}"
-
-        return data["response"]
-
-    except Exception as e:
-        return f"Error searching Polymarket: {str(e)}"
+    lines = [f"**Polymarket Search: {query}**\n"]
+    if poly:
+        lines.append("| Question | Yes | No | Volume |")
+        lines.append("|----------|-----|-----|--------|")
+        for e in poly[:5]:
+            lines.append(f"| {e['question'][:50]} | ${e['yes_price']:.2f} | ${e['no_price']:.2f} | {e.get('volume_display', '')} |")
+    if kalshi:
+        lines.append("\n**Kalshi** (CFTC-regulated)\n")
+        for m in kalshi:
+            lines.append(f"- {m['title']} | YES ${m['yes_price']:.2f} | Vol ${m['volume']:,}")
+    if not poly and not kalshi:
+        return f"No results found for query: {query}"
+    lines.append("\n**Summary**: Data from shared state database.")
+    return "\n".join(lines)
 
 
 if __name__ == "__main__":

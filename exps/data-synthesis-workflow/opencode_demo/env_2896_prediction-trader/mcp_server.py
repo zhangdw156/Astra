@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Prediction Trader MCP Server
+MCP 服务入口：扫描 tools/ 目录并注册所有工具。
 
-MCP 服务入口，扫描 tools/ 目录并注册所有工具。
+服务名使用当前目录名（即环境文件夹名，如 env_2896_prediction-trader），
+便于 mcp_server.py 复制到其他环境时自动沿用新文件夹名。
 """
 
 import os
@@ -71,22 +72,20 @@ def create_mcp_tools(mcp: FastMCP, tools: Dict[str, Any]):
 
 
 def main():
-    """主入口"""
-    # 获取当前目录
-    current_dir = Path(__file__).parent
+    """主入口：MCP 名 = 当前目录名，便于复制到任意环境目录后直接使用。"""
+    current_dir = Path(__file__).resolve().parent
     tools_dir = current_dir / "tools"
+    mcp_name = current_dir.name
 
-    print(f"Prediction Trader MCP Server")
+    print(f"{mcp_name} MCP Server")
     print(f"Tools directory: {tools_dir}")
     print("-" * 40)
 
-    # 发现工具
     tools = discover_tools(tools_dir)
     print(f"Total tools loaded: {len(tools)}")
     print("-" * 40)
 
-    # 创建 MCP 服务
-    mcp = FastMCP("prediction-trader")
+    mcp = FastMCP(mcp_name)
 
     # 注册工具
     create_mcp_tools(mcp, tools)

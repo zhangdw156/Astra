@@ -31,7 +31,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 WORKFLOW_DIR = SCRIPT_DIR.parent
 PROJECT_ROOT = WORKFLOW_DIR.parent.parent
 BLUEPRINT_DEMO = WORKFLOW_DIR / "blueprint_demo"
-PREDICTION_TRADER = WORKFLOW_DIR / "prediction-trader"
+PREDICTION_TRADER = WORKFLOW_DIR / "opencode_demo" / "env_2896_prediction-trader"
 
 # 默认蓝图路径
 DEFAULT_BLUEPRINT = BLUEPRINT_DEMO / "out_blueprint.json"
@@ -149,6 +149,48 @@ def build_mcp_config() -> dict:
             }
         }
     }
+
+
+def _patch_mcp_tool_params():
+    """
+    对 qwen_agent MCP 工具的 call 做容错：模型对无参工具可能传空串或非法 JSON，
+    导致 json.loads(params) 报 JSONDecodeError。此处将空/空白 params 规范为 "{}"。
+    """
+    try:
+        from qwen_agent.tools import mcp_manager
+        import json as _json
+
+        _orig_create = mcp_manager.MCPManager.create_tool_class
+
+        def _normalize_tool_params(params) -> dict:
+            if params is None:
+                return {}
+            if isinstance(params, dict):
+                return params
+            s = params if isinstance(params, str) else str(params)
+            s = (s or "").strip()
+            if not s:
+                return {}
+            try:
+                return _json.loads(s)
+            except _json.JSONDecodeError:
+                return {}
+
+        def _patched_create_tool_class(self, register_name, register_client_id, tool_name, tool_desc, tool_parameters):
+            tool_instance = _orig_create(self, register_name, register_client_id, tool_name, tool_desc, tool_parameters)
+            orig_call = tool_instance.call
+
+            def _call(params, **kwargs):
+                tool_args = _normalize_tool_params(params)
+                return orig_call(_json.dumps(tool_args) if tool_args is not None else "{}", **kwargs)
+
+            tool_instance.call = _call
+            return tool_instance
+
+        mcp_manager.MCPManager.create_tool_class = _patched_create_tool_class
+    except Exception as e:
+        import warnings
+        warnings.warn(f"MCP params 容错 patch 未生效: {e}", RuntimeWarning)
 
 
 def create_agent(system_message: str) -> tuple:
@@ -309,6 +351,8 @@ def main() -> None:
 
     if not args.no_docker and not ensure_mcp_running():
         raise SystemExit("无法连接到 MCP 服务，请确保 prediction-trader 容器已启动。")
+
+    _patch_mcp_tool_params()
 
     agent, system_message, tools = create_agent(
         system_message=blueprint["system_message"],

@@ -1,12 +1,8 @@
 """
-Polymarket Crypto Tool - 获取Polymarket加密货币预测市场
+Polymarket Crypto Tool - 获取 Polymarket 加密货币预测市场
 
-Polymarket 是一个基于 Polygon 的离岸预测市场，提供加密货币价格预测。
+通过状态访问层读取（见 DATA_SYNTHESIS_TECH_ROUTE）。
 """
-
-import json
-import os
-import urllib.request
 
 TOOL_SCHEMA = {
     "name": "polymarket_crypto",
@@ -19,46 +15,29 @@ TOOL_SCHEMA = {
     }
 }
 
-UNIFAI_API_BASE = os.environ.get("UNIFAI_API_BASE", "http://localhost:8001")
-UNIFAI_API_KEY = os.environ.get("UNIFAI_AGENT_API_KEY", "mock-api-key")
-
 
 def execute() -> str:
-    """
-    获取Polymarket加密货币预测市场
+    """从状态层读取 Polymarket 加密货币事件。"""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from state import read_polymarket_events
 
-    Returns:
-        格式化的加密货币市场数据
-    """
-    try:
-        url = f"{UNIFAI_API_BASE}/v1/agent/crypto"
+    events = read_polymarket_events(category="crypto")
+    if not events:
+        return "No crypto markets found"
 
-        request = urllib.request.Request(url)
-        request.add_header("Authorization", f"Bearer {UNIFAI_API_KEY}")
-
-        with urllib.request.urlopen(request, timeout=30) as response:
-            data = json.loads(response.read().decode())
-
-        if not data.get("data"):
-            return "No crypto markets found"
-
-        events = data["data"]["events"]
-        output = "## Polymarket - Cryptocurrency Markets\n\n"
-        output += "*Offshore prediction market on Polygon*\n\n"
-
-        for event in events:
-            output += f"**{event['question']}**\n"
-            output += f"- YES: ${event['yes']:.2f} ({event['yes']*100:.0f}%)\n"
-            output += f"- NO: ${event['no']:.2f} ({event['no']*100:.0f}%)\n"
-            output += f"- Volume: {event['volume']}\n"
-            if event.get("description"):
-                output += f"- {event['description']}\n"
-            output += "\n"
-
-        return output
-
-    except Exception as e:
-        return f"Error fetching crypto markets: {str(e)}"
+    output = "## Polymarket - Cryptocurrency Markets\n\n"
+    output += "*Offshore prediction market on Polygon*\n\n"
+    for e in events:
+        output += f"**{e['question']}**\n"
+        output += f"- YES: ${e['yes_price']:.2f} ({e['yes_price']*100:.0f}%)\n"
+        output += f"- NO: ${e['no_price']:.2f} ({e['no_price']*100:.0f}%)\n"
+        output += f"- Volume: {e.get('volume_display', 'N/A')}\n"
+        if e.get("description"):
+            output += f"- {e['description']}\n"
+        output += "\n"
+    return output
 
 
 if __name__ == "__main__":

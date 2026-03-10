@@ -1,13 +1,8 @@
 """
 Kalshi Fed Markets Tool - 获取美联储利率相关预测市场
 
-Kalshi 是 CFTC 监管的美国预测市场，提供美联储利率、GDP、CPI等经济预测。
+通过状态访问层读取 SQLite，与 Mock 共享同一状态后端（见 DATA_SYNTHESIS_TECH_ROUTE）。
 """
-
-import json
-import os
-import urllib.request
-import urllib.parse
 
 TOOL_SCHEMA = {
     "name": "kalshi_fed",
@@ -26,47 +21,30 @@ TOOL_SCHEMA = {
     }
 }
 
-# 默认使用 Mock API
-KALSHI_API_BASE = os.environ.get("KALSHI_API_BASE", "http://localhost:8002")
-
 
 def execute(limit: int = 10) -> str:
-    """
-    获取美联储利率预测市场
+    """从状态层读取美联储利率预测市场并格式化输出。"""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from state import read_kalshi_markets
 
-    Args:
-        limit: 最大返回数量
+    markets = read_kalshi_markets(category="fed", limit=limit)
+    if not markets:
+        return "No Fed markets found"
 
-    Returns:
-        格式化的市场数据
-    """
-    try:
-        url = f"{KALSHI_API_BASE}/markets/fed?limit={limit}"
-
-        with urllib.request.urlopen(url, timeout=30) as response:
-            data = json.loads(response.read().decode())
-
-        if not data.get("markets"):
-            return "No Fed markets found"
-
-        # 格式化输出
-        output = "## Federal Reserve Interest Rate Markets (Kalshi)\n\n"
-        output += "*CFTC-regulated US prediction market*\n\n"
-
-        for m in data["markets"]:
-            yes_pct = m["yes_price"] * 100
-            output += f"**{m['title']}**\n"
-            output += f"- YES: ${m['yes_price']:.2f} ({yes_pct:.0f}%)\n"
-            output += f"- NO: ${m['no_price']:.2f} ({100-yes_pct:.0f}%)\n"
-            output += f"- Volume: ${m['volume']:,}\n"
-            if m.get("closeDate"):
-                output += f"- Closes: {m['closeDate'][:10]}\n"
-            output += "\n"
-
-        return output
-
-    except Exception as e:
-        return f"Error fetching Fed markets: {str(e)}"
+    output = "## Federal Reserve Interest Rate Markets (Kalshi)\n\n"
+    output += "*CFTC-regulated US prediction market*\n\n"
+    for m in markets:
+        yes_pct = m["yes_price"] * 100
+        output += f"**{m['title']}**\n"
+        output += f"- YES: ${m['yes_price']:.2f} ({yes_pct:.0f}%)\n"
+        output += f"- NO: ${m['no_price']:.2f} ({100-yes_pct:.0f}%)\n"
+        output += f"- Volume: ${m['volume']:,}\n"
+        if m.get("close_date"):
+            output += f"- Closes: {m['close_date'][:10]}\n"
+        output += "\n"
+    return output
 
 
 if __name__ == "__main__":

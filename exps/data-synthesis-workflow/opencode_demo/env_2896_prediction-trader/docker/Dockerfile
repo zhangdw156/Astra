@@ -19,9 +19,11 @@ RUN uv sync --no-install-project
 # 复制业务代码（路径相对于 build context，即项目根）
 COPY tools/ ./tools/
 COPY mocks/ ./mocks/
-COPY mcp_server.py test_tools.py ./
+COPY database/ ./database/
+COPY state.py mcp_server.py test_tools.py ./
 
-# 设置环境变量
+# 状态库路径：容器内统一使用 /app/data/state.db，可挂载卷实现持久化
+ENV STATE_DB_PATH=/app/data/state.db
 ENV PYTHONPATH=/app
 ENV PATH="/app/.venv/bin:$PATH"
 ENV MCP_TRANSPORT=http
@@ -30,13 +32,12 @@ ENV KALSHI_API_BASE=http://localhost:8002
 ENV UNIFAI_AGENT_API_KEY=mock-api-key
 
 # 暴露端口
-# 8000: MCP Server
-# 8001: UnifAI Mock API
-# 8002: Kalshi Mock API
+# 8000: MCP Server | 8001: UnifAI Mock API | 8002: Kalshi Mock API
 EXPOSE 8000 8001 8002
 
-# 启动命令：后台启动所有服务，wait 保持主进程不退出
+# 启动：先初始化 SQLite Schema 与初始数据，再启动 MCP + Mock 服务
 CMD ["sh", "-c", "\
+    python -c \"from state import ensure_schema_and_initial_data; ensure_schema_and_initial_data()\" && \
     uvicorn mocks.unifai_api:app --host 0.0.0.0 --port 8001 & \
     uvicorn mocks.kalshi_api:app --host 0.0.0.0 --port 8002 & \
     python mcp_server.py & \

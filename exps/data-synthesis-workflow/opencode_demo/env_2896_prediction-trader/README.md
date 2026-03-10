@@ -1,61 +1,64 @@
-# Prediction Trader Skill - 完整实现
+# Prediction Trader Skill - 完整实现（数据库驱动版）
 
-基于 prediction-trader skill 的完整多轮对话工具调用数据生成环境。
+基于 prediction-trader skill 的完整多轮对话工具调用数据生成环境，按 DATA_SYNTHESIS_TECH_ROUTE 采用 **SQLite 状态后端 + 状态访问层**，工具与 Mock 共享同一状态，可追踪、可复现、可验证。
 
 ## 目录结构
 
 ```
-prediction-trader/
-├── SKILL.md                    # 原始技能定义
-├── docker/                     # Docker 相关文件
-│   ├── Dockerfile              # 容器镜像构建
-│   └── docker-compose.yaml    # 服务编排
-├── pyproject.toml              # Python 依赖（uv 管理）
-├── mcp_server.py               # MCP 服务入口
-├── test_tools.py               # 工具测试脚本
+env_2896_prediction-trader/
+├── database/                   # SQLite 状态后端
+│   ├── schema.sql              # 表结构（kalshi_markets, polymarket_events）
+│   └── initial_data.sql        # 初始种子数据
+├── state.py                    # 状态访问层（read/write/transaction）
+├── docker/
+│   ├── Dockerfile
+│   └── docker-compose.yaml
+├── pyproject.toml
+├── mcp_server.py
+├── test_tools.py               # 本地测试（自动初始化 DB，无需 Mock）
 │
-├── tools/                      # MCP 工具定义
-│   ├── __init__.py
-│   ├── kalshi_fed.py           # 美联储利率市场
-│   ├── kalshi_economics.py     # 经济预测市场
-│   ├── kalshi_search.py        # 市场搜索
-│   ├── polymarket_trending.py  # Polymarket 热门
-│   ├── polymarket_crypto.py    # 加密货币市场
-│   ├── polymarket_search.py    # Polymarket 搜索
-│   ├── trending.py             # 双平台热门
-│   ├── compare_markets.py      # 市场对比
-│   └── analyze_topic.py        # 主题分析
+├── tools/                      # MCP 工具（经 state 层读数据）
+│   ├── kalshi_fed.py
+│   ├── kalshi_economics.py
+│   ├── kalshi_search.py
+│   ├── polymarket_trending.py
+│   ├── polymarket_crypto.py
+│   ├── polymarket_search.py
+│   ├── trending.py
+│   ├── compare_markets.py
+│   └── analyze_topic.py
 │
-└── mocks/                      # Mock API 服务
-    ├── unifai_api.py           # UnifAI/Polymarket Mock
-    └── kalshi_api.py           # Kalshi Mock
+└── mocks/                      # Mock API（从同一 SQLite 读取）
+    ├── unifai_api.py
+    └── kalshi_api.py
 ```
 
 ## 快速开始
 
-### 1. 启动服务
+### 1. 本地测试（无需 Docker）
 
 ```bash
-# 在 prediction-trader 目录下执行
-
-# 构建并启动所有服务
-docker compose -f docker/docker-compose.yaml up -d
-
-# 查看日志
-docker compose -f docker/docker-compose.yaml logs -f
-
-# 停止服务
-docker compose -f docker/docker-compose.yaml down
+# 在 env_2896_prediction-trader 目录下执行
+uv sync
+python test_tools.py
 ```
 
-### 2. 测试工具
+会先初始化 `data/state.db`（执行 schema + initial_data），再跑全部工具测试。工具直接读状态层，无需启动 Mock。
+
+### 2. Docker 启动服务
 
 ```bash
-# 进入容器
-docker compose -f docker/docker-compose.yaml exec prediction-trader bash
+# 在 env_2896_prediction-trader 目录下执行
+docker compose -f docker/docker-compose.yaml up -d
+docker compose -f docker/docker-compose.yaml logs -f
+```
 
-# 运行测试
-python test_tools.py
+容器启动时会自动执行 `ensure_schema_and_initial_data()`，状态持久化到卷 `prediction-trader-data`。
+
+### 3. 容器内测试工具
+
+```bash
+docker compose -f docker/docker-compose.yaml exec prediction-trader python test_tools.py
 ```
 
 ### 3. 使用 MCP 服务
@@ -90,8 +93,9 @@ result = client.call_tool("kalshi_fed", {"limit": 5})
 
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
-| `UNIFAI_API_BASE` | http://localhost:8001 | UnifAI Mock API 地址 |
-| `KALSHI_API_BASE` | http://localhost:8002 | Kalshi Mock API 地址 |
+| `STATE_DB_PATH` | `./data/state.db` | SQLite 状态库路径（Docker 内为 `/app/data/state.db`） |
+| `UNIFAI_API_BASE` | http://localhost:8001 | UnifAI Mock API 地址（仅 HTTP 调用方需要） |
+| `KALSHI_API_BASE` | http://localhost:8002 | Kalshi Mock API 地址（仅 HTTP 调用方需要） |
 | `UNIFAI_AGENT_API_KEY` | mock-api-key | UnifAI API Key |
 
 ## 数据合成工作流
@@ -172,7 +176,6 @@ Assistant: 让我帮你查一下当前热门的预测市场。
 
 ## 注意事项
 
-- 所有工具调用都通过 Mock API 返回预设数据
-- Mock 数据是静态的，适合训练"工具选择"能力
-- 不需要真实 API Key
-- 数据与时间无关，适合任意时刻训练
+- **状态后端**：工具与 Mock 均通过 `state.py` 访问同一 SQLite，数据一致、可验证。
+- **可复现**：初始数据由 `database/initial_data.sql` 固定，相同环境得到相同结果。
+- 不需要真实 API Key；本地测试无需启动 Mock，直接 `python test_tools.py` 即可。

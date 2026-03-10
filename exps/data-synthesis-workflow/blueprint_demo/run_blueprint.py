@@ -20,11 +20,11 @@ WORKFLOW_DIR = SCRIPT_DIR.parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 
 PROMPT_PATH = WORKFLOW_DIR / "prompts" / "task_blueprint_generator.md"
-SKILL_PATH = WORKFLOW_DIR / "2896_prediction-trader" / "SKILL.md"
-TOOLS_PATH = WORKFLOW_DIR / "prediction-trader" / "tools.jsonl"
+SKILL_PATH = WORKFLOW_DIR / "opencode_demo" / "2896_prediction-trader" / "SKILL.md"
+TOOLS_PATH = WORKFLOW_DIR / "opencode_demo" / "env_2896_prediction-trader" / "tools.jsonl"
 PERSONA_PATH = PROJECT_ROOT / "persona" / "persona_5K.jsonl"
 
-SKILL_NAME = "prediction-trader"
+SKILL_NAME = "2896_prediction-trader"
 
 
 def load_env_and_client() -> tuple[OpenAI, str]:

@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 """
-测试工具脚本 - 验证工具可以正常调用 Mock API
+测试工具脚本 - 验证工具通过状态访问层正常读写 SQLite
+
+运行前会初始化 database/schema.sql 与 initial_data.sql（若尚未初始化）。
+无需启动 Mock API，工具直接读 state 层。
 """
 
 import os
 import sys
 
-# 设置环境变量
-os.environ["UNIFAI_API_BASE"] = "http://localhost:8001"
-os.environ["KALSHI_API_BASE"] = "http://localhost:8002"
-os.environ["UNIFAI_AGENT_API_KEY"] = "mock-api-key"
+# 项目根即当前脚本所在目录
+root = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, root)
+os.chdir(root)
 
-# 添加当前目录到路径
-sys.path.insert(0, os.path.dirname(__file__))
+# 初始化 SQLite 状态库（与 Docker 内一致）
+from state import ensure_schema_and_initial_data
+ensure_schema_and_initial_data()
 
 
 def test_kalshi_fed():
@@ -116,11 +120,9 @@ def test_polymarket_search():
 
 if __name__ == "__main__":
     print("\n" + "=" * 50)
-    print("Running tool tests...")
-    print("Note: Make sure Mock APIs are running on ports 8001 and 8002")
+    print("Running tool tests (state-backed, no Mock API required)")
     print("=" * 50 + "\n")
 
-    # 测试所有工具
     test_kalshi_fed()
     test_kalshi_economics()
     test_kalshi_search()

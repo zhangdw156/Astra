@@ -1,30 +1,33 @@
 # 镜像使用 uv 管理依赖（见 Dockerfile）
 # 从项目根目录执行: docker compose -f docker/docker-compose.yaml build|up|down
+# 状态后端：SQLite 持久化到卷 data，便于验证与可复现（见 DATA_SYNTHESIS_TECH_ROUTE）
 services:
-  # Prediction Trader MCP Service (包含所有工具和Mock API)
+  # Prediction Trader MCP Service（状态访问层 + 工具 + Mock 共用一个 SQLite）
   prediction-trader:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: prediction-trader-mcp
+    # 仅暴露 MCP 服务端口；Mock API (8001/8002) 仅在容器内供健康检查，工具经 state 层读 SQLite 不依赖其对外暴露
     ports:
-      - "8000:8000"  # MCP Server
-      - "8001:8001"  # UnifAI Mock API
-      - "8002:8002"  # Kalshi Mock API
+      - "8000:8000"  # MCP Server (SSE)
+    volumes:
+      - prediction-trader-data:/app/data
     environment:
+      - STATE_DB_PATH=/app/data/state.db
       - MCP_TRANSPORT=http
       - UNIFAI_API_BASE=http://localhost:8001
       - KALSHI_API_BASE=http://localhost:8002
       - UNIFAI_AGENT_API_KEY=mock-api-key
     healthcheck:
-      # MCP 默认 stdio 模式不监听 8000，改为检查 Mock API
+      # 容器内 Mock 仍监听 8001，用于就绪探针；对外仅暴露 8000
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
     restart: unless-stopped
 
-# 使用方法（在 artifacts/prediction-trader 目录下执行）:
+# 使用方法（在 env_2896_prediction-trader 目录下执行）:
 # 1. 构建镜像: docker compose -f docker/docker-compose.yaml build
 # 2. 启动服务: docker compose -f docker/docker-compose.yaml up -d
 # 3. 查看日志: docker compose -f docker/docker-compose.yaml logs -f
@@ -32,3 +35,6 @@ services:
 #
 # MCP 服务地址: http://localhost:8000
 # 可通过 stdio 或 SSE 模式连接
+
+volumes:
+  prediction-trader-data:
