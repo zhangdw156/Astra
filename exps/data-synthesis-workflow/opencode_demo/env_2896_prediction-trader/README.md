@@ -1,49 +1,31 @@
-# Prediction Trader Skill - 完整实现（数据库驱动版）
+# Prediction Trader Skill - 轻量 MCP 环境（tools.jsonl-only）
 
-基于 prediction-trader skill 的完整多轮对话工具调用数据生成环境，按 DATA_SYNTHESIS_TECH_ROUTE 采用 **SQLite 状态后端 + 状态访问层**，工具与 Mock 共享同一状态，可追踪、可复现、可验证。本环境进一步采用 **共享静态表 + `run_id` 隔离运行态表** 的模式，支持单容器并发收集多条轨迹。
+本目录中的 `env_2896_prediction-trader` 是一个**轻量（light/json-only）MCP 环境**示例，符合数据合成技术路线中「仅依赖 tools.jsonl + LLM + KV state」的环境要求。它不再依赖 SQLite 数据库、`state.py`、`tools/*.py` 或 Mock API，而是通过 `tools.jsonl` 描述工具 schema，并由 LLM 在进程内维护 JSON 会话状态。
 
 ## 目录结构
 
 ```
 env_2896_prediction-trader/
-├── database/                   # SQLite 状态后端
-│   ├── schema.sql              # 表结构（共享静态表 + run 运行态表）
-│   └── initial_data.sql        # 初始种子数据
-├── state.py                    # 状态访问层（read/write/transaction + run_context）
 ├── docker/
 │   ├── Dockerfile
 │   └── docker-compose.yaml
 ├── pyproject.toml
 ├── mcp_server.py
-├── test_tools.py               # 本地测试（自动初始化 DB，无需 Mock）
-│
-├── tools/                      # MCP 工具（经 state 层读数据）
-│   ├── kalshi_fed.py
-│   ├── kalshi_economics.py
-│   ├── kalshi_search.py
-│   ├── polymarket_trending.py
-│   ├── polymarket_crypto.py
-│   ├── polymarket_search.py
-│   ├── trending.py
-│   ├── compare_markets.py
-│   └── analyze_topic.py
-│
-└── mocks/                      # Mock API（从同一 SQLite 读取）
-    ├── unifai_api.py
-    └── kalshi_api.py
+├── llm_response.py             # 调用大模型生成工具回复与 JSON 状态
+├── tools.jsonl                 # 工具 schema 列表（name/description/inputSchema）
+└── uv.lock                     # 依赖锁（由 uv sync 生成，可选）
 ```
 
 ## 快速开始
 
-### 1. 本地测试（无需 Docker）
+### 1. 本地运行（无需 Docker）
 
 ```bash
-# 在 env_2896_prediction-trader 目录下执行
 uv sync
-python test_tools.py
+MCP_TRANSPORT=stdio ENV_MODE=light python mcp_server.py
 ```
 
-会先初始化 `data/state.db`（执行 schema + initial_data），再跑全部工具测试。工具直接读状态层，无需启动 Mock。测试中还会写入一条示例 `run_id` 的运行态日志和快照。
+服务启动后，将根据 `tools.jsonl` 注册所有工具，工具调用结果和会话状态由 `llm_response.py` 调用大模型生成与维护。无需数据库初始化与 Mock 服务。
 
 ### 2. Docker 启动服务
 
@@ -53,13 +35,7 @@ docker compose -f docker/docker-compose.yaml up -d
 docker compose -f docker/docker-compose.yaml logs -f
 ```
 
-容器启动时会自动执行 `ensure_schema_and_initial_data()`，并通过 `../data:/app/data` 与宿主机共享 SQLite 文件，使宿主机的轨迹采集脚本与容器内工具可以观察同一份状态。
-
-### 3. 容器内测试工具
-
-```bash
-docker compose -f docker/docker-compose.yaml exec prediction-trader python test_tools.py
-```
+容器内会自动安装依赖并以 `ENV_MODE=light` 启动 MCP 服务，基于 `tools.jsonl` + LLM + KV state 提供工具能力，不再依赖 SQLite 或 Mock API。
 
 ### 3. 使用 MCP 服务
 
@@ -75,115 +51,18 @@ tools = client.list_tools()
 result = client.call_tool("kalshi_fed", {"limit": 5})
 ```
 
-## 可用工具
-
-| 工具名称 | 功能 |
-|----------|------|
-| `kalshi_fed` | 获取美联储利率预测市场 |
-| `kalshi_economics` | 获取 GDP/CPI 经济预测市场 |
-| `kalshi_search` | 搜索 Kalshi 预测市场 |
-| `polymarket_trending` | 获取 Polymarket 热门预测 |
-| `polymarket_crypto` | 获取加密货币预测市场 |
-| `polymarket_search` | 搜索 Polymarket 预测市场 |
-| `trending` | 获取双平台热门预测市场 |
-| `compare_markets` | 对比双平台特定主题市场 |
-| `analyze_topic` | 全面分析特定主题市场 |
-
 ## 环境变量
 
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
-| `STATE_DB_PATH` | `./data/state.db` | SQLite 状态库路径（Docker 内为 `/app/data/state.db`） |
-| `UNIFAI_API_BASE` | http://localhost:8001 | UnifAI Mock API 地址（仅 HTTP 调用方需要） |
-| `KALSHI_API_BASE` | http://localhost:8002 | Kalshi Mock API 地址（仅 HTTP 调用方需要） |
-| `UNIFAI_AGENT_API_KEY` | mock-api-key | UnifAI API Key |
+| `MCP_TRANSPORT` | `http`（Docker）/ `stdio`（本地示例） | MCP 传输模式 |
+| `ENV_MODE` | `light` | 环境模式，固定为轻量 json-only |
+| `OPENAI_API_KEY` | （必填） | 用于 `llm_response.py` 调用大模型 |
+| `OPENAI_MODEL` | （必填） | 工具回复生成所用模型，如 `gpt-4.1-mini` |
+| `OPENAI_BASE_URL` | 空 | 可选自定义 OpenAI 兼容服务地址 |
 
-## 数据合成工作流
+## 数据合成工作流中的定位
 
-### 运行态隔离模型
-
-- **共享静态表**：`kalshi_markets`、`polymarket_events`。所有 run 共用，只读。
-- **运行态表**：`trajectory_runs`、`tool_call_logs`、`run_outputs`、`run_snapshots`。所有写入按 `run_id` 隔离。
-- **RunContext**：由数据合成框架在启动单条轨迹时生成 `run_id` 并绑定到 `state.py`，工具 schema 不暴露 `run_id`。
-- **输出路径**：推荐写到 `agent_demo/runs/<run_id>/out_trajectory.json` 与 `trajectory_eval_demo/runs/<run_id>/out_trajectory_eval.json`。
-
-### 步骤 1: 准备场景
-
-定义多轮对话场景：
-
-```json
-{
-  "session_id": "session_001",
-  "skill": "prediction-trader",
-  "scenarios": [
-    {
-      "turn": 1,
-      "user": "有什么热门的预测市场吗？",
-      "expected_tool": "trending",
-      "expected_params": {}
-    },
-    {
-      "turn": 2,
-      "user": "我想了解比特币相关的预测市场",
-      "expected_tool": "compare_markets",
-      "expected_params": {"topic": "bitcoin"}
-    }
-  ]
-}
-```
-
-### 步骤 2: 调用工具
-
-LLM 根据用户输入选择工具：
-
-```
-User: 有什么热门的预测市场吗？
-Assistant: 让我帮你查一下当前热门的预测市场。
-[Calls: trending(limit=5)]
-```
-
-### 步骤 3: 收集轨迹
-
-记录完整的对话轨迹用于训练：
-
-```json
-{
-  "session_id": "session_001",
-  "turns": [
-    {
-      "role": "user",
-      "content": "有什么热门的预测市场吗？"
-    },
-    {
-      "role": "assistant",
-      "content": "让我帮你查一下当前热门的预测市场。",
-      "tool_calls": [
-        {
-          "name": "trending",
-          "arguments": {"limit": 5}
-        }
-      ]
-    },
-    {
-      "role": "tool",
-      "name": "trending",
-      "content": "## Trending Prediction Markets\n\n### Polymarket..."
-    }
-  ]
-}
-```
-
-## 扩展到更多 Skill
-
-当需要添加新的 skill 时：
-
-1. 在 `tools/` 目录添加新工具
-2. 在 `mocks/` 目录添加 Mock API（如果需要）
-3. `docker/Dockerfile` 会自动包含新工具
-
-## 注意事项
-
-- **状态后端**：工具与 Mock 均通过 `state.py` 访问同一 SQLite，数据一致、可验证。
-- **可复现**：共享静态种子数据由 `database/initial_data.sql` 固定；运行态数据通过 `run_id` 隔离保存。
-- **并发友好**：只读查询型轨迹可以在单容器内并发运行，不同 run 通过运行态表和输出目录隔离。
-- 不需要真实 API Key；本地测试无需启动 Mock，直接 `python test_tools.py` 即可。
+- 该环境主要用于演示和验证 **tools.jsonl-only + LLM + KV state** 的轻量环境形态，便于快速集成到数据合成流水线中；
+- blueprint 侧给出的 `initial_state` / `expected_final_state` 会在 MCP 端通过 KV JSON state 体现，并在轨迹的 `final_state` 字段中落盘；
+- 不承担 SQLite schema 设计与强一致状态验证的职责，这些由单独的强状态参考环境或上游数据层负责。

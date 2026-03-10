@@ -28,10 +28,9 @@
 
 工具与接口合成阶段接收数据库Schema和初始状态作为输入，输出包含MCP服务器、工具实现和Mock服务的完整代码。该阶段在原有方案的基础上进行了增强，工具实现通过统一的状态访问层来操作数据库，而非直接访问外部服务或文件系统。状态访问层封装了SQLite数据库的读写接口，提供了read、write、delete和transaction等核心方法。这种设计有几个重要优势：状态变更可追踪和回滚、便于实现事务性操作、支持状态验证。对于批量数据合成场景，状态访问层还应提供 `run_id` 作用域管理能力，由上层框架在启动单条轨迹时创建 `run_id` 并注入 `RunContext`，随后由状态层自动将运行态读写绑定到当前 `run_id`。这样工具 schema 无需暴露 `run_id` 参数，工具实现也能保持简洁。Mock服务的设计也做了相应调整，Mock不再返回静态JSON，而是从同一个SQLite数据库中读取数据返回给工具，这样可以保证工具看到的数据与环境的实际状态一致。
 
-在具体工程实现上，本项目区分了两类环境模式：
+在具体工程实现上，本项目在**环境生成阶段只关注一种输出形态：轻量工具环境（light/json-only）**。
 
-- **强状态环境（strong）**：环境目录中包含 `database/`、`state.py` 与 `tools/`，MCP 服务在 strong 模式下扫描 `tools/` 中的 TOOL_SCHEMA + execute，将其注册为 MCP 工具并通过状态层对 SQLite 执行真实读写。轨迹采集结束后，从数据库导出的 run-scoped 视图作为 `db_snapshot` 写入统一的 `final_state`。
-- **轻量环境（light/json-only）**：环境目录中不强制要求 `database/`、`state.py`、`tools/`，而只要求 `mcp_server.py`、`pyproject.toml` 与 `tools.jsonl`。MCP 服务根据 `tools.jsonl` 注册通用工具 handler，通过 LLM 在进程内的 KV 中维护 JSON 会话状态（即「环境 state」），每次工具调用后产生新的完整 state，并在轨迹结束时写入 `final_state`。这种模式适合只读或弱状态场景，不再依赖 SQLite 作为唯一真值源，但仍遵循统一的 `run_id` / `final_state` 协议，便于与强状态环境共用评估与分析链路。
+- **轻量环境（light/json-only）**（流水线生成目标）：环境目录不强制要求 `database/`、`state.py`、`tools/`，而只要求 `mcp_server.py`、`pyproject.toml` 与 `tools.jsonl`。MCP 服务根据 `tools.jsonl` 注册通用工具 handler，通过 LLM 在进程内的 KV 中维护 JSON 会话状态（即「环境 state」），每次工具调用后产生新的完整 state，并在轨迹结束时写入 `final_state`。这种模式适合只读或弱状态场景，环境极简、易于批量生成和校验，同时遵循统一的 `run_id` / `final_state` 协议，便于在评估与分析阶段与其他环境形态对齐。
 
 自验证与修复阶段是实现高质量生成的关键机制，借鉴了Agent World Model的自我纠正设计理念。该阶段执行多轮验证和修复循环，直到环境通过所有验证或达到最大迭代次数。验证内容包括结构验证、依赖验证、运行时验证和功能验证四个层面。自动修复机制在检测到错误后会自动分析错误类型，将错误描述和上下文反馈给大语言模型进行修复，修复后的代码会重新经过验证流程。
 

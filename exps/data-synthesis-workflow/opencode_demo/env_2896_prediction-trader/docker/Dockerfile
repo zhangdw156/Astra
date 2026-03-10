@@ -17,28 +17,16 @@ ENV UV_INDEX_STRATEGY=unsafe-first-match
 RUN uv sync --no-install-project
 
 # 复制业务代码（路径相对于 build context，即项目根）
-COPY tools/ ./tools/
-COPY mocks/ ./mocks/
-COPY database/ ./database/
-COPY state.py mcp_server.py test_tools.py ./
+# 轻量环境仅依赖 mcp_server.py、llm_response.py 与 tools.jsonl
+COPY mcp_server.py llm_response.py tools.jsonl ./
 
-# 状态库路径：容器内统一使用 /app/data/state.db，可挂载卷实现持久化
-ENV STATE_DB_PATH=/app/data/state.db
 ENV PYTHONPATH=/app
 ENV PATH="/app/.venv/bin:$PATH"
 ENV MCP_TRANSPORT=http
-ENV UNIFAI_API_BASE=http://localhost:8001
-ENV KALSHI_API_BASE=http://localhost:8002
-ENV UNIFAI_AGENT_API_KEY=mock-api-key
+ENV ENV_MODE=light
 
-# 暴露端口
-# 8000: MCP Server | 8001: UnifAI Mock API | 8002: Kalshi Mock API
-EXPOSE 8000 8001 8002
+# 仅暴露 MCP Server 端口
+EXPOSE 8000
 
-# 启动：先初始化 SQLite Schema 与初始数据，再启动 MCP + Mock 服务
-CMD ["sh", "-c", "\
-    python -c \"from state import ensure_schema_and_initial_data; ensure_schema_and_initial_data()\" && \
-    uvicorn mocks.unifai_api:app --host 0.0.0.0 --port 8001 & \
-    uvicorn mocks.kalshi_api:app --host 0.0.0.0 --port 8002 & \
-    python mcp_server.py & \
-    wait"]
+# 启动：直接运行轻量 MCP 服务（tools.jsonl + KV state）
+CMD ["python", "mcp_server.py"]
