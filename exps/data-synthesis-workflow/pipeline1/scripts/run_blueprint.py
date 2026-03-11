@@ -28,7 +28,7 @@ SKILL_NAME = "2896_prediction-trader"
 
 # pipeline1 本地资源（基于 skill name 定位资源目录）
 SKILL_DIR = SCRIPT_DIR.parent / SKILL_NAME
-PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "planner" / "planner_agent.md"
+PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "planner_agent.md"
 SKILL_PATH = SKILL_DIR / "SKILL.md"
 TOOLS_PATH = SKILL_DIR / "tools.jsonl"
 DEFAULT_PERSONA_PATH = SCRIPT_DIR.parent / "data" / "persona_5K.jsonl"

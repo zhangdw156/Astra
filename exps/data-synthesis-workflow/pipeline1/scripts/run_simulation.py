@@ -44,7 +44,7 @@ DEFAULT_BLUEPRINT = None
 # MCP SSE 端点（本地轻量 MCP）
 MCP_SSE_URL = "http://localhost:8000/sse"
 # User Agent 提示词（pipeline1 本地）
-USER_AGENT_PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "user" / "user_agent.md"
+USER_AGENT_PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "user_agent.md"
 
 TASK_END_MARKER = "[TASK_END]"
 

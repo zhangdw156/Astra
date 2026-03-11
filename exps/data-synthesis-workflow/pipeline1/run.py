@@ -44,7 +44,7 @@ SKILL_NAME = "2896_prediction-trader"
 # 本地脚本和资源（基于 skill name 定位资源目录）
 SCRIPTS_DIR = SCRIPT_DIR / "scripts"
 PERSONA_PATH = SCRIPT_DIR / "data" / "persona_5K.jsonl"
-SKILL_DIR = SCRIPT_DIR / SKILL_NAME
+SKILL_DIR = PROJECT_ROOT/ "examples" / SKILL_NAME
 TOOLS_PATH = SKILL_DIR / "tools.jsonl"
 
 # MCP SSE 端点（本地轻量 MCP）
@@ -78,7 +78,7 @@ def start_light_mcp_subprocess(tools_path: Path):
         raise FileNotFoundError(f"tools_path 不存在: {tools_abs}")
 
     # prompt_path 需要传递给 MCP 用于生成工具回复
-    prompt_path = SCRIPT_DIR / "prompts" / "tool" / "tool_agent.md"
+    prompt_path = SCRIPT_DIR / "prompts" / "tool_agent.md"
     prompt_abs = prompt_path.resolve() if not prompt_path.is_absolute() else prompt_path
 
     cmd = [
