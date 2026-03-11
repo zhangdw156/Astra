@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import concurrent.futures
 import json
 import random
 import subprocess
@@ -236,6 +237,50 @@ def run_eval(trajectory_path: Path, out_eval: Path) -> bool:
     return r.returncode == 0
 
 
+def run_one_sample_for_skill(
+    *,
+    skill_name: str,
+    skill_artifacts_root: Path,
+    sample_index: int,
+    persona_idx: int,
+    persona_line: str,
+    mcp_url: str,
+) -> tuple[bool, bool, bool]:
+    """
+    在单个 skill 下执行一条样本的 蓝图->轨迹->评估 流程。
+    返回 (blueprint_ok, trajectory_ok, eval_ok)。
+    """
+    run_local_id = f"multi_{skill_name}_{sample_index}"
+
+    print("\n" + "-" * 60)
+    print(
+        f"[{skill_name}] 样本 {sample_index + 1} "
+        f"(persona_idx={persona_idx})"
+    )
+    print("-" * 60)
+
+    run_dir = skill_artifacts_root / str(sample_index)
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    blueprint_path = run_dir / "blueprint.json"
+    blueprint_ok = run_blueprint(persona_line, blueprint_path, skill_name)
+    if not blueprint_ok:
+        print(f"  [{skill_name}#{sample_index}] 蓝图生成失败")
+        return False, False, False
+
+    traj_path = run_dir / "trajectory.json"
+    trajectory_ok = run_agent(blueprint_path, traj_path, run_local_id, mcp_url)
+    if not trajectory_ok:
+        print(f"  [{skill_name}#{sample_index}] 轨迹生成失败")
+        return True, False, False
+
+    eval_path = run_dir / "evaluation.json"
+    eval_ok = run_eval(traj_path, eval_path)
+    if not eval_ok:
+        print(f"  [{skill_name}#{sample_index}] 评估失败")
+    return True, True, eval_ok
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -267,7 +312,15 @@ def main() -> int:
         default=None,
         help="随机种子（可选，用于 persona 分配的可重复性）",
     )
+    parser.add_argument(
+        "--workers-per-skill",
+        type=int,
+        default=1,
+        help="每个 skill 内并发生成样本的 worker 数（默认 1，即串行）",
+    )
     args = parser.parse_args()
+    if args.workers_per_skill < 1:
+        raise SystemExit("--workers-per-skill 必须 >= 1")
 
     rng = random.Random(args.seed)
 
@@ -281,6 +334,7 @@ def main() -> int:
     print(f"Persona path:     {args.persona_path}")
     print(f"技能数（含 tools.jsonl）: {len(skills)}")
     print(f"每个 skill 样本数: {args.num_per_skill}")
+    print(f"每个 skill 并发数: {args.workers_per_skill}")
     print(f"persona 总数:     {len(personas)}")
     print("=" * 60)
 
@@ -328,37 +382,45 @@ def main() -> int:
         try:
             with start_light_mcp_subprocess(tools_path):
                 print(f"\nMCP Server 已就绪（skill={skill_name}），开始合成该 skill 的样本...")
-                for j, persona_idx in enumerate(persona_indices):
-                    persona_line = personas[persona_idx]
-                    run_local_id = f"multi_{skill_name}_{j}"
+                sample_tasks = [
+                    (j, persona_idx, personas[persona_idx])
+                    for j, persona_idx in enumerate(persona_indices)
+                ]
 
-                    print("\n" + "-" * 60)
-                    print(
-                        f"[{skill_name}] 样本 {j+1}/{len(persona_indices)} "
-                        f"(persona_idx={persona_idx})"
-                    )
-                    print("-" * 60)
-
-                    run_dir = skill_artifacts_root / str(j)
-                    run_dir.mkdir(parents=True, exist_ok=True)
-
-                    blueprint_path = run_dir / "blueprint.json"
-                    if run_blueprint(persona_line, blueprint_path, skill_name):
-                        total_blueprints += 1
-                    else:
-                        print("  蓝图生成失败，跳过本条")
-                        continue
-
-                    traj_path = run_dir / "trajectory.json"
-                    if run_agent(blueprint_path, traj_path, run_local_id, MCP_SSE_URL):
-                        total_trajectories += 1
-                    else:
-                        print("  轨迹生成失败，跳过评估")
-                        continue
-
-                    eval_path = run_dir / "evaluation.json"
-                    if run_eval(traj_path, eval_path):
-                        total_evals += 1
+                if args.workers_per_skill == 1:
+                    for j, persona_idx, persona_line in sample_tasks:
+                        bp_ok, tr_ok, ev_ok = run_one_sample_for_skill(
+                            skill_name=skill_name,
+                            skill_artifacts_root=skill_artifacts_root,
+                            sample_index=j,
+                            persona_idx=persona_idx,
+                            persona_line=persona_line,
+                            mcp_url=MCP_SSE_URL,
+                        )
+                        total_blueprints += int(bp_ok)
+                        total_trajectories += int(tr_ok)
+                        total_evals += int(ev_ok)
+                else:
+                    with concurrent.futures.ThreadPoolExecutor(
+                        max_workers=args.workers_per_skill
+                    ) as executor:
+                        futures = [
+                            executor.submit(
+                                run_one_sample_for_skill,
+                                skill_name=skill_name,
+                                skill_artifacts_root=skill_artifacts_root,
+                                sample_index=j,
+                                persona_idx=persona_idx,
+                                persona_line=persona_line,
+                                mcp_url=MCP_SSE_URL,
+                            )
+                            for j, persona_idx, persona_line in sample_tasks
+                        ]
+                        for fut in concurrent.futures.as_completed(futures):
+                            bp_ok, tr_ok, ev_ok = fut.result()
+                            total_blueprints += int(bp_ok)
+                            total_trajectories += int(tr_ok)
+                            total_evals += int(ev_ok)
 
         except Exception as e:
             print(f"ERROR: skill {skill_name} 合成过程中发生异常: {e}", file=sys.stderr)
@@ -377,4 +439,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
