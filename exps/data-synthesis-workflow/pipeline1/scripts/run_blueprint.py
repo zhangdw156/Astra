@@ -20,7 +20,7 @@ from openai import OpenAI
 
 # 脚本所在目录与项目根
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent.parent
+PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 
 # pipeline1 本地资源
 PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "task_blueprint_generator.md"

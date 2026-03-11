@@ -25,7 +25,7 @@ import os
 
 # 路径
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent.parent
+PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 
 PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "trajectory_evaluator.md"
 DEFAULT_TRAJECTORY_PATH = SCRIPT_DIR.parent / "trajectories" / "0" / "out_trajectory.json"

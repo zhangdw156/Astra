@@ -36,7 +36,7 @@ from dotenv import load_dotenv
 
 # 路径
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent.parent
+PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 
 # 默认蓝图路径（从参数传入，这里不需要默认）
 DEFAULT_BLUEPRINT = None

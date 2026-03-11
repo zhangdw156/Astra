@@ -25,9 +25,9 @@ import uuid
 from contextlib import contextmanager
 from pathlib import Path
 
-# 路径：pipeline1/run.py -> workflow -> exps -> 项目根
+# 路径：pipeline1/run.py -> exps -> 项目根
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent.parent
+PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 
 # 本地脚本和资源
 SCRIPTS_DIR = SCRIPT_DIR / "scripts"
