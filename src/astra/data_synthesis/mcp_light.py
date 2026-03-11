@@ -56,6 +56,23 @@ def _normalize_handler_args(
     return kwargs
 
 
+def _extract_runtime_state_key(
+    kwargs: Dict[str, Any],
+    default_state_key: str,
+) -> tuple[str, Dict[str, Any]]:
+    """
+    允许调用方通过保留参数 __state_key 指定本次调用的状态分区。
+    返回 (state_key, clean_kwargs)。
+    """
+    if not isinstance(kwargs, dict):
+        return default_state_key, {}
+    runtime_key = kwargs.get("__state_key")
+    clean_kwargs = {k: v for k, v in kwargs.items() if k != "__state_key"}
+    if isinstance(runtime_key, str) and runtime_key.strip():
+        return runtime_key.strip(), clean_kwargs
+    return default_state_key, clean_kwargs
+
+
 def _extract_params_from_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
     """从 inputSchema 中提取参数定义。"""
     input_schema = schema.get("inputSchema", {})
@@ -81,8 +98,9 @@ def _make_tool_handler(
     if not param_names:
         # 无参数工具
         @tool(name=tool_name, description=tool_description)
-        def _handler() -> str:
-            current_state = _get_state(state_key)
+        def _handler(**kwargs: Any) -> str:
+            runtime_state_key, _ = _extract_runtime_state_key(kwargs, state_key)
+            current_state = _get_state(runtime_state_key)
             args_json = json.dumps({}, ensure_ascii=False)
             out = generate_tool_response(
                 tool_name=tool_name,
@@ -94,7 +112,7 @@ def _make_tool_handler(
             )
             new_state = out.get("state")
             if isinstance(new_state, dict):
-                _set_state(new_state, state_key)
+                _set_state(new_state, runtime_state_key)
             response = (out.get("response") or "").strip()
             if not response:
                 response = json.dumps({"status": "executed", "tool": tool_name})
@@ -110,9 +128,9 @@ def _make_tool_handler(
 
         @tool(name=tool_name, description=tool_description)
         def _handler(**kwargs: Any) -> str:
-            # 使用 tools.jsonl 中定义的参数名
-            normalized = _normalize_handler_args(tool_name, kwargs, primary_param)
-            current_state = _get_state(state_key)
+            runtime_state_key, runtime_kwargs = _extract_runtime_state_key(kwargs, state_key)
+            normalized = _normalize_handler_args(tool_name, runtime_kwargs, primary_param)
+            current_state = _get_state(runtime_state_key)
             args_json = json.dumps(normalized, ensure_ascii=False)
             out = generate_tool_response(
                 tool_name=tool_name,
@@ -124,7 +142,7 @@ def _make_tool_handler(
             )
             new_state = out.get("state")
             if isinstance(new_state, dict):
-                _set_state(new_state, state_key)
+                _set_state(new_state, runtime_state_key)
             response = (out.get("response") or "").strip()
             if not response:
                 response = json.dumps({"status": "executed", "tool": tool_name})
@@ -145,9 +163,9 @@ def _make_tool_handler(
 
         @tool(name=tool_name, description=tool_description)
         def _handler(**kwargs: Any) -> str:
-            # 使用 tools.jsonl 中定义的参数名
-            normalized = _normalize_handler_args(tool_name, kwargs, primary_param)
-            current_state = _get_state(state_key)
+            runtime_state_key, runtime_kwargs = _extract_runtime_state_key(kwargs, state_key)
+            normalized = _normalize_handler_args(tool_name, runtime_kwargs, primary_param)
+            current_state = _get_state(runtime_state_key)
             args_json = json.dumps(normalized, ensure_ascii=False)
             out = generate_tool_response(
                 tool_name=tool_name,
@@ -159,7 +177,7 @@ def _make_tool_handler(
             )
             new_state = out.get("state")
             if isinstance(new_state, dict):
-                _set_state(new_state, state_key)
+                _set_state(new_state, runtime_state_key)
             response = (out.get("response") or "").strip()
             if not response:
                 response = json.dumps({"status": "executed", "tool": tool_name})

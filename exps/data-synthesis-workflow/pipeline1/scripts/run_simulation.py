@@ -233,8 +233,8 @@ def build_mcp_config(mcp_url: str | None = None) -> dict:
     }
 
 
-def _patch_mcp_tool_params():
-    """对 qwen_agent MCP 工具的 call 做容错：空/非法 params 规范为 dict，支持 json5 与常见畸形 JSON。"""
+def _patch_mcp_tool_params(state_key: str = ""):
+    """对 qwen_agent MCP 工具的 call 做容错，并注入 __state_key 以隔离工具状态。"""
     try:
         from qwen_agent.tools import mcp_manager
         import json as _json
@@ -284,6 +284,8 @@ def _patch_mcp_tool_params():
 
             def _call(params, **kwargs):
                 tool_args = _normalize_tool_params_final(params)
+                if state_key:
+                    tool_args["__state_key"] = state_key
                 return orig_call(_json.dumps(tool_args), **kwargs)
 
             tool_instance.call = _call
@@ -335,6 +337,45 @@ def _format_conversation_for_user_agent(messages: list[dict]) -> str:
     return "\n\n".join(lines) if lines else "(No messages yet)"
 
 
+def _extract_pending_question(messages: list[dict]) -> list[str]:
+    """提取最近一条 assistant 提出的待回答问题（若有）。"""
+    for m in reversed(messages):
+        if m.get("role") != "assistant":
+            continue
+        content = (m.get("content") or "").strip()
+        if content and "?" in content:
+            return [content[-300:]]
+        break
+    return []
+
+
+def _build_user_task_memory(blueprint: dict, messages: list[dict], user_message_count: int) -> dict:
+    """构建 User Agent 的结构化任务记忆，提升多轮行为稳定性。"""
+    goals = blueprint.get("goals") or []
+    done_count = min(user_message_count, len(goals))
+    done_goals = goals[:done_count]
+    remaining_goals = goals[done_count:]
+    pending_questions = _extract_pending_question(messages)
+
+    last_assistant_action = "none"
+    for m in reversed(messages):
+        role = m.get("role", "")
+        if role == "function":
+            last_assistant_action = f"tool_called:{m.get('name', '')}"
+            break
+        if role == "assistant":
+            txt = (m.get("content") or "").strip()
+            last_assistant_action = "asked_question" if "?" in txt else "provided_answer"
+            break
+
+    return {
+        "done_goals": done_goals,
+        "remaining_goals": remaining_goals,
+        "pending_questions": pending_questions,
+        "last_assistant_action": last_assistant_action,
+    }
+
+
 def generate_user_message(blueprint: dict, messages: list[dict], user_message_count: int = 0) -> str:
     """
     调用 User Agent LLM，根据 goals、user_agent_config 与对话历史生成下一句 user 消息。
@@ -369,6 +410,12 @@ def generate_user_message(blueprint: dict, messages: list[dict], user_message_co
         _format_conversation_for_user_agent(messages),
     )
     prompt_text = prompt_text.replace("{END_CONDITION}", blueprint.get("end_condition", ""))
+    task_memory = _build_user_task_memory(blueprint, messages, user_message_count)
+    prompt_text += (
+        "\n\n## Structured Task Memory\n"
+        "Use the following state to keep consistency across turns:\n"
+        f"{json.dumps(task_memory, ensure_ascii=False)}\n"
+    )
 
     client = OpenAI(api_key=api_key, base_url=base_url)
     resp = client.chat.completions.create(
@@ -570,6 +617,56 @@ def run_dynamic_simulation(agent, blueprint: dict) -> list[dict]:
     return messages
 
 
+def _build_structured_turns(messages: list[dict], blueprint: dict) -> list[dict]:
+    """从原始 messages 抽取结构化监督字段，便于后续 SFT 数据治理。"""
+    goals = blueprint.get("goals") or []
+    turns: list[dict] = []
+    current_turn: dict | None = None
+    user_turn_idx = 0
+
+    for m in messages:
+        role = m.get("role", "")
+        if role == "user":
+            if current_turn:
+                turns.append(current_turn)
+            user_turn_idx += 1
+            current_turn = {
+                "turn_index": user_turn_idx,
+                "goal_index": min(user_turn_idx, len(goals)) if goals else 1,
+                "goal_text": goals[user_turn_idx - 1] if 0 < user_turn_idx <= len(goals) else "",
+                "user_message": (m.get("content") or "").strip(),
+                "assistant_message": "",
+                "tool_calls": [],
+                "tool_observations": [],
+            }
+            continue
+
+        if not current_turn:
+            continue
+
+        if role == "assistant":
+            current_turn["assistant_message"] = (m.get("content") or "").strip()
+            fc = m.get("function_call") or {}
+            if isinstance(fc, dict) and fc.get("name"):
+                current_turn["tool_calls"].append(
+                    {
+                        "name": fc.get("name", ""),
+                        "arguments": fc.get("arguments", "{}"),
+                    }
+                )
+        elif role == "function":
+            current_turn["tool_observations"].append(
+                {
+                    "name": m.get("name", ""),
+                    "result": (m.get("content") or "")[:1200],
+                }
+            )
+
+    if current_turn:
+        turns.append(current_turn)
+    return turns
+
+
 def save_trajectory(
     messages: list[dict],
     blueprint: dict,
@@ -580,14 +677,19 @@ def save_trajectory(
     tools_jsonl_content: list[dict] | None = None,
 ) -> None:
     """保存轨迹及元数据（精简版：只保留元信息与 messages 列表）。"""
+    # 优先使用完整的 tools.jsonl 内容作为 tools 字段；若不存在则回退到工具名列表
+    tools_field = tools_jsonl_content if tools_jsonl_content is not None else tools
+    structured_turns = _build_structured_turns(messages, blueprint)
+
     out = {
         "run_id": run_id,
         "trajectory_id": str(uuid.uuid4()),
         "blueprint_id": blueprint.get("blueprint_id", ""),
         "skill_name": blueprint.get("skill_name", ""),
         "persona_id": blueprint.get("persona_id", ""),
-        "tools": tools,
+        "tools": tools_field,
         "messages": messages,
+        "structured_turns": structured_turns,
     }
     # 保存完整的 tools.jsonl 内容（如果有）
     if tools_jsonl_content:
@@ -667,7 +769,7 @@ def main() -> None:
     if args.tools_path is None and args.mcp_url is None and not args.no_docker and not ensure_mcp_running():
         raise SystemExit("无法连接到 MCP 服务，请确保 prediction-trader 容器已启动或使用 --tools-path / --mcp-url。")
 
-    _patch_mcp_tool_params()
+    _patch_mcp_tool_params(state_key=run_id)
 
     out_path = args.output or build_default_output_path(run_id)
     if not out_path.is_absolute():
