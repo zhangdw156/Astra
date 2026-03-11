@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import inspect
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -81,6 +82,84 @@ def _extract_params_from_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
     return input_schema.get("properties", {})
 
 
+def _schema_type_to_pytype(schema_type: Any) -> Any:
+    """将 JSON Schema 基础类型映射到 Python 注解类型。"""
+    if schema_type == "integer":
+        return int
+    if schema_type == "number":
+        return float
+    if schema_type == "boolean":
+        return bool
+    if schema_type == "array":
+        return list
+    if schema_type == "object":
+        return dict
+    return str
+
+
+def _apply_explicit_signature(
+    handler: Any,
+    *,
+    tool_params: Dict[str, Any],
+    allow_kwargs_fallback: bool = True,
+) -> None:
+    """
+    给 handler 注入显式签名，避免 FastMCP 因 **kwargs 拒绝注册。
+    同时保留 __state_key（状态分区）与 kwargs（参数兜底）入口。
+    """
+    parameters: list[inspect.Parameter] = []
+    annotations: Dict[str, Any] = {}
+
+    for name, info in tool_params.items():
+        if not isinstance(name, str):
+            continue
+        # 仅支持合法 Python 标识符；非法名称跳过（仍可走 kwargs 兜底）
+        if not name.isidentifier() or name in ("kwargs", "__state_key"):
+            continue
+        schema_type = info.get("type", "string") if isinstance(info, dict) else "string"
+        pytype = _schema_type_to_pytype(schema_type)
+        default = None
+        if isinstance(info, dict) and "default" in info:
+            default = info.get("default")
+        parameters.append(
+            inspect.Parameter(
+                name=name,
+                kind=inspect.Parameter.KEYWORD_ONLY,
+                default=default,
+                annotation=pytype,
+            )
+        )
+        annotations[name] = pytype
+
+    if allow_kwargs_fallback and "kwargs" not in tool_params:
+        parameters.append(
+            inspect.Parameter(
+                name="kwargs",
+                kind=inspect.Parameter.KEYWORD_ONLY,
+                default=None,
+                annotation=str,
+            )
+        )
+        annotations["kwargs"] = str
+
+    if "__state_key" not in tool_params:
+        parameters.append(
+            inspect.Parameter(
+                name="__state_key",
+                kind=inspect.Parameter.KEYWORD_ONLY,
+                default="",
+                annotation=str,
+            )
+        )
+        annotations["__state_key"] = str
+
+    handler.__signature__ = inspect.Signature(
+        parameters=parameters,
+        return_annotation=str,
+    )
+    handler.__annotations__ = {**annotations, "return": str}
+
+
 def _make_tool_handler(
     tool_name: str,
     tool_description: str,
@@ -117,6 +196,7 @@ def _make_tool_handler(
             if not response:
                 response = json.dumps({"status": "executed", "tool": tool_name})
             return response
+        _apply_explicit_signature(_handler, tool_params=tool_params)
         return _handler
 
     elif len(param_names) == 1:
@@ -148,8 +228,7 @@ def _make_tool_handler(
                 response = json.dumps({"status": "executed", "tool": tool_name})
             return response
 
-        # 显式声明参数（使用 schema 中定义的参数名和类型）
-        _handler.__annotations__ = {p_name: p_type}
+        _apply_explicit_signature(_handler, tool_params=tool_params)
         return _handler
 
     else:
@@ -183,8 +262,7 @@ def _make_tool_handler(
                 response = json.dumps({"status": "executed", "tool": tool_name})
             return response
 
-        # 显式声明参数（使用 schema 中定义的参数名）
-        _handler.__annotations__ = {p1_name: str, p2_name: int}
+        _apply_explicit_signature(_handler, tool_params=tool_params)
         return _handler
 
 
