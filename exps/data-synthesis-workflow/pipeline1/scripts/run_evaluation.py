@@ -26,6 +26,7 @@ import os
 # 路径
 SCRIPT_DIR = Path(__file__).resolve().parent
 from astra.utils import config as astra_config
+PROJECT_ROOT = astra_config.get_project_root()
 
 PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "eval_agent.md"
 DEFAULT_TRAJECTORY_PATH = SCRIPT_DIR.parent / "artifacts" / "0" / "trajectory.json"
@@ -172,7 +173,7 @@ def main() -> None:
         build_default_eval_output_path(run_id) if run_id else (SCRIPT_DIR / "out_trajectory_eval.json")
     )
     if not out_path.is_absolute():
-        out_path = SCRIPT_DIR / out_path
+        out_path = PROJECT_ROOT / out_path
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(eval_result, ensure_ascii=False, indent=2), encoding="utf-8")
     print("Written to:", out_path)

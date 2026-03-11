@@ -830,7 +830,7 @@ def main() -> None:
 
     out_path = args.output or build_default_output_path(run_id)
     if not out_path.is_absolute():
-        out_path = SCRIPT_DIR / out_path
+        out_path = PROJECT_ROOT / out_path
 
     with mcp_ctx:
         try:

@@ -248,7 +248,7 @@ def main() -> None:
 
     out_path = args.output if args.output else (SCRIPT_DIR.parent / "artifacts" / "0" / "blueprint.json")
     if not out_path.is_absolute():
-        out_path = SCRIPT_DIR / out_path
+        out_path = PROJECT_ROOT / out_path
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     print("Written to:", out_path)
