@@ -1,35 +1,110 @@
 #!/usr/bin/env python3
 """
-pipeline1：从 persona_5K.jsonl 随机抽 20 个人物，生成 20 蓝图、采集 20 轨迹并做评估。
+pipeline1：从 persona_5K.jsonl 随机抽 N 个人物，生成蓝图、采集轨迹并做评估。
 
-依赖：blueprint_demo、agent_demo（含 qwen-agent，通过 uv run --project agent_demo 调用）、trajectory_eval_demo、prompts、env_2896_prediction-trader/tools.jsonl。需已安装 uv。
+特性：
+- MCP Server 在一开始启动，整个合成过程复用，合成结束后关闭。
+- 轨迹文件中保存 tools.jsonl 的完整内容（tools_jsonl 字段）。
+- 蓝图生成时，如果任务不涉及状态变更（如付款、订票），则 initial_state 和 expected_final_state 均为 {}。
+
+依赖：src/astra（用于 MCP 启动）、自身目录的 scripts/、prompts/、tools.jsonl、SKILL.md。
+需已安装 uv。
 请在项目根目录执行：uv run python exps/data-synthesis-workflow/pipeline1/run.py [--num 20] [--seed 42]
 """
 
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
 import random
 import subprocess
 import sys
+import time
+import uuid
+from contextlib import contextmanager
 from pathlib import Path
 
 # 路径：pipeline1/run.py -> workflow -> exps -> 项目根
 SCRIPT_DIR = Path(__file__).resolve().parent
-WORKFLOW_DIR = SCRIPT_DIR.parent
-PROJECT_ROOT = WORKFLOW_DIR.parent.parent
+PROJECT_ROOT = SCRIPT_DIR.parent.parent
 
+# 本地脚本和资源
+SCRIPTS_DIR = SCRIPT_DIR / "scripts"
 PERSONA_PATH = PROJECT_ROOT / "persona" / "persona_5K.jsonl"
-TOOLS_PATH = WORKFLOW_DIR / "opencode_demo" / "env_2896_prediction-trader" / "tools.jsonl"
-BLUEPRINT_DEMO = WORKFLOW_DIR / "blueprint_demo"
-AGENT_DEMO = WORKFLOW_DIR / "agent_demo"
-EVAL_DEMO = WORKFLOW_DIR / "trajectory_eval_demo"
+TOOLS_PATH = SCRIPT_DIR / "tools.jsonl"
+
+# MCP SSE 端点（本地轻量 MCP）
+MCP_SSE_URL = "http://localhost:8000/sse"
 
 OUT_BLUEPRINTS = SCRIPT_DIR / "blueprints"
 OUT_TRAJECTORIES = SCRIPT_DIR / "trajectories"
 OUT_EVALS = SCRIPT_DIR / "evals"
 SCRATCH = SCRIPT_DIR / "scratch"
+
+# 全局 MCP 进程句柄
+_light_mcp_proc: subprocess.Popen | None = None
+
+
+def _mcp_reachable(url: str = MCP_SSE_URL) -> bool:
+    """检查 MCP SSE 端点是否可连接。"""
+    try:
+        from urllib.request import urlopen
+        with urlopen(url, timeout=3):
+            return True
+    except Exception:
+        return False
+
+
+@contextmanager
+def start_light_mcp_subprocess(tools_path: Path):
+    """
+    通过 astra run_light_mcp 子进程启动 MCP（SSE），就绪后 yield，退出时终止子进程。
+    供 pipeline1 在一开始启动，整个合成过程复用。
+    """
+    global _light_mcp_proc
+    tools_abs = tools_path.resolve() if not tools_path.is_absolute() else tools_path
+    if not tools_abs.exists():
+        raise FileNotFoundError(f"tools_path 不存在: {tools_abs}")
+
+    cmd = [
+        "uv", "run", "-m", "astra.scripts.run_light_mcp",
+        f"tools_path={tools_abs}",
+        "transport=sse",
+    ]
+    print("正在启动轻量 MCP 子进程:", " ".join(cmd))
+    _light_mcp_proc = subprocess.Popen(
+        cmd,
+        cwd=PROJECT_ROOT,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    atexit.register(lambda: _light_mcp_proc and _light_mcp_proc.poll() is None and _light_mcp_proc.terminate())
+
+    max_wait = 60
+    interval = 2
+    elapsed = 0
+    while elapsed < max_wait:
+        if _light_mcp_proc.poll() is not None:
+            raise RuntimeError("轻量 MCP 子进程已退出")
+        time.sleep(interval)
+        elapsed += interval
+        if _mcp_reachable():
+            print(f"MCP 子进程已就绪（约 {elapsed}s）")
+            try:
+                yield
+            finally:
+                if _light_mcp_proc and _light_mcp_proc.poll() is None:
+                    _light_mcp_proc.terminate()
+                    _light_mcp_proc.wait(timeout=5)
+                _light_mcp_proc = None
+            return
+
+    _light_mcp_proc.terminate()
+    _light_mcp_proc.wait(timeout=5)
+    _light_mcp_proc = None
+    raise RuntimeError("MCP 子进程启动超时，SSE 未就绪")
 
 
 def load_personas(path: Path) -> list[str]:
@@ -40,50 +115,17 @@ def load_personas(path: Path) -> list[str]:
     return lines
 
 
-def messages_to_turns(messages: list[dict]) -> list[dict]:
-    """
-    将 agent_demo 保存的 messages（role/content）转为 trajectory_eval 所需的 turns。
-    每轮：一个 user + 紧随的 assistant（及 function）合并为一个 turn。
-    """
-    turns: list[dict] = []
-    i = 0
-    while i < len(messages):
-        m = messages[i]
-        role = m.get("role", "")
-        if role != "user":
-            i += 1
-            continue
-        user_message = (m.get("content") or "").strip()
-        assistant_message = ""
-        tool_calls: list[dict] = []
-        j = i + 1
-        while j < len(messages):
-            next_m = messages[j]
-            next_role = next_m.get("role", "")
-            if next_role == "user":
-                break
-            if next_role == "assistant":
-                assistant_message = (next_m.get("content") or "").strip()
-                # 若同一轮有 function_call，在后续 function 里补 result
-                j += 1
-                continue
-            if next_role == "function":
-                tool_calls.append({
-                    "name": next_m.get("name", ""),
-                    "arguments": "",
-                    "result": (next_m.get("content") or "")[:500],
-                })
-                j += 1
-                continue
-            j += 1
-        turns.append({
-            "turn_index": len(turns) + 1,
-            "user_message": user_message,
-            "assistant_message": assistant_message,
-            "tool_calls": tool_calls,
-        })
-        i = j
-    return turns
+def load_tools_jsonl(path: Path) -> list[dict]:
+    """加载 tools.jsonl 内容为字典列表。"""
+    tools = []
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                try:
+                    tools.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+    return tools
 
 
 def run_blueprint(persona_line: str, out_blueprint: Path, scratch_dir: Path) -> bool:
@@ -94,22 +136,39 @@ def run_blueprint(persona_line: str, out_blueprint: Path, scratch_dir: Path) -> 
 
     cmd = [
         sys.executable,
-        str(BLUEPRINT_DEMO / "run_blueprint.py"),
+        str(SCRIPTS_DIR / "run_blueprint.py"),
         "--persona-file", str(persona_file),
         "--output", str(out_blueprint),
     ]
     r = subprocess.run(cmd, cwd=PROJECT_ROOT)
-    return r.returncode == 0
+    if r.returncode != 0:
+        return False
+
+    # 蓝图生成后，检查 initial_state：若所有值均为空（[]、{}、None），则设为 {}
+    # 同时设置 expected_final_state 为 {}（无状态任务）
+    try:
+        blueprint_data = json.loads(out_blueprint.read_text(encoding="utf-8"))
+        initial_state = blueprint_data.get("initial_state")
+        if isinstance(initial_state, dict):
+            all_empty = all((v == [] or v == {} or v is None) for v in initial_state.values())
+            if all_empty:
+                # 无状态任务：initial_state 和 expected_final_state 都设为 {}
+                blueprint_data["initial_state"] = {}
+                blueprint_data["expected_final_state"] = {}
+                out_blueprint.write_text(json.dumps(blueprint_data, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        print(f"  警告：处理蓝图状态时出错: {e}")
+    return True
 
 
-def run_agent(blueprint_path: Path, out_trajectory: Path, run_id: str) -> bool:
-    """调用 run_agent_simulation.py（在 agent_demo 的 uv 环境中，以使用 qwen-agent），使用 --tools-path 启动轻量 MCP，输出轨迹到 out_trajectory。"""
+def run_agent(blueprint_path: Path, out_trajectory: Path, run_id: str, mcp_url: str) -> bool:
+    """调用 run_agent_simulation.py，传入 --mcp-url 复用已有 MCP，输出轨迹到 out_trajectory。"""
     out_trajectory.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
-        "uv", "run", "--project", str(AGENT_DEMO),
-        str(AGENT_DEMO / "run_agent_simulation.py"),
+        sys.executable,
+        str(SCRIPTS_DIR / "run_agent_simulation.py"),
         "--blueprint", str(blueprint_path),
-        "--tools-path", str(TOOLS_PATH),
+        "--mcp-url", mcp_url,
         "--output", str(out_trajectory),
         "--run-id", run_id,
     ]
@@ -122,7 +181,7 @@ def run_eval(trajectory_path: Path, out_eval: Path) -> bool:
     out_eval.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
         sys.executable,
-        str(EVAL_DEMO / "run_trajectory_eval.py"),
+        str(SCRIPTS_DIR / "run_trajectory_eval.py"),
         "--trajectory", str(trajectory_path),
         "--output", str(out_eval),
     ]
@@ -131,7 +190,7 @@ def run_eval(trajectory_path: Path, out_eval: Path) -> bool:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="pipeline1: 20 人物 → 20 蓝图 → 20 轨迹 → 评估")
+    parser = argparse.ArgumentParser(description="pipeline1: N 人物 → 蓝图 → 轨迹 → 评估（复用单个 MCP 实例）")
     parser.add_argument("--num", type=int, default=20, help="抽取人物数（默认 20）")
     parser.add_argument("--seed", type=int, default=None, help="随机种子，不传则随机")
     args = parser.parse_args()
@@ -142,6 +201,10 @@ def main() -> int:
     if not TOOLS_PATH.exists():
         print(f"ERROR: tools.jsonl 不存在: {TOOLS_PATH}", file=sys.stderr)
         return 2
+
+    # 预加载 tools.jsonl 内容（可选，供调试或日志用）
+    tools_jsonl_content = load_tools_jsonl(TOOLS_PATH)
+    print(f"已加载 {len(tools_jsonl_content)} 个工具定义")
 
     personas = load_personas(PERSONA_PATH)
     if len(personas) < args.num:
@@ -159,39 +222,47 @@ def main() -> int:
     ok_trajectories = 0
     ok_evals = 0
 
-    for i, persona_line in enumerate(sampled):
-        run_id = f"pipeline1_{i}"
-        print("=" * 60)
-        print(f"[{i+1}/{len(sampled)}] persona_id ~ {json.loads(persona_line).get('id', '')[:8]}...")
-        print("=" * 60)
-
-        blueprint_path = OUT_BLUEPRINTS / f"blueprint_{i}.json"
-        if run_blueprint(persona_line, blueprint_path, SCRATCH):
-            ok_blueprints += 1
-        else:
-            print(f"  蓝图生成失败，跳过本条")
-            continue
-
-        traj_dir = OUT_TRAJECTORIES / str(i)
-        traj_path = traj_dir / "out_trajectory.json"
-        if not run_agent(blueprint_path, traj_path, run_id):
-            print(f"  轨迹采集失败，跳过评估")
-            continue
-        ok_trajectories += 1
-
-        # 将 messages 转为 turns，供 trajectory_eval 读取
-        traj_data = json.loads(traj_path.read_text(encoding="utf-8"))
-        messages = traj_data.get("messages", [])
-        turns = messages_to_turns(messages)
-        traj_data["turns"] = turns
-        traj_for_eval_path = traj_dir / "out_trajectory_for_eval.json"
-        traj_for_eval_path.write_text(json.dumps(traj_data, ensure_ascii=False, indent=2), encoding="utf-8")
-
-        eval_path = OUT_EVALS / str(i) / "out_trajectory_eval.json"
-        if run_eval(traj_for_eval_path, eval_path):
-            ok_evals += 1
-
+    # 在一开始启动 MCP，整个合成过程复用
+    print("\n" + "=" * 60)
+    print("启动 MCP Server（将被所有轨迹复用）")
     print("=" * 60)
+    try:
+        with start_light_mcp_subprocess(TOOLS_PATH):
+            print("\nMCP Server 已就绪，开始合成...")
+
+            for i, persona_line in enumerate(sampled):
+                run_id = f"pipeline1_{i}"
+                print("\n" + "=" * 60)
+                print(f"[{i+1}/{len(sampled)}] persona_id ~ {json.loads(persona_line).get('id', '')[:8]}...")
+                print("=" * 60)
+
+                blueprint_path = OUT_BLUEPRINTS / f"blueprint_{i}.json"
+                if run_blueprint(persona_line, blueprint_path, SCRATCH):
+                    ok_blueprints += 1
+                else:
+                    print(f"  蓝图生成失败，跳过本条")
+                    continue
+
+                traj_dir = OUT_TRAJECTORIES / str(i)
+                traj_path = traj_dir / "out_trajectory.json"
+                # 传入 MCP URL 复用已有实例
+                if not run_agent(blueprint_path, traj_path, run_id, MCP_SSE_URL):
+                    print(f"  轨迹采集失败，跳过评估")
+                    continue
+                ok_trajectories += 1
+
+                eval_path = OUT_EVALS / str(i) / "out_trajectory_eval.json"
+                if run_eval(traj_path, eval_path):
+                    ok_evals += 1
+
+            print("\n" + "=" * 60)
+            print("所有轨迹合成完成，关闭 MCP Server")
+            print("=" * 60)
+    except Exception as e:
+        print(f"ERROR: MCP 启动或运行失败: {e}", file=sys.stderr)
+        return 1
+
+    print("\n" + "=" * 60)
     print("pipeline1 完成")
     print(f"  蓝图: {ok_blueprints}/{len(sampled)}")
     print(f"  轨迹: {ok_trajectories}/{len(sampled)}")

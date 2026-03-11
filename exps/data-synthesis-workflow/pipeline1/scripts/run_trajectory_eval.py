@@ -25,16 +25,15 @@ import os
 
 # 路径
 SCRIPT_DIR = Path(__file__).resolve().parent
-WORKFLOW_DIR = SCRIPT_DIR.parent
-PROJECT_ROOT = WORKFLOW_DIR.parent.parent
+PROJECT_ROOT = SCRIPT_DIR.parent.parent
 
-PROMPT_PATH = WORKFLOW_DIR / "prompts" / "trajectory_evaluator.md"
-DEFAULT_TRAJECTORY_PATH = WORKFLOW_DIR / "agent_demo" / "out_trajectory.json"
+PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "trajectory_evaluator.md"
+DEFAULT_TRAJECTORY_PATH = SCRIPT_DIR.parent / "trajectories" / "0" / "out_trajectory.json"
 
 
 def build_default_eval_output_path(run_id: str) -> Path:
-    """为每条轨迹构造独立评估结果路径。"""
-    return SCRIPT_DIR / "runs" / run_id / "out_trajectory_eval.json"
+    """为每条轨迹构造独立评估结果路径（输出到 evals/<i>/）。"""
+    return SCRIPT_DIR.parent / "evals" / run_id.replace("pipeline1_", "") / "out_trajectory_eval.json"
 
 
 def load_env_and_client() -> tuple[OpenAI, str]:

@@ -36,17 +36,14 @@ from dotenv import load_dotenv
 
 # 路径
 SCRIPT_DIR = Path(__file__).resolve().parent
-WORKFLOW_DIR = SCRIPT_DIR.parent
-PROJECT_ROOT = WORKFLOW_DIR.parent.parent
-BLUEPRINT_DEMO = WORKFLOW_DIR / "blueprint_demo"
-PREDICTION_TRADER = WORKFLOW_DIR / "opencode_demo" / "env_2896_prediction-trader"
+PROJECT_ROOT = SCRIPT_DIR.parent.parent
 
-# 默认蓝图路径
-DEFAULT_BLUEPRINT = BLUEPRINT_DEMO / "out_blueprint.json"
-# MCP SSE 端点（prediction-trader 容器默认）
+# 默认蓝图路径（从参数传入，这里不需要默认）
+DEFAULT_BLUEPRINT = None
+# MCP SSE 端点（本地轻量 MCP）
 MCP_SSE_URL = "http://localhost:8000/sse"
-# User Agent 提示词
-USER_AGENT_PROMPT_PATH = WORKFLOW_DIR / "prompts" / "user_agent.md"
+# User Agent 提示词（pipeline1 本地）
+USER_AGENT_PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "user_agent.md"
 
 TASK_END_MARKER = "[TASK_END]"
 
@@ -293,8 +290,8 @@ def create_agent(mcp_url: str | None = None) -> tuple:
 
 
 def build_default_output_path(run_id: str) -> Path:
-    """为每条轨迹构造独立输出目录。"""
-    return SCRIPT_DIR / "runs" / run_id / "out_trajectory.json"
+    """为每条轨迹构造独立输出目录（输出到 trajectories/<i>/）。"""
+    return SCRIPT_DIR.parent / "trajectories" / run_id.replace("pipeline1_", "") / "out_trajectory.json"
 
 
 def _format_conversation_for_user_agent(messages: list[dict]) -> str:
