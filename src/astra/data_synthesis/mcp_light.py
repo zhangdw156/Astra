@@ -105,11 +105,12 @@ def _make_tool_handler(
         # 单参数工具
         p_name = param_names[0]
         p_info = tool_params[p_name]
+        p_type = p_info.get("type", "string")
         default = p_info.get("default")
 
         @tool(name=tool_name, description=tool_description)
-        def _handler(arg: Optional[str] = default) -> str:
-            kwargs = {p_name: arg} if arg is not None else {}
+        def _handler(**kwargs: Any) -> str:
+            # 使用 tools.jsonl 中定义的参数名
             normalized = _normalize_handler_args(tool_name, kwargs, primary_param)
             current_state = _get_state(state_key)
             args_json = json.dumps(normalized, ensure_ascii=False)
@@ -128,24 +129,23 @@ def _make_tool_handler(
             if not response:
                 response = json.dumps({"status": "executed", "tool": tool_name})
             return response
+
+        # 显式声明参数（使用 schema 中定义的参数名和类型）
+        _handler.__annotations__ = {p_name: p_type}
         return _handler
 
     else:
-        # 多参数工具（取前两个）
-        p1_name, p2_name = param_names[:2]
-        p1_default = tool_params[p1_name].get("default")
-        p2_default = tool_params[p2_name].get("default")
+        # 多参数工具（取前两个，使用 schema 中定义的参数名）
+        p1_name = param_names[0]
+        p2_name = param_names[1]
+        p1_info = tool_params[p1_name]
+        p2_info = tool_params[p2_name]
+        p1_default = p1_info.get("default")
+        p2_default = p2_info.get("default")
 
         @tool(name=tool_name, description=tool_description)
-        def _handler(
-            arg1: Optional[str] = p1_default,
-            arg2: Optional[int] = p2_default,
-        ) -> str:
-            kwargs = {}
-            if arg1 is not None:
-                kwargs[p1_name] = arg1
-            if arg2 is not None:
-                kwargs[p2_name] = arg2
+        def _handler(**kwargs: Any) -> str:
+            # 使用 tools.jsonl 中定义的参数名
             normalized = _normalize_handler_args(tool_name, kwargs, primary_param)
             current_state = _get_state(state_key)
             args_json = json.dumps(normalized, ensure_ascii=False)
@@ -164,6 +164,9 @@ def _make_tool_handler(
             if not response:
                 response = json.dumps({"status": "executed", "tool": tool_name})
             return response
+
+        # 显式声明参数（使用 schema 中定义的参数名）
+        _handler.__annotations__ = {p1_name: str, p2_name: int}
         return _handler
 
 
