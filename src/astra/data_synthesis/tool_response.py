@@ -1,16 +1,13 @@
 """
-工具回复与状态更新生成模块（位于 src/app 中的核心逻辑）。
+工具回复与状态更新生成（LLM 驱动）。
 
-职责：
-- 基于 tool_name / arguments / raw_result / 当前状态 等信息，
-  调用大模型生成用户可见回复（Markdown）与新的完整状态 JSON。
-- 使用 prompts/tool_response_generator.md 作为提示词模板。
+基于 tool_name / arguments / 当前状态 调用大模型生成用户可见回复与新的完整状态 JSON。
+prompt_path 与 env_path 由调用方传入，避免写死 exps/ 路径。
 """
 
 from __future__ import annotations
 
 import json
-import os
 import re
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -19,75 +16,42 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 
-# 容器内 WORK_DIR=/work，/work 下有 .env、prompts/、app/
-# 本地则从 env 目录推导 workflow 与项目根
-_WORK_DIR = os.environ.get("WORK_DIR")
-if _WORK_DIR:
-    _WORK = Path(_WORK_DIR)
-    PROMPT_PATH = _WORK / "prompts" / "tool_response_generator.md"
-    _ENV_PATH = _WORK / ".env"
-else:
-    ENV_DIR = Path(__file__).resolve().parents[2]
-    WORKFLOW_DIR = ENV_DIR.parent.parent
-    PROMPT_PATH = WORKFLOW_DIR / "prompts" / "tool_response_generator.md"
-    _ENV_PATH = WORKFLOW_DIR.parent.parent / ".env"
-
-
-def _load_client() -> Tuple[OpenAI, str]:
-    """从环境变量加载 OpenAI 客户端与模型名；优先从挂载的 .env 加载。"""
-    load_dotenv(_ENV_PATH)
-    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
-    model = os.environ.get("OPENAI_MODEL", "").strip()
-    base_url = os.environ.get("OPENAI_BASE_URL", "").strip() or None
-    if not api_key or not model:
-        raise RuntimeError(
-            "缺少 OPENAI_API_KEY 或 OPENAI_MODEL 环境变量，无法生成工具回复。"
-        )
-    client = OpenAI(api_key=api_key, base_url=base_url)
-    return client, model
-
-
 def _build_prompt(
+    prompt_text: str,
     tool_name: str,
     arguments: str,
     current_state: Optional[Dict[str, Any]] = None,
-    conversation_context: str | None = None,
+    conversation_context: Optional[str] = None,
 ) -> str:
     """根据模板与上下文构造提示词。"""
-    prompt_text = PROMPT_PATH.read_text(encoding="utf-8")
-
-    prompt_text = prompt_text.replace("{TOOL_NAME}", tool_name)
-    prompt_text = prompt_text.replace("{TOOL_ARGUMENTS}", arguments or "{}")
-    prompt_text = prompt_text.replace(
+    text = prompt_text.replace("{TOOL_NAME}", tool_name)
+    text = text.replace("{TOOL_ARGUMENTS}", arguments or "{}")
+    text = text.replace(
         "{CURRENT_STATE}",
         json.dumps(current_state or {}, ensure_ascii=False, indent=2),
     )
-    prompt_text = prompt_text.replace(
+    text = text.replace(
         "{CONVERSATION_CONTEXT}", (conversation_context or "").strip() or "(empty)"
     )
-    return prompt_text
+    return text
 
 
 def _parse_response(text: str) -> Tuple[str, Dict[str, Any]]:
     """
     解析模型输出中的 <RESPONSE> 与 <STATE> 块。
 
-    RESPONSE 应为工具返回的 JSON；解析后以紧凑 JSON 字符串返回，供 Assistant 解析。
     返回 (response_json_str, new_state_dict)。
     """
-    # 提取 RESPONSE
     resp_match = re.search(
         r"<RESPONSE>\s*([\s\S]*?)\s*</RESPONSE>", text, flags=re.IGNORECASE
     )
     raw_response = (resp_match.group(1).strip() if resp_match else text.strip()) or ""
 
-    # RESPONSE 应为 JSON：尝试解析并返回紧凑字符串；若非 JSON 则包装为 {"raw": "..."}
     response_str: str
     try:
         parsed = json.loads(raw_response)
         response_str = json.dumps(parsed, ensure_ascii=False)
     except json.JSONDecodeError:
-        # 尝试截取第一个 { ... } 作为 JSON
         start = raw_response.find("{")
         end = raw_response.rfind("}") + 1
         if start != -1 and end > start:
@@ -99,7 +63,6 @@ def _parse_response(text: str) -> Tuple[str, Dict[str, Any]]:
         else:
             response_str = json.dumps({"raw": raw_response[:2000], "parse_error": True})
 
-    # 提取 STATE
     state_match = re.search(
         r"<STATE>\s*([\s\S]*?)\s*</STATE>", text, flags=re.IGNORECASE
     )
@@ -121,24 +84,40 @@ def generate_tool_response(
     arguments_json: str,
     session_state: Optional[Dict[str, Any]] = None,
     conversation_context: Optional[str] = None,
+    *,
+    prompt_path: Path,
+    env_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """
     调用大模型生成工具回复与新状态。
 
     参数：
     - tool_name: 工具名。
-    - arguments_json: 工具参数（JSON 字符串，已按 Schema 序列化）。
-    - session_state: 当前会话状态 JSON（KV 中存储的完整状态）。
+    - arguments_json: 工具参数（JSON 字符串）。
+    - session_state: 当前会话状态 JSON。
     - conversation_context: 近期对话与工具调用摘要。
+    - prompt_path: 提示词模板文件路径（如 tool_response_generator.md）。
+    - env_path: 可选，.env 文件路径，用于 OPENAI_API_KEY 等；不传则使用默认 dotenv 行为。
 
-    返回：
-    {
-      "response": "<Markdown 文本>",
-      "state": { ... 完整的新状态 JSON ... }
-    }
+    返回：{"response": "<JSON 或文本>", "state": { ... }}
     """
-    client, model = _load_client()
+    if env_path and env_path.exists():
+        load_dotenv(env_path)
+    else:
+        load_dotenv()
+
+    api_key = __import__("os").environ.get("OPENAI_API_KEY", "").strip()
+    model = __import__("os").environ.get("OPENAI_MODEL", "").strip()
+    base_url = __import__("os").environ.get("OPENAI_BASE_URL", "").strip() or None
+    if not api_key or not model:
+        raise RuntimeError(
+            "缺少 OPENAI_API_KEY 或 OPENAI_MODEL 环境变量，无法生成工具回复。"
+        )
+    client = OpenAI(api_key=api_key, base_url=base_url)
+
+    prompt_text = prompt_path.read_text(encoding="utf-8")
     prompt = _build_prompt(
+        prompt_text,
         tool_name=tool_name,
         arguments=arguments_json,
         current_state=session_state,
@@ -153,4 +132,3 @@ def generate_tool_response(
     content = (resp.choices[0].message.content or "").strip()
     response_md, new_state = _parse_response(content)
     return {"response": response_md, "state": new_state}
-

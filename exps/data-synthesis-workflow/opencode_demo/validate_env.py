@@ -21,14 +21,19 @@ from typing import Optional
 MCP_INITIALIZE_REQUEST = b'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"0.1.0","capabilities":{},"clientInfo":{"name":"validate","version":"1.0"}}}\n'
 
 
+def is_tools_only_env(env_dir: Path) -> bool:
+    """是否为「仅 tools.jsonl」环境（无 mcp_server.py，由 astra 统一 MCP runner 启动）。"""
+    tools_jsonl = env_dir / "tools.jsonl"
+    mcp_server = env_dir / "mcp_server.py"
+    return tools_jsonl.exists() and not mcp_server.exists()
+
+
 def check_structure(env_dir: Path) -> tuple[bool, Optional[str]]:
     """
     结构检查：
     - strong 模式：mcp_server.py、tools/、pyproject.toml、database/、state.py
-    - light/json-only 模式：mcp_server.py、pyproject.toml、tools.jsonl
-
-    实际模式选择由 mcp_server.py 内部 ENV_MODE=strong|light|auto 控制，
-    这里仅做静态存在性检查，允许两类环境通过。
+    - light/json-only 模式（含 mcp_server）：mcp_server.py、pyproject.toml、tools.jsonl
+    - tools-only 模式（仅 tools.jsonl）：仅需 tools.jsonl，无 mcp_server/docker
     """
     mcp_server = env_dir / "mcp_server.py"
     pyproject = env_dir / "pyproject.toml"
@@ -36,6 +41,10 @@ def check_structure(env_dir: Path) -> tuple[bool, Optional[str]]:
     database_dir = env_dir / "database"
     state_py = env_dir / "state.py"
     tools_jsonl = env_dir / "tools.jsonl"
+
+    # tools-only：仅 tools.jsonl，供 astra run_light_mcp 按 tools_path 启动
+    if tools_jsonl.exists() and not mcp_server.exists():
+        return True, None
 
     if not mcp_server.exists():
         return False, "missing mcp_server.py"
@@ -46,7 +55,7 @@ def check_structure(env_dir: Path) -> tuple[bool, Optional[str]]:
     if tools_dir.exists() and database_dir.exists() and state_py.exists():
         return True, None
 
-    # light 路径：tools.jsonl 存在即可（工具由 JSON Schema 驱动）
+    # light 路径（有 mcp_server）：tools.jsonl 存在即可
     if tools_jsonl.exists():
         return True, None
 
@@ -122,6 +131,22 @@ def run_mcp_initialize(env_dir: Path, timeout_sec: int = 10) -> tuple[bool, Opti
             proc.kill()
 
 
+def validate_tools_jsonl(env_dir: Path) -> tuple[bool, Optional[str]]:
+    """仅校验 tools.jsonl 存在且可被 load_tools_from_jsonl 解析（tools-only 模式）。"""
+    tools_jsonl = env_dir / "tools.jsonl"
+    if not tools_jsonl.exists():
+        return False, "missing tools.jsonl"
+    try:
+        from astra.data_synthesis import load_tools_from_jsonl
+
+        tools = load_tools_from_jsonl(tools_jsonl)
+        if not tools:
+            return False, "tools.jsonl has no valid tool lines (each line must be JSON with 'name')"
+        return True, None
+    except Exception as e:
+        return False, f"tools.jsonl parse error: {e!s}"[:300]
+
+
 def validate(env_dir: Path) -> tuple[bool, dict]:
     """验证单个 env，返回 (ok, result_dict)"""
     steps = {}
@@ -131,6 +156,14 @@ def validate(env_dir: Path) -> tuple[bool, dict]:
     steps["structure"] = "pass" if ok else f"fail: {err}"
     if not ok:
         return False, {"ok": False, "steps": steps, "error": err}
+
+    # tools-only 环境：仅校验 tools.jsonl 可解析，不跑 uv_sync / MCP
+    if is_tools_only_env(env_dir):
+        ok, err = validate_tools_jsonl(env_dir)
+        steps["tools_jsonl"] = "pass" if ok else f"fail: {err}"
+        if not ok:
+            return False, {"ok": False, "steps": steps, "error": err}
+        return True, {"ok": True, "steps": steps, "error": None}
 
     ok, err = run_uv_sync(env_dir)
     steps["uv_sync"] = "pass" if ok else f"fail: {err}"

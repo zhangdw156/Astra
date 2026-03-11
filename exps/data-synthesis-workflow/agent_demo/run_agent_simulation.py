@@ -1,14 +1,13 @@
 """
-多轮对话模拟：使用 qwen-agent + prediction-trader MCP 执行蓝图，收集完整轨迹。
+多轮对话模拟：使用 qwen-agent + MCP 执行蓝图，收集完整轨迹。
 
 蓝图为 goals + possible_tool_calls 格式；无 system_message，Assistant 仅注册 MCP 工具。
 User Agent 根据 goals 与对话历史生成用户消息，与 Assistant 交互直到 [TASK_END] 或安全上限（20 轮）。
 
 流程：
-1. 启动 prediction-trader MCP Docker 容器（需事先运行）
-2. 创建 qwen-agent Assistant（无系统提示，仅 MCP 工具）
-3. User Agent 生成 user 消息 -> Assistant 响应 -> 循环直到 [TASK_END]
-4. 收集所有轮次的轨迹（turn 结构）；轻量环境下 final_state 为 None
+- 若指定 --tools-path：子进程启动 astra run_light_mcp（按 tools.jsonl 启 MCP），合成后自动关闭 MCP。
+- 否则可启动 prediction-trader MCP Docker 容器，或 --no-docker 仅检查 MCP 是否可达。
+- 创建 qwen-agent Assistant（无系统提示，仅 MCP 工具）-> User Agent 逐轮生成消息 -> 收集轨迹。
 
 依赖：
 - pip install "qwen-agent[mcp]" openai python-dotenv
@@ -16,11 +15,13 @@ User Agent 根据 goals 与对话历史生成用户消息，与 Assistant 交互
 
 运行（在项目根目录）：
   python exps/data-synthesis-workflow/agent_demo/run_agent_simulation.py [--blueprint out_blueprint.json]
+  python exps/data-synthesis-workflow/agent_demo/run_agent_simulation.py --tools-path exps/data-synthesis-workflow/synthesized_envs/2515_stock-monitor/tools.jsonl
 """
 
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
 import os
 import re
@@ -28,6 +29,7 @@ import subprocess
 import sys
 import time
 import uuid
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -73,7 +75,7 @@ def ensure_mcp_running() -> bool:
     # 尝试启动 Docker
     compose_path = PREDICTION_TRADER / "docker" / "docker-compose.yaml"
     if not compose_path.exists():
-        print("未找到 docker-compose.yaml，请手动启动 prediction-trader 容器")
+        print("未找到 docker-compose.yaml；若为 tools-only 环境请使用 --tools-path 指定 tools.jsonl 路径")
         return False
 
     print("正在启动 prediction-trader MCP 容器...")
@@ -103,6 +105,61 @@ def ensure_mcp_running() -> bool:
     print("  docker ps -a --filter name=prediction-trader")
     print("  docker logs prediction-trader-mcp")
     return False
+
+
+# 子进程启动的 MCP 进程句柄，用于 --tools-path 时结束时终止
+_light_mcp_proc: subprocess.Popen | None = None
+
+
+@contextmanager
+def start_light_mcp_subprocess(tools_path: Path):
+    """
+    通过 astra run_light_mcp 子进程启动 MCP（SSE），就绪后 yield，退出时终止子进程。
+    tools_path 需为绝对路径或相对于项目根。
+    """
+    global _light_mcp_proc
+    tools_abs = tools_path.resolve() if not tools_path.is_absolute() else tools_path
+    if not tools_abs.exists():
+        raise FileNotFoundError(f"tools_path 不存在: {tools_abs}")
+
+    cmd = [
+        "uv", "run", "-m", "astra.scripts.run_light_mcp",
+        f"tools_path={tools_abs}",
+        "transport=sse",
+    ]
+    print("正在启动轻量 MCP 子进程:", " ".join(cmd))
+    _light_mcp_proc = subprocess.Popen(
+        cmd,
+        cwd=PROJECT_ROOT,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    atexit.register(lambda: _light_mcp_proc and _light_mcp_proc.poll() is None and _light_mcp_proc.terminate())
+
+    max_wait = 60
+    interval = 2
+    elapsed = 0
+    while elapsed < max_wait:
+        if _light_mcp_proc.poll() is not None:
+            raise RuntimeError("轻量 MCP 子进程已退出")
+        time.sleep(interval)
+        elapsed += interval
+        if _mcp_reachable():
+            print(f"MCP 子进程已就绪（约 {elapsed}s）")
+            try:
+                yield
+            finally:
+                if _light_mcp_proc and _light_mcp_proc.poll() is None:
+                    _light_mcp_proc.terminate()
+                    _light_mcp_proc.wait(timeout=5)
+                _light_mcp_proc = None
+            return
+
+    _light_mcp_proc.terminate()
+    _light_mcp_proc.wait(timeout=5)
+    _light_mcp_proc = None
+    raise RuntimeError("MCP 子进程启动超时，SSE 未就绪")
 
 
 def load_blueprint(path: Path) -> dict:
@@ -495,6 +552,12 @@ def main() -> None:
         help="输出轨迹 JSON 路径（默认: agent_demo/runs/<run_id>/out_trajectory.json）",
     )
     parser.add_argument("--no-docker", action="store_true", help="不自动启动 Docker，仅检查 MCP 是否可达")
+    parser.add_argument(
+        "--tools-path",
+        type=Path,
+        default=None,
+        help="tools.jsonl 路径：指定则子进程启动 astra run_light_mcp，合成后自动关闭；不指定则用 Docker 或已有 MCP",
+    )
     parser.add_argument("--run-id", type=str, default="", help="本次轨迹采集的运行 ID；默认自动生成")
     args = parser.parse_args()
 
@@ -510,8 +573,14 @@ def main() -> None:
     run_id = args.run_id.strip() or str(uuid.uuid4())
     print(f"加载蓝图: {blueprint_path}, goals={len(blueprint.get('goals', []))}")
 
-    if not args.no_docker and not ensure_mcp_running():
-        raise SystemExit("无法连接到 MCP 服务，请确保 prediction-trader 容器已启动。")
+    if args.tools_path is not None:
+        tools_path = args.tools_path if args.tools_path.is_absolute() else (PROJECT_ROOT / args.tools_path)
+        mcp_ctx = start_light_mcp_subprocess(tools_path)
+    else:
+        mcp_ctx = nullcontext()
+
+    if args.tools_path is None and not args.no_docker and not ensure_mcp_running():
+        raise SystemExit("无法连接到 MCP 服务，请确保 prediction-trader 容器已启动或使用 --tools-path。")
 
     _patch_mcp_tool_params()
 
@@ -519,41 +588,42 @@ def main() -> None:
     if not out_path.is_absolute():
         out_path = SCRIPT_DIR / out_path
 
-    try:
-        agent, tools = create_agent()
-        print("Agent 已创建，MCP 工具已加载")
+    with mcp_ctx:
+        try:
+            agent, tools = create_agent()
+            print("Agent 已创建，MCP 工具已加载")
 
-        # 仍保留 agent_system_prompt 获取逻辑，方便必要时调试，但不写入轨迹
-        _ = get_agent_system_prompt(agent)
+            # 仍保留 agent_system_prompt 获取逻辑，方便必要时调试，但不写入轨迹
+            _ = get_agent_system_prompt(agent)
 
-        messages = run_dynamic_simulation(agent, blueprint)
+            messages = run_dynamic_simulation(agent, blueprint)
 
-        # 轻量 prediction-trader 环境不导出结构化状态，仅做基于输出的简单验证
-        last_assistant_msg = ""
-        for m in reversed(messages):
-            if m.get("role") == "assistant":
-                last_assistant_msg = (m.get("content") or "").strip()
-                if last_assistant_msg:
-                    break
-        validation_result = {
-            "output_based": {
-                "passed": bool(last_assistant_msg) and "[Error]" not in last_assistant_msg,
-                "reason": "助手已生成最终回复" if last_assistant_msg and "[Error]" not in last_assistant_msg else "最终回复异常或为空",
+            # 轻量 prediction-trader 环境不导出结构化状态，仅做基于输出的简单验证
+            last_assistant_msg = ""
+            for m in reversed(messages):
+                if m.get("role") == "assistant":
+                    last_assistant_msg = (m.get("content") or "").strip()
+                    if last_assistant_msg:
+                        break
+            validation_result = {
+                "output_based": {
+                    "passed": bool(last_assistant_msg) and "[Error]" not in last_assistant_msg,
+                    "reason": "助手已生成最终回复" if last_assistant_msg and "[Error]" not in last_assistant_msg else "最终回复异常或为空",
+                }
             }
-        }
-        print("\n轨迹验证:")
-        print("  输出验证:", validation_result["output_based"]["passed"], "-", validation_result["output_based"]["reason"])
+            print("\n轨迹验证:")
+            print("  输出验证:", validation_result["output_based"]["passed"], "-", validation_result["output_based"]["reason"])
 
-        save_trajectory(
-            messages,
-            blueprint,
-            out_path,
-            tools,
-            run_id,
-            validation_result=validation_result,
-        )
-    except Exception as e:
-        raise
+            save_trajectory(
+                messages,
+                blueprint,
+                out_path,
+                tools,
+                run_id,
+                validation_result=validation_result,
+            )
+        except Exception as e:
+            raise
 
 
 if __name__ == "__main__":
