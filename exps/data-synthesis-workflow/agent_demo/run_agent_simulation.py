@@ -235,6 +235,7 @@ def _patch_mcp_tool_params():
         _orig_create = mcp_manager.MCPManager.create_tool_class
 
         def _normalize_tool_params(params) -> dict:
+            """将 params 规范为 dict；MCP 协议要求 arguments 为 dict，非 dict 的解析结果（如字符串 'kwargs'）视为空。"""
             if params is None:
                 return {}
             if isinstance(params, dict):
@@ -244,9 +245,12 @@ def _patch_mcp_tool_params():
             if not s:
                 return {}
             try:
-                return _json.loads(s)
+                parsed = _json.loads(s)
             except _json.JSONDecodeError:
                 return {}
+            if not isinstance(parsed, dict):
+                return {}
+            return parsed
 
         def _patched_create_tool_class(self, register_name, register_client_id, tool_name, tool_desc, tool_parameters):
             tool_instance = _orig_create(self, register_name, register_client_id, tool_name, tool_desc, tool_parameters)
@@ -254,7 +258,7 @@ def _patch_mcp_tool_params():
 
             def _call(params, **kwargs):
                 tool_args = _normalize_tool_params(params)
-                return orig_call(_json.dumps(tool_args) if tool_args is not None else "{}", **kwargs)
+                return orig_call(_json.dumps(tool_args), **kwargs)
 
             tool_instance.call = _call
             return tool_instance

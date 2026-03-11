@@ -2,8 +2,8 @@
 """
 pipeline1：从 persona_5K.jsonl 随机抽 20 个人物，生成 20 蓝图、采集 20 轨迹并做评估。
 
-依赖：blueprint_demo、agent_demo、trajectory_eval_demo、prompts、env_2896_prediction-trader/tools.jsonl。
-请在项目根目录执行：python exps/data-synthesis-workflow/pipeline1/run.py [--num 20] [--seed 42]
+依赖：blueprint_demo、agent_demo（含 qwen-agent，通过 uv run --project agent_demo 调用）、trajectory_eval_demo、prompts、env_2896_prediction-trader/tools.jsonl。需已安装 uv。
+请在项目根目录执行：uv run python exps/data-synthesis-workflow/pipeline1/run.py [--num 20] [--seed 42]
 """
 
 from __future__ import annotations
@@ -103,10 +103,10 @@ def run_blueprint(persona_line: str, out_blueprint: Path, scratch_dir: Path) -> 
 
 
 def run_agent(blueprint_path: Path, out_trajectory: Path, run_id: str) -> bool:
-    """调用 run_agent_simulation.py，使用 --tools-path 启动轻量 MCP，输出轨迹到 out_trajectory。"""
+    """调用 run_agent_simulation.py（在 agent_demo 的 uv 环境中，以使用 qwen-agent），使用 --tools-path 启动轻量 MCP，输出轨迹到 out_trajectory。"""
     out_trajectory.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
-        sys.executable,
+        "uv", "run", "--project", str(AGENT_DEMO),
         str(AGENT_DEMO / "run_agent_simulation.py"),
         "--blueprint", str(blueprint_path),
         "--tools-path", str(TOOLS_PATH),
