@@ -25,7 +25,7 @@ import os
 
 # 路径
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
+import astra.config
 
 PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "trajectory_evaluator.md"
 DEFAULT_TRAJECTORY_PATH = SCRIPT_DIR.parent / "trajectories" / "0" / "out_trajectory.json"
@@ -38,14 +38,9 @@ def build_default_eval_output_path(run_id: str) -> Path:
 
 def load_env_and_client() -> tuple[OpenAI, str]:
     """从项目根 .env 加载并创建 OpenAI 客户端。"""
-    load_dotenv(PROJECT_ROOT / ".env")
-    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
-    model = os.environ.get("OPENAI_MODEL", "").strip()
-    base_url = os.environ.get("OPENAI_BASE_URL", "").strip() or None
-    if not api_key or not model:
-        raise SystemExit(
-            "请在项目根目录 .env 中配置 OPENAI_API_KEY 和 OPENAI_MODEL；可选 OPENAI_BASE_URL。"
-        )
+    api_key = astra.config.get_openai_api_key()
+    model = astra.config.get_openai_model()
+    base_url = astra.config.get_openai_base_url()
     client = OpenAI(api_key=api_key, base_url=base_url)
     return client, model
 

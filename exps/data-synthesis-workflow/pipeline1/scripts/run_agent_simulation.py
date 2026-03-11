@@ -36,7 +36,8 @@ from dotenv import load_dotenv
 
 # 路径
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
+import astra.config
+PROJECT_ROOT = astra.config.get_project_root()
 
 # 默认蓝图路径（从参数传入，这里不需要默认）
 DEFAULT_BLUEPRINT = None
@@ -50,7 +51,7 @@ TASK_END_MARKER = "[TASK_END]"
 
 def load_env() -> None:
     """从项目根加载 .env"""
-    load_dotenv(PROJECT_ROOT / ".env")
+    astra.config.load_env()
 
 
 def _mcp_reachable() -> bool:
@@ -185,18 +186,7 @@ def load_blueprint(path: Path) -> dict:
 
 def build_llm_config() -> dict:
     """根据 .env 构建 LLM 配置（OpenAI 兼容）"""
-    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
-    model = os.environ.get("OPENAI_MODEL", "").strip()
-    base_url = os.environ.get("OPENAI_BASE_URL", "").strip() or None
-    if not api_key or not model:
-        raise SystemExit("请在项目根 .env 中配置 OPENAI_API_KEY 和 OPENAI_MODEL")
-    cfg = {
-        "model": model,
-        "model_type": "oai",
-        "model_server": base_url or "https://api.openai.com/v1",
-        "api_key": api_key,
-    }
-    return cfg
+    return astra.config.get_llm_config()
 
 
 def _content_to_text(content) -> str:
@@ -322,12 +312,9 @@ def generate_user_message(blueprint: dict, messages: list[dict]) -> str:
     """
     from openai import OpenAI
 
-    load_dotenv(PROJECT_ROOT / ".env")
-    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
-    model = os.environ.get("OPENAI_MODEL", "").strip()
-    base_url = os.environ.get("OPENAI_BASE_URL", "").strip() or None
-    if not api_key or not model:
-        raise SystemExit("请在项目根 .env 中配置 OPENAI_API_KEY 和 OPENAI_MODEL")
+    api_key = astra.config.get_openai_api_key()
+    model = astra.config.get_openai_model()
+    base_url = astra.config.get_openai_base_url()
 
     prompt_text = USER_AGENT_PROMPT_PATH.read_text(encoding="utf-8")
     goals = blueprint.get("goals") or []
