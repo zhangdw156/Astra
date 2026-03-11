@@ -24,13 +24,14 @@ from astra.utils import config as astra_config
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = astra_config.get_project_root()
 
-# pipeline1 本地资源
-PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "planner" / "task_blueprint_generator.md"
-SKILL_PATH = SCRIPT_DIR.parent / "configs" / "skill" / "SKILL.md"
-TOOLS_PATH = SCRIPT_DIR.parent / "configs" / "tools" / "tools.jsonl"
-DEFAULT_PERSONA_PATH = SCRIPT_DIR.parent / "data" / "persona_5K.jsonl"
-
 SKILL_NAME = "2896_prediction-trader"
+
+# pipeline1 本地资源（基于 skill name 定位资源目录）
+SKILL_DIR = SCRIPT_DIR.parent / SKILL_NAME
+PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "planner" / "planner_agent.md"
+SKILL_PATH = SKILL_DIR / "SKILL.md"
+TOOLS_PATH = SKILL_DIR / "tools.jsonl"
+DEFAULT_PERSONA_PATH = SCRIPT_DIR.parent / "data" / "persona_5K.jsonl"
 
 
 def get_persona_path(persona_file: Path | None) -> Path:

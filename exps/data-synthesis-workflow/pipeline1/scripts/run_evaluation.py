@@ -27,7 +27,7 @@ import os
 SCRIPT_DIR = Path(__file__).resolve().parent
 from astra.utils import config as astra_config
 
-PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "eval" / "trajectory_evaluator.md"
+PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "eval" / "eval_agent.md"
 DEFAULT_TRAJECTORY_PATH = SCRIPT_DIR.parent / "artifacts" / "0" / "trajectory.json"
 
 

@@ -101,7 +101,7 @@ def generate_tool_response(
     - arguments_json: 工具参数（JSON 字符串）。
     - session_state: 当前会话状态 JSON。
     - conversation_context: 近期对话与工具调用摘要。
-    - prompt_path: 提示词模板文件路径（如 tool_response_generator.md）。
+    - prompt_path: 提示词模板文件路径（如 tool_agent.md）。
     - env_path: 可选，.env 文件路径，用于 OPENAI_API_KEY 等；不传则使用默认 dotenv 行为。
 
     返回：{"response": "<JSON 或文本>", "state": { ... }}
