@@ -14,8 +14,8 @@ User Agent 根据 goals 与对话历史生成用户消息，与 Assistant 交互
 - 项目根 .env：OPENAI_API_KEY、OPENAI_MODEL、OPENAI_BASE_URL（可选）
 
 运行（在项目根目录）：
-  python exps/data-synthesis-workflow/agent_demo/run_agent_simulation.py [--blueprint out_blueprint.json]
-  python exps/data-synthesis-workflow/agent_demo/run_agent_simulation.py --tools-path exps/data-synthesis-workflow/synthesized_envs/2515_stock-monitor/tools.jsonl
+  python exps/data-synthesis-workflow/pipeline1/scripts/run_simulation.py [--blueprint out_blueprint.json]
+  python exps/data-synthesis-workflow/pipeline1/scripts/run_simulation.py --tools-path exps/data-synthesis-workflow/pipeline1/tools.jsonl
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ DEFAULT_BLUEPRINT = None
 # MCP SSE 端点（本地轻量 MCP）
 MCP_SSE_URL = "http://localhost:8000/sse"
 # User Agent 提示词（pipeline1 本地）
-USER_AGENT_PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "user_agent.md"
+USER_AGENT_PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "user" / "user_agent.md"
 
 TASK_END_MARKER = "[TASK_END]"
 
@@ -234,15 +234,15 @@ def build_mcp_config(mcp_url: str | None = None) -> dict:
 
 
 def _patch_mcp_tool_params():
-    """对 qwen_agent MCP 工具的 call 做容错：空/非法 params 规范为 "{}"。"""
+    """对 qwen_agent MCP 工具的 call 做容错：空/非法 params 规范为 dict，支持 json5 与常见畸形 JSON。"""
     try:
         from qwen_agent.tools import mcp_manager
         import json as _json
 
         _orig_create = mcp_manager.MCPManager.create_tool_class
 
-        def _normalize_tool_params(params) -> dict:
-            """将 params 规范为 dict；MCP 协议要求 arguments 为 dict，非 dict 的解析结果（如字符串 'kwargs'）视为空。"""
+        def _normalize_tool_params_final(params) -> dict:
+            """将 params 规范为 dict；支持 JSON/JSON5，解析失败时尝试补全 } 或单值兜底为 kwargs。"""
             if params is None:
                 return {}
             if isinstance(params, dict):
@@ -253,18 +253,37 @@ def _patch_mcp_tool_params():
                 return {}
             try:
                 parsed = _json.loads(s)
+                if isinstance(parsed, dict):
+                    return parsed
             except _json.JSONDecodeError:
-                return {}
-            if not isinstance(parsed, dict):
-                return {}
-            return parsed
+                pass
+            try:
+                import json5
+                parsed = json5.loads(s)
+                if isinstance(parsed, dict):
+                    return parsed
+            except Exception:
+                pass
+            for candidate in [s + "}", s.rstrip(",") + "}"]:
+                if len(candidate) <= 600:
+                    try:
+                        parsed = _json.loads(candidate)
+                        if isinstance(parsed, dict):
+                            return parsed
+                    except _json.JSONDecodeError:
+                        pass
+            if not s.startswith("{") and len(s) < 500:
+                clean = s.strip('"').strip("'").strip()
+                if clean:
+                    return {"kwargs": clean}
+            return {}
 
         def _patched_create_tool_class(self, register_name, register_client_id, tool_name, tool_desc, tool_parameters):
             tool_instance = _orig_create(self, register_name, register_client_id, tool_name, tool_desc, tool_parameters)
             orig_call = tool_instance.call
 
             def _call(params, **kwargs):
-                tool_args = _normalize_tool_params(params)
+                tool_args = _normalize_tool_params_final(params)
                 return orig_call(_json.dumps(tool_args), **kwargs)
 
             tool_instance.call = _call
@@ -288,8 +307,11 @@ def create_agent(mcp_url: str | None = None) -> tuple:
 
 
 def build_default_output_path(run_id: str) -> Path:
-    """为每条轨迹构造独立输出目录（输出到 trajectories/<i>/）。"""
-    return SCRIPT_DIR.parent / "trajectories" / run_id.replace("pipeline1_", "") / "out_trajectory.json"
+    """为每条轨迹构造输出路径（输出到 artifacts/{i}/trajectory.json）。"""
+    idx = run_id.replace("pipeline1_", "")
+    run_dir = SCRIPT_DIR.parent / "artifacts" / idx
+    run_dir.mkdir(parents=True, exist_ok=True)
+    return run_dir / "trajectory.json"
 
 
 def _format_conversation_for_user_agent(messages: list[dict]) -> str:
@@ -313,9 +335,10 @@ def _format_conversation_for_user_agent(messages: list[dict]) -> str:
     return "\n\n".join(lines) if lines else "(No messages yet)"
 
 
-def generate_user_message(blueprint: dict, messages: list[dict]) -> str:
+def generate_user_message(blueprint: dict, messages: list[dict], user_message_count: int = 0) -> str:
     """
     调用 User Agent LLM，根据 goals、user_agent_config 与对话历史生成下一句 user 消息。
+    user_message_count：当前已发送的 user 消息条数（本轮将生成第 user_message_count+1 条）。
     返回已剥离 <think> 的用户可见消息；若应结束则返回 TASK_END_MARKER。
     """
     from openai import OpenAI
@@ -324,10 +347,19 @@ def generate_user_message(blueprint: dict, messages: list[dict]) -> str:
     model = astra_config.get_user_agent_model()
     base_url = astra_config.get_user_agent_base_url()
 
-    prompt_text = USER_AGENT_PROMPT_PATH.read_text(encoding="utf-8")
     goals = blueprint.get("goals") or []
+    num_goals = len(goals)
+    # 本轮对应的 goal 序号（1-based），不超过 num_goals
+    current_goal_index = min(user_message_count + 1, num_goals) if num_goals else 1
+    current_goal_text = goals[current_goal_index - 1] if goals else "(无目标)"
+
+    prompt_text = USER_AGENT_PROMPT_PATH.read_text(encoding="utf-8")
     goals_str = "\n".join(f"{i}. {g}" for i, g in enumerate(goals, 1)) if goals else "(无目标)"
     prompt_text = prompt_text.replace("{GOALS}", goals_str.strip())
+    prompt_text = prompt_text.replace("{NUM_GOALS}", str(num_goals))
+    prompt_text = prompt_text.replace("{USER_MESSAGE_COUNT}", str(user_message_count))
+    prompt_text = prompt_text.replace("{CURRENT_GOAL_INDEX}", str(current_goal_index))
+    prompt_text = prompt_text.replace("{CURRENT_GOAL_TEXT}", current_goal_text)
     prompt_text = prompt_text.replace(
         "{USER_AGENT_CONFIG}",
         json.dumps(blueprint.get("user_agent_config", {}), ensure_ascii=False),
@@ -462,20 +494,39 @@ def _assistant_response_to_turn(
 MAX_TURNS_SAFETY = 20
 
 
+def _fallback_user_message_for_goal(blueprint: dict, goal_index_1based: int) -> str:
+    """在未满「一 goal 一 query」时，若 User Agent 提前返回 [TASK_END]，用此兜底生成一条针对指定 goal 的用户消息。"""
+    goals = blueprint.get("goals") or []
+    idx = goal_index_1based - 1
+    if idx < 0 or idx >= len(goals):
+        return "Can you help me with the next step?"
+    return f"I'd also like to know: {goals[idx]}"
+
+
 def run_dynamic_simulation(agent, blueprint: dict) -> list[dict]:
     """
     User Agent 逐轮生成 user 消息，与 Assistant 交互直到 [TASK_END] 或达到安全上限。
+    约定：一个 goal 对应一次 user query；未满 N 轮（N=len(goals)）时拒绝 [TASK_END]，用兜底消息继续。
     返回 turn 列表。
     """
     messages: list[dict] = []
     turns: list[dict] = []
+    goals = blueprint.get("goals") or []
+    num_goals = len(goals)
 
     for turn_idx in range(1, MAX_TURNS_SAFETY + 1):
         start_time = time.perf_counter()
-        user_msg = generate_user_message(blueprint, messages)
+        user_message_count = sum(1 for m in messages if m.get("role") == "user")
+        user_msg = generate_user_message(blueprint, messages, user_message_count=user_message_count)
+
+        # 未满「一 goal 一 query」时不允许结束，用兜底消息
         if user_msg == TASK_END_MARKER:
-            print(f"\n[Turn {turn_idx}] User Agent 结束任务")
-            break
+            if num_goals and user_message_count < num_goals:
+                user_msg = _fallback_user_message_for_goal(blueprint, user_message_count + 1)
+                print(f"\n[Turn {turn_idx}] User Agent 提前结束已忽略，补发 goal {user_message_count + 1} 的兜底 query")
+            else:
+                print(f"\n[Turn {turn_idx}] User Agent 结束任务")
+                break
 
         print(f"\n[Turn {turn_idx}] User: {user_msg[:80]}...")
         # Assistant 只允许看到“用户说出的话”（user_msg），绝不能看到 user_thinking
@@ -561,7 +612,7 @@ def main() -> None:
         "-o",
         type=Path,
         default=None,
-        help="输出轨迹 JSON 路径（默认: agent_demo/runs/<run_id>/out_trajectory.json）",
+        help="输出轨迹 JSON 路径（默认: artifacts/{i}/trajectory.json）",
     )
     parser.add_argument("--no-docker", action="store_true", help="不自动启动 Docker，仅检查 MCP 是否可达")
     parser.add_argument(

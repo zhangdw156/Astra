@@ -37,18 +37,18 @@ uv run python exps/data-synthesis-workflow/pipeline1/run.py --num 20 --seed 42
 
 ## 输出目录
 
-- `blueprints/`：N 个 `blueprint_<i>.json`
-- `trajectories/<i>/out_trajectory.json`：每条轨迹（含 `messages` 和 `tools_jsonl`）
-- `evals/<i>/out_trajectory_eval.json`：每条轨迹的评估结果
+- `artifacts/{i}/blueprint.json`：第 i 个蓝图
+- `artifacts/{i}/trajectory.json`：第 i 条轨迹（含 `messages` 和 `tools_jsonl`）
+- `artifacts/{i}/evaluation.json`：第 i 条轨迹的评估结果
 - `scratch/`：临时 persona 文件（每轮一个）
 
 ## 流程
 
 1. 从 `persona/persona_5K.jsonl` 随机抽取 `--num` 条（默认 20）。
 2. 启动 MCP Server（将被所有轨迹复用）。
-3. 对每条 persona：调用 `blueprint_demo/run_blueprint.py`（`--persona-file`、`--output`）生成蓝图。
+3. 对每条 persona：调用 `scripts/run_blueprint.py`（`--persona`、`--output`）生成蓝图。
    - 若任务不涉及状态变更，则 `initial_state` 和 `expected_final_state` 均设为 `{}`。
-4. 对每个蓝图：调用 `agent_demo/run_agent_simulation.py`（`--mcp-url` 复用已有 MCP）采集轨迹。
+4. 对每个蓝图：调用 `scripts/run_simulation.py`（`--mcp-url` 复用已有 MCP）采集轨迹。
    - 轨迹中保存 `tools_jsonl` 字段（tools.jsonl 完整内容）。
-5. 对每条轨迹调用 `trajectory_eval_demo/run_trajectory_eval.py` 做质量/幻觉评估。
+5. 对每条轨迹调用 `scripts/run_evaluation.py` 做质量/幻觉评估。
 6. 所有轨迹合成完成后关闭 MCP Server。

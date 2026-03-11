@@ -8,8 +8,8 @@
 - pip install openai python-dotenv
 
 运行（在项目根目录）：
-  python exps/data-synthesis-workflow/trajectory_eval_demo/run_trajectory_eval.py \
-    --trajectory exps/data-synthesis-workflow/pipeline1/trajectories/0/out_trajectory.json
+  python exps/data-synthesis-workflow/pipeline1/scripts/run_evaluation.py \
+    --trajectory exps/data-synthesis-workflow/pipeline1/artifacts/0/trajectory.json
 """
 
 from __future__ import annotations
@@ -27,13 +27,16 @@ import os
 SCRIPT_DIR = Path(__file__).resolve().parent
 from astra.utils import config as astra_config
 
-PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "trajectory_evaluator.md"
-DEFAULT_TRAJECTORY_PATH = SCRIPT_DIR.parent / "trajectories" / "0" / "out_trajectory.json"
+PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "eval" / "trajectory_evaluator.md"
+DEFAULT_TRAJECTORY_PATH = SCRIPT_DIR.parent / "artifacts" / "0" / "trajectory.json"
 
 
 def build_default_eval_output_path(run_id: str) -> Path:
-    """为每条轨迹构造独立评估结果路径（输出到 evals/<i>/）。"""
-    return SCRIPT_DIR.parent / "evals" / run_id.replace("pipeline1_", "") / "out_trajectory_eval.json"
+    """为每条轨迹构造评估结果路径（输出到 artifacts/{i}/evaluation.json）。"""
+    idx = run_id.replace("pipeline1_", "")
+    run_dir = SCRIPT_DIR.parent / "artifacts" / idx
+    run_dir.mkdir(parents=True, exist_ok=True)
+    return run_dir / "evaluation.json"
 
 
 def load_env_and_client() -> tuple[OpenAI, str]:
@@ -104,7 +107,7 @@ def main() -> None:
         "-o",
         type=Path,
         default=None,
-        help="评估结果输出路径（默认: trajectory_eval_demo/runs/<run_id>/out_trajectory_eval.json）",
+        help="评估结果输出路径（默认: artifacts/{i}/evaluation.json）",
     )
     args = parser.parse_args()
 

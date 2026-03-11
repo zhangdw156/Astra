@@ -56,6 +56,117 @@ def _normalize_handler_args(
     return kwargs
 
 
+def _extract_params_from_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
+    """从 inputSchema 中提取参数定义。"""
+    input_schema = schema.get("inputSchema", {})
+    if not isinstance(input_schema, dict):
+        return {}
+    return input_schema.get("properties", {})
+
+
+def _make_tool_handler(
+    tool_name: str,
+    tool_description: str,
+    primary_param: Optional[str],
+    tool_params: Dict[str, Any],
+    prompt_path: Path,
+    env_path: Optional[Path],
+    state_key: str,
+) -> Any:
+    """工厂函数：为每个工具创建正确签名的处理函数。"""
+    from fastmcp.tools import tool
+
+    param_names = list(tool_params.keys())
+
+    if not param_names:
+        # 无参数工具
+        @tool(name=tool_name, description=tool_description)
+        def _handler() -> str:
+            current_state = _get_state(state_key)
+            args_json = json.dumps({}, ensure_ascii=False)
+            out = generate_tool_response(
+                tool_name=tool_name,
+                arguments_json=args_json,
+                session_state=current_state,
+                conversation_context=None,
+                prompt_path=prompt_path,
+                env_path=env_path,
+            )
+            new_state = out.get("state")
+            if isinstance(new_state, dict):
+                _set_state(new_state, state_key)
+            response = (out.get("response") or "").strip()
+            if not response:
+                response = json.dumps({"status": "executed", "tool": tool_name})
+            return response
+        return _handler
+
+    elif len(param_names) == 1:
+        # 单参数工具
+        p_name = param_names[0]
+        p_info = tool_params[p_name]
+        default = p_info.get("default")
+
+        @tool(name=tool_name, description=tool_description)
+        def _handler(arg: Optional[str] = default) -> str:
+            kwargs = {p_name: arg} if arg is not None else {}
+            normalized = _normalize_handler_args(tool_name, kwargs, primary_param)
+            current_state = _get_state(state_key)
+            args_json = json.dumps(normalized, ensure_ascii=False)
+            out = generate_tool_response(
+                tool_name=tool_name,
+                arguments_json=args_json,
+                session_state=current_state,
+                conversation_context=None,
+                prompt_path=prompt_path,
+                env_path=env_path,
+            )
+            new_state = out.get("state")
+            if isinstance(new_state, dict):
+                _set_state(new_state, state_key)
+            response = (out.get("response") or "").strip()
+            if not response:
+                response = json.dumps({"status": "executed", "tool": tool_name})
+            return response
+        return _handler
+
+    else:
+        # 多参数工具（取前两个）
+        p1_name, p2_name = param_names[:2]
+        p1_default = tool_params[p1_name].get("default")
+        p2_default = tool_params[p2_name].get("default")
+
+        @tool(name=tool_name, description=tool_description)
+        def _handler(
+            arg1: Optional[str] = p1_default,
+            arg2: Optional[int] = p2_default,
+        ) -> str:
+            kwargs = {}
+            if arg1 is not None:
+                kwargs[p1_name] = arg1
+            if arg2 is not None:
+                kwargs[p2_name] = arg2
+            normalized = _normalize_handler_args(tool_name, kwargs, primary_param)
+            current_state = _get_state(state_key)
+            args_json = json.dumps(normalized, ensure_ascii=False)
+            out = generate_tool_response(
+                tool_name=tool_name,
+                arguments_json=args_json,
+                session_state=current_state,
+                conversation_context=None,
+                prompt_path=prompt_path,
+                env_path=env_path,
+            )
+            new_state = out.get("state")
+            if isinstance(new_state, dict):
+                _set_state(new_state, state_key)
+            response = (out.get("response") or "").strip()
+            if not response:
+                response = json.dumps({"status": "executed", "tool": tool_name})
+            return response
+        return _handler
+
+
 def create_mcp_tools_light(
     mcp: Any,
     tools: List[Dict[str, Any]],
@@ -88,33 +199,17 @@ def create_mcp_tools_light(
         if not name:
             continue
         primary = param_normalizer.get(name) or _infer_primary_param(schema)
+        description = schema.get("description", "")
+        params = _extract_params_from_schema(schema)
 
-        def _handler(
-            _name: str = name,
-            _primary: Optional[str] = primary,
-            **kwargs: Any,
-        ) -> str:
-            normalized = _normalize_handler_args(_name, dict(kwargs or {}), _primary)
-            current_state = _get_state(state_key)
-            args_json = json.dumps(normalized, ensure_ascii=False)
-            out = generate_tool_response(
-                tool_name=_name,
-                arguments_json=args_json,
-                session_state=current_state,
-                conversation_context=None,
-                prompt_path=prompt_path,
-                env_path=env_path,
-            )
-            new_state = out.get("state")
-            if isinstance(new_state, dict):
-                _set_state(new_state, state_key)
-            response = (out.get("response") or "").strip()
-            if not response:
-                response = json.dumps({"status": "executed", "tool": _name})
-            return response
-
-        mcp.add_tool(
-            _handler,
-            name=name,
-            description=schema.get("description", ""),
+        # 使用工厂函数创建正确签名的处理函数
+        handler = _make_tool_handler(
+            tool_name=name,
+            tool_description=description,
+            primary_param=primary,
+            tool_params=params,
+            prompt_path=prompt_path,
+            env_path=env_path,
+            state_key=state_key,
         )
+        mcp.add_tool(handler)

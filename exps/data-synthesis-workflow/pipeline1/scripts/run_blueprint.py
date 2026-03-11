@@ -5,7 +5,7 @@
 user_agent_config、end_condition。不生成 system_message、queries、expected_output、max_turns。
 
 依赖项目根目录 .env 中的 OPENAI_API_KEY、OPENAI_MODEL，可选 OPENAI_BASE_URL。
-运行方式（在项目根或本目录）：python exps/data-synthesis-workflow/blueprint_demo/run_blueprint.py
+运行方式（在项目根或本目录）：python exps/data-synthesis-workflow/pipeline1/scripts/run_blueprint.py
 """
 
 import json
@@ -25,10 +25,10 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = astra_config.get_project_root()
 
 # pipeline1 本地资源
-PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "task_blueprint_generator.md"
-SKILL_PATH = SCRIPT_DIR.parent / "SKILL.md"
-TOOLS_PATH = SCRIPT_DIR.parent / "tools.jsonl"
-DEFAULT_PERSONA_PATH = PROJECT_ROOT / "persona" / "persona_5K.jsonl"
+PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "planner" / "task_blueprint_generator.md"
+SKILL_PATH = SCRIPT_DIR.parent / "configs" / "skill" / "SKILL.md"
+TOOLS_PATH = SCRIPT_DIR.parent / "configs" / "tools" / "tools.jsonl"
+DEFAULT_PERSONA_PATH = SCRIPT_DIR.parent / "data" / "persona_5K.jsonl"
 
 SKILL_NAME = "2896_prediction-trader"
 
@@ -51,13 +51,16 @@ def load_env_and_client() -> tuple[OpenAI, str]:
     return client, model
 
 
-def read_prompt_and_inputs(persona_path: Path | None = None) -> tuple[str, str]:
-    """读取提示词模板并替换占位符；返回 (填充后的提示词, persona 那一行)。persona_path 未传时用 get_persona_path(None)。"""
+def read_prompt_and_inputs(persona_path: Path | None = None, persona_line: str | None = None) -> tuple[str, str]:
+    """读取提示词模板并替换占位符；返回 (填充后的提示词, persona 那一行)。优先使用 persona_line，否则从 persona_path 读取。"""
     prompt_text = PROMPT_PATH.read_text(encoding="utf-8")
     skill_content = SKILL_PATH.read_text(encoding="utf-8")
     tools_content = TOOLS_PATH.read_text(encoding="utf-8")
-    path = get_persona_path(persona_path)
-    persona_line = next(path.open(encoding="utf-8")).strip()
+
+    # 优先使用传入的 persona_line，否则从文件读取
+    if persona_line is None:
+        path = get_persona_path(persona_path)
+        persona_line = next(path.open(encoding="utf-8")).strip()
 
     prompt_text = prompt_text.replace("{SKILL_MD_CONTENT}", skill_content)
     prompt_text = prompt_text.replace("{TOOLS_JSONL_CONTENT}", tools_content)
@@ -159,12 +162,13 @@ def main() -> None:
     import argparse
     parser = argparse.ArgumentParser(description="使用 task_blueprint_generator 提示词生成任务蓝图")
     parser.add_argument("--persona-file", type=Path, default=None, help="单行 persona JSONL 文件路径，未指定则用默认 persona_5K.jsonl 首行")
-    parser.add_argument("--output", "-o", type=Path, default=None, help="蓝图 JSON 输出路径，未指定则写入 blueprint_demo/out_blueprint.json")
+    parser.add_argument("--persona", type=str, default=None, help="直接传入 persona JSON 字符串（完整的一行）")
+    parser.add_argument("--output", "-o", type=Path, default=None, help="蓝图 JSON 输出路径，未指定则写入 artifacts/{i}/blueprint.json")
     args = parser.parse_args()
 
     client, model = load_env_and_client()
     persona_path = args.persona_file.resolve() if args.persona_file else None
-    prompt, persona_line = read_prompt_and_inputs(persona_path)
+    prompt, persona_line = read_prompt_and_inputs(persona_path, persona_line=args.persona)
 
     print("Calling model:", model)
     print("Prompt length:", len(prompt), "chars")
@@ -218,7 +222,7 @@ def main() -> None:
     print(json.dumps(data, ensure_ascii=False, indent=2))
     print("-" * 60)
 
-    out_path = args.output if args.output else (SCRIPT_DIR.parent / "blueprints" / "out_blueprint.json")
+    out_path = args.output if args.output else (SCRIPT_DIR.parent / "artifacts" / "0" / "blueprint.json")
     if not out_path.is_absolute():
         out_path = SCRIPT_DIR / out_path
     out_path.parent.mkdir(parents=True, exist_ok=True)
