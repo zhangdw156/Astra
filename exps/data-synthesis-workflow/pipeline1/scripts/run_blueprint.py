@@ -24,13 +24,9 @@ from astra.utils import config as astra_config
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = astra_config.get_project_root()
 
-SKILL_NAME = "2896_prediction-trader"
+DEFAULT_SKILL_NAME = "2896_prediction-trader"
 
-# pipeline1 本地资源（基于 skill name 定位资源目录）
-SKILL_DIR = SCRIPT_DIR.parent / SKILL_NAME
 PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "planner_agent.md"
-SKILL_PATH = SKILL_DIR / "SKILL.md"
-TOOLS_PATH = SKILL_DIR / "tools.jsonl"
 DEFAULT_PERSONA_PATH = SCRIPT_DIR.parent / "data" / "persona_5K.jsonl"
 
 
@@ -52,11 +48,24 @@ def load_env_and_client() -> tuple[OpenAI, str]:
     return client, model
 
 
-def read_prompt_and_inputs(persona_path: Path | None = None, persona_line: str | None = None) -> tuple[str, str]:
+def resolve_skill_dir(skill_dir: Path | None) -> Path:
+    """解析 skill 目录：优先使用 --skill-dir，否则回退到 examples 下默认示例 skill。"""
+    if skill_dir is not None:
+        p = skill_dir.resolve() if skill_dir.is_absolute() else (PROJECT_ROOT / skill_dir)
+        return p
+    return PROJECT_ROOT / "examples" / DEFAULT_SKILL_NAME
+
+
+def read_prompt_and_inputs(
+    skill_path: Path,
+    tools_path: Path,
+    persona_path: Path | None = None,
+    persona_line: str | None = None,
+) -> tuple[str, str]:
     """读取提示词模板并替换占位符；返回 (填充后的提示词, persona 那一行)。优先使用 persona_line，否则从 persona_path 读取。"""
     prompt_text = PROMPT_PATH.read_text(encoding="utf-8")
-    skill_content = SKILL_PATH.read_text(encoding="utf-8")
-    tools_content = TOOLS_PATH.read_text(encoding="utf-8")
+    skill_content = skill_path.read_text(encoding="utf-8")
+    tools_content = tools_path.read_text(encoding="utf-8")
 
     # 优先使用传入的 persona_line，否则从文件读取
     if persona_line is None:
@@ -165,11 +174,25 @@ def main() -> None:
     parser.add_argument("--persona-file", type=Path, default=None, help="单行 persona JSONL 文件路径，未指定则用默认 persona_5K.jsonl 首行")
     parser.add_argument("--persona", type=str, default=None, help="直接传入 persona JSON 字符串（完整的一行）")
     parser.add_argument("--output", "-o", type=Path, default=None, help="蓝图 JSON 输出路径，未指定则写入 artifacts/{i}/blueprint.json")
+    parser.add_argument("--skill-dir", type=Path, default=None, help="技能目录路径（含 SKILL.md 与 tools.jsonl），默认 examples/2896_prediction-trader")
     args = parser.parse_args()
 
     client, model = load_env_and_client()
+    skill_dir = resolve_skill_dir(args.skill_dir)
+    skill_path = skill_dir / "SKILL.md"
+    tools_path = skill_dir / "tools.jsonl"
+    if not skill_path.exists():
+        raise SystemExit(f"SKILL.md 不存在: {skill_path}")
+    if not tools_path.exists():
+        raise SystemExit(f"tools.jsonl 不存在: {tools_path}")
+
     persona_path = args.persona_file.resolve() if args.persona_file else None
-    prompt, persona_line = read_prompt_and_inputs(persona_path, persona_line=args.persona)
+    prompt, persona_line = read_prompt_and_inputs(
+        skill_path=skill_path,
+        tools_path=tools_path,
+        persona_path=persona_path,
+        persona_line=args.persona,
+    )
 
     print("Calling model:", model)
     print("Prompt length:", len(prompt), "chars")
@@ -193,7 +216,7 @@ def main() -> None:
     for key in ("blueprint_id", "skill_name", "persona_id", "created_at"):
         data.pop(key, None)
 
-    allowed_tool_names = get_tool_names_from_jsonl(TOOLS_PATH)
+    allowed_tool_names = get_tool_names_from_jsonl(tools_path)
     validation_errors = validate_blueprint(data, allowed_tool_names=allowed_tool_names)
     if validation_errors:
         print("蓝图格式校验失败:")
@@ -206,7 +229,7 @@ def main() -> None:
     # 程序注入字段
     persona_obj = json.loads(persona_line)
     data["blueprint_id"] = str(uuid.uuid4())
-    data["skill_name"] = SKILL_NAME
+    data["skill_name"] = skill_dir.name
     data["persona_id"] = persona_obj.get("id", "")
     data["created_at"] = datetime.now(timezone.utc).isoformat()
 

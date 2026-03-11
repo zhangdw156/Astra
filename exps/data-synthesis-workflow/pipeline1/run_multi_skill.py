@@ -169,7 +169,7 @@ def assign_personas_to_skills(
     return mapping
 
 
-def run_blueprint(persona_line: str, out_blueprint: Path, skill_name: str) -> bool:
+def run_blueprint(persona_line: str, out_blueprint: Path, skill_name: str, skill_dir: Path) -> bool:
     """
     生成单个蓝图，附带 skill_name 字段，便于后续轨迹标记。
     """
@@ -178,6 +178,8 @@ def run_blueprint(persona_line: str, out_blueprint: Path, skill_name: str) -> bo
         str(SCRIPTS_DIR / "run_blueprint.py"),
         "--persona",
         persona_line.strip(),
+        "--skill-dir",
+        str(skill_dir),
         "--output",
         str(out_blueprint),
     ]
@@ -240,6 +242,7 @@ def run_eval(trajectory_path: Path, out_eval: Path) -> bool:
 def run_one_sample_for_skill(
     *,
     skill_name: str,
+    skill_dir: Path,
     skill_artifacts_root: Path,
     sample_index: int,
     persona_idx: int,
@@ -263,7 +266,7 @@ def run_one_sample_for_skill(
     run_dir.mkdir(parents=True, exist_ok=True)
 
     blueprint_path = run_dir / "blueprint.json"
-    blueprint_ok = run_blueprint(persona_line, blueprint_path, skill_name)
+    blueprint_ok = run_blueprint(persona_line, blueprint_path, skill_name, skill_dir)
     if not blueprint_ok:
         print(f"  [{skill_name}#{sample_index}] 蓝图生成失败")
         return False, False, False
@@ -391,6 +394,7 @@ def main() -> int:
                     for j, persona_idx, persona_line in sample_tasks:
                         bp_ok, tr_ok, ev_ok = run_one_sample_for_skill(
                             skill_name=skill_name,
+                            skill_dir=skill_dir,
                             skill_artifacts_root=skill_artifacts_root,
                             sample_index=j,
                             persona_idx=persona_idx,
@@ -408,6 +412,7 @@ def main() -> int:
                             executor.submit(
                                 run_one_sample_for_skill,
                                 skill_name=skill_name,
+                                skill_dir=skill_dir,
                                 skill_artifacts_root=skill_artifacts_root,
                                 sample_index=j,
                                 persona_idx=persona_idx,
