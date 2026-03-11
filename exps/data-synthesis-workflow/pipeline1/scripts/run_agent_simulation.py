@@ -36,8 +36,8 @@ from dotenv import load_dotenv
 
 # 路径
 SCRIPT_DIR = Path(__file__).resolve().parent
-import astra.config
-PROJECT_ROOT = astra.config.get_project_root()
+from astra.utils import config as astra_config
+PROJECT_ROOT = astra_config.get_project_root()
 
 # 默认蓝图路径（从参数传入，这里不需要默认）
 DEFAULT_BLUEPRINT = None
@@ -51,7 +51,7 @@ TASK_END_MARKER = "[TASK_END]"
 
 def load_env() -> None:
     """从项目根加载 .env"""
-    astra.config.load_env()
+    astra_config.load_env()
 
 
 def _mcp_reachable() -> bool:
@@ -185,8 +185,16 @@ def load_blueprint(path: Path) -> dict:
 
 
 def build_llm_config() -> dict:
-    """根据 .env 构建 LLM 配置（OpenAI 兼容）"""
-    return astra.config.get_llm_config()
+    """根据 .env 构建 Assistant Agent 的 LLM 配置（OpenAI 兼容）"""
+    api_key = astra_config.get_assistant_agent_api_key()
+    model = astra_config.get_assistant_agent_model()
+    base_url = astra_config.get_assistant_agent_base_url()
+    return {
+        "model": model,
+        "model_type": "oai",
+        "model_server": base_url or "https://api.openai.com/v1",
+        "api_key": api_key,
+    }
 
 
 def _content_to_text(content) -> str:
@@ -312,9 +320,9 @@ def generate_user_message(blueprint: dict, messages: list[dict]) -> str:
     """
     from openai import OpenAI
 
-    api_key = astra.config.get_openai_api_key()
-    model = astra.config.get_openai_model()
-    base_url = astra.config.get_openai_base_url()
+    api_key = astra_config.get_user_agent_api_key()
+    model = astra_config.get_user_agent_model()
+    base_url = astra_config.get_user_agent_base_url()
 
     prompt_text = USER_AGENT_PROMPT_PATH.read_text(encoding="utf-8")
     goals = blueprint.get("goals") or []

@@ -18,11 +18,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
 
-import astra.config
+from astra.utils import config as astra_config
 
 # 脚本所在目录
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = astra.config.get_project_root()
+PROJECT_ROOT = astra_config.get_project_root()
 
 # pipeline1 本地资源
 PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "task_blueprint_generator.md"
@@ -43,10 +43,10 @@ def get_persona_path(persona_file: Path | None) -> Path:
 
 
 def load_env_and_client() -> tuple[OpenAI, str]:
-    """从项目根 .env 加载并创建 OpenAI 客户端。"""
-    api_key = astra.config.get_openai_api_key()
-    model = astra.config.get_openai_model()
-    base_url = astra.config.get_openai_base_url()
+    """从项目根 .env 加载 Planner Agent 配置并创建 OpenAI 客户端。"""
+    api_key = astra_config.get_planner_agent_api_key()
+    model = astra_config.get_planner_agent_model()
+    base_url = astra_config.get_planner_agent_base_url()
     client = OpenAI(api_key=api_key, base_url=base_url)
     return client, model
 

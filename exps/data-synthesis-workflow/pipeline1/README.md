@@ -11,8 +11,15 @@
 
 ## 依赖
 
-- 项目根 `.env`：`OPENAI_API_KEY`、`OPENAI_MODEL`、`OPENAI_BASE_URL`（可选）
-- `uv`、`qwen-agent[mcp]`（agent_demo 用）
+- 项目根 `.env`：支持多 Agent 单独配置（见 `.env.example`）
+  - 全局：`OPENAI_API_KEY`、`OPENAI_MODEL`、`OPENAI_BASE_URL`
+  - Planner：`PLANNER_*`（生成蓝图）
+  - User Agent：`USER_AGENT_*`（生成用户消息）
+  - Assistant：`ASSISTANT_*`（执行任务）
+  - Tool Agent：`TOOL_AGENT_*`（工具执行）
+  - Eval：`EVAL_*`（评估轨迹）
+  - 未单独配置的 Agent 会回退使用全局配置
+- `uv`、`qwen-agent[mcp]`
 - 从**项目根**运行本实验
 
 ## 用法

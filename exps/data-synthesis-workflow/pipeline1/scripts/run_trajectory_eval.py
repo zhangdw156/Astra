@@ -25,7 +25,7 @@ import os
 
 # 路径
 SCRIPT_DIR = Path(__file__).resolve().parent
-import astra.config
+from astra.utils import config as astra_config
 
 PROMPT_PATH = SCRIPT_DIR.parent / "prompts" / "trajectory_evaluator.md"
 DEFAULT_TRAJECTORY_PATH = SCRIPT_DIR.parent / "trajectories" / "0" / "out_trajectory.json"
@@ -37,10 +37,10 @@ def build_default_eval_output_path(run_id: str) -> Path:
 
 
 def load_env_and_client() -> tuple[OpenAI, str]:
-    """从项目根 .env 加载并创建 OpenAI 客户端。"""
-    api_key = astra.config.get_openai_api_key()
-    model = astra.config.get_openai_model()
-    base_url = astra.config.get_openai_base_url()
+    """从项目根 .env 加载 Eval Agent 配置并创建 OpenAI 客户端。"""
+    api_key = astra_config.get_eval_agent_api_key()
+    model = astra_config.get_eval_agent_model()
+    base_url = astra_config.get_eval_agent_base_url()
     client = OpenAI(api_key=api_key, base_url=base_url)
     return client, model
 

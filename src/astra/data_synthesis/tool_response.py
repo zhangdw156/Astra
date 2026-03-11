@@ -12,8 +12,13 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-from dotenv import load_dotenv
 from openai import OpenAI
+
+from astra.utils.config import (
+    get_tool_agent_api_key,
+    get_tool_agent_base_url,
+    get_tool_agent_model,
+)
 
 
 def _build_prompt(
@@ -100,19 +105,11 @@ def generate_tool_response(
     - env_path: 可选，.env 文件路径，用于 OPENAI_API_KEY 等；不传则使用默认 dotenv 行为。
 
     返回：{"response": "<JSON 或文本>", "state": { ... }}
+    使用 Tool Agent 配置（TOOL_AGENT_* 或回退 OPENAI_*）。
     """
-    if env_path and env_path.exists():
-        load_dotenv(env_path)
-    else:
-        load_dotenv()
-
-    api_key = __import__("os").environ.get("OPENAI_API_KEY", "").strip()
-    model = __import__("os").environ.get("OPENAI_MODEL", "").strip()
-    base_url = __import__("os").environ.get("OPENAI_BASE_URL", "").strip() or None
-    if not api_key or not model:
-        raise RuntimeError(
-            "缺少 OPENAI_API_KEY 或 OPENAI_MODEL 环境变量，无法生成工具回复。"
-        )
+    api_key = get_tool_agent_api_key()
+    model = get_tool_agent_model()
+    base_url = get_tool_agent_base_url()
     client = OpenAI(api_key=api_key, base_url=base_url)
 
     prompt_text = prompt_path.read_text(encoding="utf-8")
