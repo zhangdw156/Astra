@@ -58,10 +58,24 @@ def load_trajectory(path: Path) -> dict:
     return data
 
 
+def _strip_reasoning_fields(obj):
+    """递归移除 reasoning_content，避免 evaluator 看到任何 agent 的思考内容。"""
+    if isinstance(obj, dict):
+        return {
+            k: _strip_reasoning_fields(v)
+            for k, v in obj.items()
+            if k != "reasoning_content"
+        }
+    if isinstance(obj, list):
+        return [_strip_reasoning_fields(v) for v in obj]
+    return obj
+
+
 def build_prompt(trajectory: dict) -> str:
     """从模板与轨迹 JSON 构造最终提示词。"""
     prompt_text = PROMPT_PATH.read_text(encoding="utf-8")
-    traj_json = json.dumps(trajectory, ensure_ascii=False, indent=2)
+    sanitized = _strip_reasoning_fields(trajectory)
+    traj_json = json.dumps(sanitized, ensure_ascii=False, indent=2)
     prompt_text = prompt_text.replace("{TRAJECTORY_JSON}", traj_json)
     return prompt_text
 
@@ -76,17 +90,25 @@ def extract_json_from_response(text: str) -> dict:
     3. 最后才尝试整体解析。
     """
     text = text.strip()
+    text = re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE).strip()
     # 1) 尝试 ```json ... ``` 或 ``` ... ```
     m = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
     if m:
         return json.loads(m.group(1).strip())
 
     # 2) 截取第一个 '{' 到最后一个 '}' 之间
+    candidates = []
     start = text.find("{")
     end = text.rfind("}")
     if start != -1 and end != -1 and end > start:
-        core = text[start : end + 1]
-        return json.loads(core)
+        candidates.append(text[start : end + 1])
+    matches = re.findall(r"\{[\s\S]*?\}", text)
+    candidates.extend(matches[::-1])
+    for core in candidates:
+        try:
+            return json.loads(core)
+        except json.JSONDecodeError:
+            continue
 
     # 3) 回退到整体解析（理论上不应触发，作为兜底）
     return json.loads(text)
@@ -158,4 +180,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

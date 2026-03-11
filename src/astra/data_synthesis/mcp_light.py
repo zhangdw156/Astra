@@ -165,6 +165,8 @@ def _make_tool_handler(
     tool_description: str,
     primary_param: Optional[str],
     tool_params: Dict[str, Any],
+    tool_schema: Dict[str, Any],
+    available_tools: List[Dict[str, Any]],
     prompt_path: Path,
     env_path: Optional[Path],
     state_key: str,
@@ -188,6 +190,8 @@ def _make_tool_handler(
                 conversation_context=None,
                 prompt_path=prompt_path,
                 env_path=env_path,
+                tool_schema=tool_schema,
+                available_tools=available_tools,
             )
             new_state = out.get("state")
             if isinstance(new_state, dict):
@@ -219,6 +223,8 @@ def _make_tool_handler(
                 conversation_context=None,
                 prompt_path=prompt_path,
                 env_path=env_path,
+                tool_schema=tool_schema,
+                available_tools=available_tools,
             )
             new_state = out.get("state")
             if isinstance(new_state, dict):
@@ -253,6 +259,8 @@ def _make_tool_handler(
                 conversation_context=None,
                 prompt_path=prompt_path,
                 env_path=env_path,
+                tool_schema=tool_schema,
+                available_tools=available_tools,
             )
             new_state = out.get("state")
             if isinstance(new_state, dict):
@@ -307,6 +315,8 @@ def create_mcp_tools_light(
             tool_description=description,
             primary_param=primary,
             tool_params=params,
+            tool_schema=schema,
+            available_tools=tools,
             prompt_path=prompt_path,
             env_path=env_path,
             state_key=state_key,

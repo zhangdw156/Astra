@@ -25,12 +25,22 @@ def _build_prompt(
     prompt_text: str,
     tool_name: str,
     arguments: str,
+    tool_schema: Optional[Dict[str, Any]] = None,
+    available_tools: Optional[list[Dict[str, Any]]] = None,
     current_state: Optional[Dict[str, Any]] = None,
     conversation_context: Optional[str] = None,
 ) -> str:
     """根据模板与上下文构造提示词。"""
     text = prompt_text.replace("{TOOL_NAME}", tool_name)
     text = text.replace("{TOOL_ARGUMENTS}", arguments or "{}")
+    text = text.replace(
+        "{TOOL_SCHEMA}",
+        json.dumps(tool_schema or {}, ensure_ascii=False, indent=2),
+    )
+    text = text.replace(
+        "{AVAILABLE_TOOLS}",
+        json.dumps(available_tools or [], ensure_ascii=False, indent=2),
+    )
     text = text.replace(
         "{CURRENT_STATE}",
         json.dumps(current_state or {}, ensure_ascii=False, indent=2),
@@ -92,6 +102,8 @@ def generate_tool_response(
     *,
     prompt_path: Path,
     env_path: Optional[Path] = None,
+    tool_schema: Optional[Dict[str, Any]] = None,
+    available_tools: Optional[list[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """
     调用大模型生成工具回复与新状态。
@@ -117,6 +129,8 @@ def generate_tool_response(
         prompt_text,
         tool_name=tool_name,
         arguments=arguments_json,
+        tool_schema=tool_schema,
+        available_tools=available_tools,
         current_state=session_state,
         conversation_context=conversation_context,
     )

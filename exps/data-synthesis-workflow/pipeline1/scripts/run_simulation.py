@@ -297,6 +297,61 @@ def _patch_mcp_tool_params(state_key: str = ""):
         warnings.warn(f"MCP params 容错 patch 未生效: {e}", RuntimeWarning)
 
 
+def _patch_nous_fncall_json_parsing() -> None:
+    """
+    给 qwen-agent 的 NousFnCallPrompt 增加更宽松的 JSON 解析：
+    - 空参数串 -> {}
+    - 被双重包裹的 JSON 字符串 -> 解析内层对象
+    - 少一个结尾 `}` 的对象 -> 自动补齐
+    目标是尽量避免可恢复场景下的 Invalid json tool-calling arguments warning。
+    """
+    try:
+        import json as _json
+        from qwen_agent.llm.fncall_prompts import nous_fncall_prompt as _nfp
+
+        _orig_json5_loads = _nfp.json5.loads
+
+        def _loads_with_recovery(payload, *args, **kwargs):
+            if isinstance(payload, str):
+                s = payload.strip()
+                if not s:
+                    return {}
+                candidates = [s]
+                if len(s) <= 2000:
+                    candidates.extend([s + "}", s.rstrip(",") + "}"])
+                for candidate in candidates:
+                    try:
+                        parsed = _orig_json5_loads(candidate, *args, **kwargs)
+                        if isinstance(parsed, str):
+                            inner = parsed.strip()
+                            if inner.startswith("{") or inner.startswith("["):
+                                try:
+                                    reparsed = _orig_json5_loads(inner, *args, **kwargs)
+                                    return reparsed
+                                except Exception:
+                                    try:
+                                        return _json.loads(inner)
+                                    except Exception:
+                                        pass
+                        return parsed
+                    except Exception:
+                        try:
+                            parsed = _json.loads(candidate)
+                            if isinstance(parsed, str):
+                                inner = parsed.strip()
+                                if inner.startswith("{") or inner.startswith("["):
+                                    return _json.loads(inner)
+                            return parsed
+                        except Exception:
+                            pass
+            return _orig_json5_loads(payload, *args, **kwargs)
+
+        _nfp.json5.loads = _loads_with_recovery
+    except Exception as e:
+        import warnings
+        warnings.warn(f"NousFnCallPrompt JSON 容错 patch 未生效: {e}", RuntimeWarning)
+
+
 def create_agent(mcp_url: str | None = None) -> tuple:
     """创建 qwen-agent Assistant，仅 MCP 工具，无系统提示。返回 (agent, tools)。"""
     from qwen_agent.agents import Assistant
@@ -463,8 +518,8 @@ def _extract_reasoning(content: str) -> tuple[str, str]:
     return "", text
 
 
-def _message_to_dict(msg) -> dict | None:
-    """将 qwen-agent Message 转为可序列化的 dict。"""
+def _message_to_dict(msg, *, include_reasoning: bool = False) -> dict | None:
+    """将 qwen-agent Message 转为可序列化的 dict。默认剥离 reasoning_content。"""
     if isinstance(msg, dict):
         d = dict(msg)
     else:
@@ -478,8 +533,9 @@ def _message_to_dict(msg) -> dict | None:
     out: dict = {"role": role, "content": raw_content}
     if role == "assistant" and raw_content:
         reasoning, clean_content = _extract_reasoning(raw_content)
-        if reasoning:
+        if reasoning and include_reasoning:
             out["reasoning_content"] = reasoning
+        if reasoning:
             out["content"] = clean_content
     if "function_call" in d and d["function_call"]:
         out["function_call"] = d["function_call"]
@@ -506,7 +562,7 @@ def _assistant_response_to_turn(
     i = 0
     while i < len(last_response):
         m = last_response[i]
-        md = _message_to_dict(m) if not isinstance(m, dict) else m
+        md = _message_to_dict(m, include_reasoning=False) if not isinstance(m, dict) else m
         if not md:
             i += 1
             continue
@@ -522,7 +578,7 @@ def _assistant_response_to_turn(
                 result = ""
                 for j in range(i + 1, len(last_response)):
                     nm = last_response[j]
-                    nd = _message_to_dict(nm) if not isinstance(nm, dict) else nm
+                    nd = _message_to_dict(nm, include_reasoning=False) if not isinstance(nm, dict) else nm
                     if nd and nd.get("role") == "function" and nd.get("name") == name:
                         result = nd.get("content", "") or ""
                         break
@@ -586,7 +642,7 @@ def run_dynamic_simulation(agent, blueprint: dict) -> list[dict]:
                 last_response = response if isinstance(response, list) else [response]
 
             for msg in last_response:
-                msgs_dict = _message_to_dict(msg)
+                msgs_dict = _message_to_dict(msg, include_reasoning=False)
                 if msgs_dict:
                     messages.append(msgs_dict)
 
@@ -769,6 +825,7 @@ def main() -> None:
     if args.tools_path is None and args.mcp_url is None and not args.no_docker and not ensure_mcp_running():
         raise SystemExit("无法连接到 MCP 服务，请确保 prediction-trader 容器已启动或使用 --tools-path / --mcp-url。")
 
+    _patch_nous_fncall_json_parsing()
     _patch_mcp_tool_params(state_key=run_id)
 
     out_path = args.output or build_default_output_path(run_id)
