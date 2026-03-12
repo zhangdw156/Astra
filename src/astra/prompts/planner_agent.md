@@ -28,11 +28,11 @@ Do **not** write:
 
 You will receive three injected text inputs:
 
-| Input | Description | Placeholder |
-|-------|-------------|-------------|
-| **SKILL.md** | Skill specification: purpose, supported workflows, constraints, outputs, examples | `{SKILL_MD_CONTENT}` |
+| Input           | Description                                                  | Placeholder             |
+| --------------- | ------------------------------------------------------------ | ----------------------- |
+| **SKILL.md**    | Skill specification: purpose, supported workflows, constraints, outputs, examples | `{SKILL_MD_CONTENT}`    |
 | **tools.jsonl** | One JSON object per line; each includes `name`, `description`, and `inputSchema` | `{TOOLS_JSONL_CONTENT}` |
-| **Persona** | A single JSON object describing the user persona | `{PERSONA_CONTENT}` |
+| **Persona**     | A single JSON object describing the user persona             | `{PERSONA_CONTENT}`     |
 
 ---
 
@@ -48,7 +48,6 @@ The JSON object must follow this schema:
 
 ```json
 {
-  "task_id": "<short snake_case identifier>",
   "goals": ["<goal 1>", "<goal 2>", "..."],
   "possible_tool_calls": [["<tool_name>", "..."], ["<tool_name>", "..."]],
   "initial_state": {},
@@ -65,25 +64,6 @@ The JSON object must follow this schema:
 ---
 
 ## Field Definitions
-
-`task_id`
-
-A short `snake_case` identifier using only lowercase letters, numbers, and underscores.
-
-Good examples:
-
-- `compare_prediction_market_odds`
-- `investigate_crypto_policy_markets`
-- `summarize_competitor_feature_gaps`
-
-Avoid:
-
-- spaces
-- hyphens
-- long sentences
-- punctuation-heavy strings
-
----
 
 `goals`
 
@@ -311,7 +291,6 @@ Avoid:
 Before producing the final answer, ensure:
 
 - The output is exactly one JSON object
-- `task_id` is short and `snake_case`
 - `goals` is a non-empty array of non-empty strings
 - `possible_tool_calls` is an array of arrays
 - `possible_tool_calls` has the same length as `goals`
@@ -329,7 +308,6 @@ This example is only to illustrate the structure. Adapt all content to the actua
 
 ```json
 {
-  "task_id": "compare_bitcoin_market_coverage",
   "goals": [
     "Explore relevant Bitcoin-related prediction markets across the supported platforms.",
     "Compare the available market coverage and identify where the same topic appears on multiple platforms."
@@ -362,7 +340,7 @@ This example is only to illustrate the structure. Adapt all content to the actua
 
 ## Usage
 
-The three placeholders contain `raw text content,` not file paths.
+The three placeholders contain raw text content, not file paths.
 
 To use this prompt:
 

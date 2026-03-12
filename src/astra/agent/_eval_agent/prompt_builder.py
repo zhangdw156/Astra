@@ -16,7 +16,6 @@ class EvalAgentPromptBuilder:
 
     BLUEPRINT_ALLOWED_KEYS = {
         "blueprint_id",
-        "task_id",
         "skill_name",
         "persona_id",
         "created_at",

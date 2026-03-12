@@ -14,7 +14,6 @@ class BlueprintValidator:
     """
 
     REQUIRED_FIELDS = [
-        "task_id",
         "goals",
         "possible_tool_calls",
         "initial_state",
@@ -23,7 +22,6 @@ class BlueprintValidator:
     ]
 
     ALLOWED_FIELDS = {
-        "task_id",
         "goals",
         "possible_tool_calls",
         "initial_state",
@@ -33,7 +31,6 @@ class BlueprintValidator:
     }
 
     USER_AGENT_CONFIG_KEYS = ("role", "personality", "knowledge_boundary")
-    TASK_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
 
     @staticmethod
     def extract_json_from_response(text: str) -> dict:
@@ -102,13 +99,6 @@ class BlueprintValidator:
         for key in data:
             if key not in cls.ALLOWED_FIELDS:
                 errors.append(f"存在未允许字段: {key}")
-
-        if "task_id" in data:
-            task_id = data["task_id"]
-            if not isinstance(task_id, str) or not task_id.strip():
-                errors.append("task_id 必须为非空字符串")
-            elif not cls.TASK_ID_PATTERN.fullmatch(task_id):
-                errors.append("task_id 必须为 snake_case，只能包含小写字母、数字和下划线")
 
         for key in ("initial_state", "expected_final_state"):
             if key in data and data[key] is not None and not isinstance(data[key], dict):
