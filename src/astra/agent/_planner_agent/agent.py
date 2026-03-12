@@ -118,7 +118,7 @@ class PlannerAgent:
             tools_jsonl_path=skill_dir / "tools.jsonl",
         )
 
-    def resolve_skill_dir(self, skill_dir: Path | None = None) -> Path:
+    def resolve_skill_dir(self, skill_dir: Path) -> Path:
         """
         解析 skill 目录
         """

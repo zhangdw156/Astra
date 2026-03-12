@@ -85,7 +85,7 @@ class AssistantAgent:
         assistant_message = ""
         tool_calls: list[AssistantToolCall] = []
 
-        for i, message in enumerate(normalized_messages):
+        for message in normalized_messages:
             role = message.get("role", "")
 
             if role == "assistant":
@@ -95,25 +95,23 @@ class AssistantAgent:
 
                 function_call = message.get("function_call") or {}
                 if isinstance(function_call, dict) and function_call.get("name"):
-                    tool_name = function_call.get("name", "")
-                    arguments = function_call.get("arguments", "{}")
-                    result = ""
-
-                    for later in normalized_messages[i + 1:]:
-                        if (
-                            later.get("role") == "function"
-                            and later.get("name") == tool_name
-                        ):
-                            result = later.get("content", "") or ""
-                            break
-
                     tool_calls.append(
                         AssistantToolCall(
-                            name=tool_name,
-                            arguments=arguments,
-                            result=result,
+                            name=function_call.get("name", ""),
+                            arguments=function_call.get("arguments", "{}"),
+                            result="",
                         )
                     )
+
+            elif role == "function":
+                function_name = message.get("name", "")
+                function_result = message.get("content", "") or ""
+
+                # 按顺序匹配最早一个同名且尚未填充 result 的调用
+                for call in tool_calls:
+                    if call.name == function_name and not call.result:
+                        call.result = function_result
+                        break
 
         return AssistantTurnResult(
             messages=normalized_messages,
@@ -174,7 +172,7 @@ class AssistantAgent:
         """
         return {
             "mcpServers": {
-                "prediction-trader": {
+                "skill-tools": {
                     "url": self.config.mcp_url,
                     "timeout": 30000,
                 }
@@ -295,11 +293,6 @@ class AssistantAgent:
                                 return parsed
                         except _json.JSONDecodeError:
                             pass
-
-                if not value.startswith("{") and len(value) < 500:
-                    clean = value.strip('"').strip("'").strip()
-                    if clean:
-                        return {"kwargs": clean}
 
                 return {}
 

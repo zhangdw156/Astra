@@ -76,16 +76,16 @@ class UserAgent:
         )
 
         raw_response = self.call_model(prompt)
+        cleaned_message, thinking = self.strip_think(raw_response)
 
-        if TASK_END_MARKER in raw_response:
+        if cleaned_message.strip() == TASK_END_MARKER:
             return UserTurnResult(
                 message=TASK_END_MARKER,
                 is_task_end=True,
                 raw_response=raw_response,
-                thinking="",
+                thinking=thinking,
             )
 
-        cleaned_message, thinking = self.strip_think(raw_response)
         return UserTurnResult(
             message=cleaned_message,
             is_task_end=False,
@@ -122,55 +122,6 @@ class UserAgent:
                 lines.append(f"[Tool {name}]: {content}")
 
         return "\n\n".join(lines) if lines else "(No messages yet)"
-
-    def extract_pending_questions(self, messages: list[dict[str, Any]]) -> list[str]:
-        """
-        提取最近一条 assistant 提出的待回答问题（若有）。
-        """
-        for message in reversed(messages):
-            if message.get("role") != "assistant":
-                continue
-
-            content = (message.get("content") or "").strip()
-            if content and "?" in content:
-                return [content[-300:]]
-            break
-
-        return []
-
-    def build_structured_task_memory(
-        self,
-        *,
-        blueprint: dict[str, Any],
-        messages: list[dict[str, Any]],
-        user_message_count: int,
-    ) -> dict[str, Any]:
-        """
-        构建 User Agent 的结构化任务记忆，提升多轮行为稳定性。
-        """
-        goals = blueprint.get("goals") or []
-        done_count = min(user_message_count, len(goals))
-        done_goals = goals[:done_count]
-        remaining_goals = goals[done_count:]
-        pending_questions = self.extract_pending_questions(messages)
-
-        last_assistant_action = "none"
-        for message in reversed(messages):
-            role = message.get("role", "")
-            if role == "function":
-                last_assistant_action = f"tool_called:{message.get('name', '')}"
-                break
-            if role == "assistant":
-                text = (message.get("content") or "").strip()
-                last_assistant_action = "asked_question" if "?" in text else "provided_answer"
-                break
-
-        return {
-            "done_goals": done_goals,
-            "remaining_goals": remaining_goals,
-            "pending_questions": pending_questions,
-            "last_assistant_action": last_assistant_action,
-        }
 
     def strip_think(self, text: str) -> tuple[str, str]:
         """

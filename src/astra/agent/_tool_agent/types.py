@@ -8,7 +8,11 @@ from typing import Any
 class ToolExecutionResult:
     """
     单次工具调用生成结果。
+
+    state:
+    - dict: 模型给出了有效的新状态
+    - None: 未给出有效状态，不应覆盖旧状态
     """
 
     response: str
-    state: dict[str, Any]
+    state: dict[str, Any] | None

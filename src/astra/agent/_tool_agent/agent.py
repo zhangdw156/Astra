@@ -192,10 +192,14 @@ class ToolAgent:
         logger.debug("Tool raw response length: {} chars", len(content))
         return content
 
-    def parse_response(self, text: str) -> tuple[str, dict[str, Any]]:
+    def parse_response(self, text: str) -> tuple[str, dict[str, Any] | None]:
         """
         解析模型输出中的 <RESPONSE> 与 <STATE> 块。
-        返回 (response_json_str, new_state_dict)。
+        返回 (response_json_str, new_state_dict_or_none)。
+
+        规则：
+        - 若 <STATE> 存在且能解析为 dict，则返回该 dict
+        - 若 <STATE> 缺失或解析失败，则返回 None
         """
         response_match = re.search(
             r"<RESPONSE>\s*([\s\S]*?)\s*</RESPONSE>",
@@ -233,17 +237,19 @@ class ToolAgent:
             text,
             flags=re.IGNORECASE,
         )
-        state_obj: dict[str, Any] = {}
-        if state_match:
-            raw_state = state_match.group(1).strip()
-            try:
-                parsed = json.loads(raw_state or "{}")
-                if isinstance(parsed, dict):
-                    state_obj = parsed
-            except json.JSONDecodeError:
-                state_obj = {}
 
-        return response_str, state_obj
+        if not state_match:
+            return response_str, None
+
+        raw_state = state_match.group(1).strip()
+        try:
+            parsed = json.loads(raw_state or "{}")
+            if isinstance(parsed, dict):
+                return response_str, parsed
+        except json.JSONDecodeError:
+            pass
+
+        return response_str, None
 
     # -------------------------------------------------------------------------
     # State Store
@@ -419,7 +425,7 @@ class ToolAgent:
                 available_tools=available_tools,
             )
 
-            if isinstance(result.state, dict):
+            if result.state is not None:
                 self.set_state(result.state, runtime_state_key)
 
             response = (result.response or "").strip()
