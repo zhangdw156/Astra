@@ -56,6 +56,15 @@ class EvalAgentValidator:
 
         return json.loads(text)
 
+    @staticmethod
+    def count_sentences(text: str) -> int:
+        """
+        粗略统计句子数。
+        支持中英文常见句末标点。
+        """
+        parts = re.split(r"[.!?。！？]+", text.strip())
+        return len([part for part in parts if part.strip()])
+
     @classmethod
     def validate(cls, data: dict) -> list[str]:
         """
@@ -102,5 +111,11 @@ class EvalAgentValidator:
             reason = data["reason"]
             if not isinstance(reason, str) or not reason.strip():
                 errors.append("reason 必须为非空字符串")
+            else:
+                sentence_count = cls.count_sentences(reason)
+                if not (2 <= sentence_count <= 8):
+                    errors.append(
+                        f"reason 句子数必须在 [2, 8] 范围内，当前为: {sentence_count}"
+                    )
 
         return errors

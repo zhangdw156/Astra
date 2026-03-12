@@ -14,6 +14,31 @@ class EvalAgentPromptBuilder:
     - {TRAJECTORY_JSON}
     """
 
+    BLUEPRINT_ALLOWED_KEYS = {
+        "blueprint_id",
+        "task_id",
+        "skill_name",
+        "persona_id",
+        "created_at",
+        "goals",
+        "possible_tool_calls",
+        "initial_state",
+        "expected_final_state",
+        "user_agent_config",
+        "end_condition",
+    }
+
+    TRAJECTORY_ALLOWED_KEYS = {
+        "run_id",
+        "trajectory_id",
+        "blueprint_id",
+        "skill_name",
+        "persona_id",
+        "tools",
+        "messages",
+        "structured_turns",
+    }
+
     def __init__(
         self,
         prompt_path: Path,
@@ -25,18 +50,34 @@ class EvalAgentPromptBuilder:
 
     def sanitize_trajectory_for_eval(self, trajectory: dict[str, Any]) -> dict[str, Any]:
         """
-        递归清理 trajectory，去掉不应暴露给 evaluator 的字段。
+        清理 trajectory，保留 evaluator 真正需要看到的字段。
+
         当前规则：
-        - 删除 reasoning_content
+        - 仅保留白名单字段
+        - 递归删除 reasoning_content
         - 若 max_message_chars 配置存在，对超长字符串做截断
         """
-        return self._sanitize_obj(trajectory)
+        filtered = {
+            key: value
+            for key, value in trajectory.items()
+            if key in self.TRAJECTORY_ALLOWED_KEYS
+        }
+        return self._sanitize_obj(filtered)
 
     def sanitize_blueprint_for_eval(self, blueprint: dict[str, Any]) -> dict[str, Any]:
         """
-        目前 blueprint 原样使用，仅对超长字符串做可选截断。
+        清理 blueprint，保留 evaluator 真正需要看到的字段。
+
+        当前规则：
+        - 仅保留白名单字段
+        - 若 max_message_chars 配置存在，对超长字符串做截断
         """
-        return self._sanitize_obj(blueprint)
+        filtered = {
+            key: value
+            for key, value in blueprint.items()
+            if key in self.BLUEPRINT_ALLOWED_KEYS
+        }
+        return self._sanitize_obj(filtered)
 
     def build(
         self,
@@ -74,7 +115,7 @@ class EvalAgentPromptBuilder:
             return clean
 
         if isinstance(obj, list):
-            return [self._sanitize_obj(x) for x in obj]
+            return [self._sanitize_obj(item) for item in obj]
 
         if isinstance(obj, str):
             if self.max_message_chars is not None and len(obj) > self.max_message_chars:
