@@ -2,85 +2,134 @@
 
 ## Objective
 
-You are evaluating the quality of a synthetic multi-agent trajectory as dataset material.
+You are evaluating the quality of a synthetic multi-agent sample as dataset material.
 
-The trajectory was produced by three agents working together:
-- a planner agent that shaped the task blueprint,
-- a user agent that simulated the user,
-- an assistant agent that answered and used tools.
+The sample includes:
+- a **task blueprint** produced by a planner agent
+- a **trajectory** produced by a user agent, an assistant agent, and tool interactions
 
-Your job is to judge the overall data quality, not just whether the assistant sounded good.
+Your job is to judge the overall dataset quality of the sample, not just whether the assistant sounds fluent.
 
-Given:
-- a trajectory JSON,
-- tool messages,
-- task / skill metadata,
-
-you must score the sample as training or evaluation data.
+You must evaluate whether the sample is useful, realistic, coherent, and properly grounded.
 
 ---
 
 ## Important Limits
 
-1. Judge only user-visible behavior.
-2. Do not rely on hidden chain-of-thought.
+1. Judge only what is visible in the provided blueprint and trajectory.
+2. Do not rely on hidden chain-of-thought or unobserved reasoning.
 3. If private reasoning fields are absent, that is expected.
-4. If a sample looks polished only because you imagine hidden reasoning, do not reward it.
+4. Do not reward a sample for hidden competence that is not visible in the data.
+5. Do not invent missing tool outputs, user intentions, or planner intentions.
 
 ---
 
 ## Input
 
-You will receive one trajectory JSON:
+You will receive:
 
+### Blueprint JSON
+```json
+{BLUEPRINT_JSON}
+```
+
+### Trajectory JSON
 ```json
 {TRAJECTORY_JSON}
 ```
 
-Treat it as one complete sample.
+Treat them together as one complete sample.
 
 ---
 
 ## What To Evaluate
 
-Evaluate all three layers implicitly inside one final score:
+Evaluate the sample across all three layers.
 
 ### 1. Assistant quality
 
 Check whether the assistant:
-- uses tools correctly,
-- stays grounded in tool outputs,
-- avoids contradictions and fabricated details,
-- handles failures honestly,
-- actually progresses the task.
+
+- uses tools appropriately
+- stays grounded in tool outputs
+- avoids contradictions and fabricated details
+- handles failures honestly
+- makes visible progress on the task
+- communicates clearly and naturally
+
+Penalize:
+
+- invented facts
+- contradictions with tool results
+- weak grounding
+- empty or malformed tool usage that materially damages the sample
+
+---
 
 ### 2. User-agent quality
 
-Check whether the synthetic user behaves like a real user:
-- natural phrasing,
-- realistic follow-ups,
-- no tool names / API jargon unless a real user would plausibly say them,
-- no assistant-style structure,
-- no unnatural repetition or “AI helper” tone,
-- no suspiciously convenient behavior that only exists to help the assistant.
+Check whether the synthetic user behaves like a believable real user:
 
-Penalize trajectories where the user sounds like another assistant, a spec writer, or a benchmarking script.
+- natural phrasing
+- realistic follow-ups
+- plausible requests
+- no tool names / API jargon unless a real user would plausibly say them
+- no assistant-like structure
+- no unnatural repetition
+- no suspiciously convenient behavior that exists only to help the assistant
+
+Penalize trajectories where the user sounds like:
+
+- another assistant
+- a specification writer
+- a benchmark script
+- an evaluator in disguise
+
+---
 
 ### 3. Planner / task quality
 
-Judge indirectly from the trajectory:
-- are the goals coherent and reachable?
-- do turns progress in a sensible order?
-- does the scenario match the skill?
-- are requested actions aligned with available tools?
+Use the blueprint and trajectory together.
 
-If the trajectory reveals poor planning, impossible task design, or mismatched goals, subtract score even if the assistant tried hard.
+Check whether:
+
+- the goals are coherent and realistically achievable
+- the conversation progresses in a sensible order
+- the trajectory actually reflects the blueprint goals
+- the requested actions align with the available tools
+- the task matches the skill and tool environment
+
+Penalize:
+
+- impossible or incoherent task design
+- mismatch between blueprint and actual trajectory
+- unrealistic or low-value task setup
+- goals that are badly ordered, redundant, or not meaningfully pursued
+
+---
+
+## Scoring Principles
+
+This is a **dataset-quality judgment**.
+
+A sample with a competent assistant can still score poorly if:
+
+- the user is unrealistic
+- the planner created a bad task
+- the trajectory teaches the wrong interaction style
+- the conversation does not meaningfully reflect the intended blueprint
+
+Judge the visible sample as training/evaluation data, not as an isolated assistant answer.
 
 ---
 
 ## Output Schema
 
-Return exactly one JSON object:
+Return exactly one JSON object and nothing else.
+
+Do not output markdown.
+Do not output code fences.
+Do not add extra fields.
 
 ```json
 {
@@ -91,83 +140,99 @@ Return exactly one JSON object:
 }
 ```
 
-No markdown. No extra text.
+All four fields must be present.
 
 ---
 
 ## Field Definitions
 
-- `score`
-  - float in `[0.0, 5.0]`
-  - reflects overall dataset quality across planner + user + assistant
+`score`
 
-- `hallucination_risk`
-  - one of `"none"`, `"low"`, `"medium"`, `"high"`
-  - mostly about assistant contradictions with tool outputs, but severe user/planner incoherence can raise it indirectly
+- float in `[0.0, 5.0]`
+- reflects overall dataset quality across planner + user + assistant
 
-- `task_completion_score`
-  - float in `[0.0, 1.0]`
-  - how fully the visible conversation completed the intended task
+`hallucination_risk`
 
-- `reason`
-  - 2 to 8 sentences
-  - mention the strongest positive and negative signals
-  - explicitly mention user unnaturalness or planner mismatch if present
+- one of `"none"`, `"low"`, `"medium"`, `"high"`
+- primarily reflects whether the assistant is well-grounded in visible tool outputs and trajectory evidence
+
+`task_completion_score`
+
+- float in `[0.0, 1.0]`
+- how fully the visible conversation completed the intended task described in the blueprint
+
+`reason`
+
+- 2 to 8 sentences
+- must mention the strongest positive signal
+- must mention the strongest negative signal
+- must explicitly mention user unnaturalness, planner mismatch, or assistant grounding problems when present
 
 ---
 
 ## Scoring Guidance
 
-Start from `5.0` and subtract for issues.
+Start from `5.0` and subtract for issues. Clamp final score to `[0.0, 5.0]`.
 
 ### Small deductions
 
-- slightly verbose or awkward user turns
+Examples:
+
+- slightly awkward or verbose user turns
 - assistant summaries are somewhat loose but still grounded
-- minor task design inefficiency
+- mild task design inefficiency
+- minor blueprint / trajectory mismatch that does not materially hurt the sample
 
 Typical range: `-0.2` to `-0.8`
 
 ### Medium deductions
 
-- user sounds synthetic / instructional / “AI-ish”
-- planner goals do not match realistic usage
-- assistant retries tools clumsily
-- inconsistent but recoverable task flow
+Examples:
+
+- user sounds synthetic or instructional
+- planner goals are weak, unnatural, or only partially reflected in the trajectory
+- assistant uses tools clumsily but remains somewhat grounded
+- conversation flow is inconsistent but still recoverable
 
 Typical range: `-0.8` to `-1.8`
 
 ### Large deductions
 
-- assistant contradicts tools
+Examples:
+
+- assistant contradicts tool outputs
 - fabricated facts or numbers
-- empty / malformed function calls that materially damage the sample
+- malformed tool usage that materially damages sample quality
 - user behaves nothing like a real user
-- planner set up an incoherent or impossible task
+- blueprint is incoherent, impossible, or badly mismatched to the trajectory
 
 Typical range: `-1.8` to `-4.0`
-
-Clamp the final score to `[0.0, 5.0]`.
 
 ---
 
 ## Hallucination Guidance
 
 Use:
-- `none` when the assistant is consistently grounded
-- `low` when there are minor ambiguities or soft overreach
-- `medium` when there are clear inconsistencies or weak grounding
-- `high` when the assistant fabricates, contradicts tools, or repeatedly misuses tools
+
+- `none` when the assistant is consistently grounded in visible evidence
+- `low` when there are minor ambiguities or slight overreach
+- `medium` when there are clear inconsistencies, weak grounding, or visible over-claiming
+- `high` when the assistant fabricates, contradicts tool results, or repeatedly misuses tools in ways that corrupt the sample
+
+Do not use `hallucination_risk` as a general bucket for all quality problems.
+User or planner problems should primarily lower `score` and `task_completion_score`.
 
 ---
 
-## Final Rule
+## Final Reminder
 
-This is a dataset-quality judgment.
+Judge only what is visible in the blueprint and trajectory.
 
-A trajectory with a competent assistant can still score poorly if:
-- the user is unrealistic,
-- the planner created a bad task,
-- or the sample would teach the wrong interaction style.
+A strong sample should have:
+
+- a coherent task blueprint
+- a believable synthetic user
+- a grounded and useful assistant
+- a trajectory that reflects the intended task
 
 Output only the JSON object.
