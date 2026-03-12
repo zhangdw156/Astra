@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 import json
 import re
+from pathlib import Path
 from typing import Any
 
 from openai import OpenAI
@@ -72,7 +73,7 @@ class ToolAgent:
             state=new_state,
         )
 
-    def load_tools_from_jsonl(self, tools_jsonl) -> list[dict[str, Any]]:
+    def load_tools_from_jsonl(self, tools_jsonl: Path) -> list[dict[str, Any]]:
         """
         解析 tools.jsonl。
 
@@ -119,12 +120,13 @@ class ToolAgent:
                 continue
 
             description = schema.get("description", "")
-            params = self.extract_params_from_schema(schema)
+            tool_params, required_names = self.extract_schema_info(schema)
 
             handler = self.make_tool_handler(
                 tool_name=name,
                 tool_description=description,
-                tool_params=params,
+                tool_params=tool_params,
+                required_names=required_names,
                 tool_schema=schema,
                 available_tools=tools,
                 state_key=state_key,
@@ -284,16 +286,25 @@ class ToolAgent:
 
         return default_state_key, clean_kwargs
 
-    def extract_params_from_schema(self, schema: dict[str, Any]) -> dict[str, Any]:
+    def extract_schema_info(
+        self,
+        schema: dict[str, Any],
+    ) -> tuple[dict[str, Any], set[str]]:
         """
-        从 inputSchema 中提取参数定义。
+        从 inputSchema 中提取参数定义与 required 参数名集合。
         """
         input_schema = schema.get("inputSchema", {})
         if not isinstance(input_schema, dict):
-            return {}
+            return {}, set()
 
         properties = input_schema.get("properties", {})
-        return properties if isinstance(properties, dict) else {}
+        if not isinstance(properties, dict):
+            properties = {}
+
+        required = input_schema.get("required", [])
+        required_names = {x for x in required if isinstance(x, str)}
+
+        return properties, required_names
 
     def schema_type_to_pytype(self, schema_type: Any) -> Any:
         """
@@ -316,11 +327,17 @@ class ToolAgent:
         *,
         handler: Any,
         tool_params: dict[str, Any],
+        required_names: set[str],
         allow_state_key: bool = True,
     ) -> None:
         """
         给 handler 注入显式签名，避免 FastMCP 因 **kwargs 拒绝注册。
         同时保留 __state_key 入口。
+
+        规则：
+        - required 参数使用 inspect.Parameter.empty，表现为真正必填
+        - 非 required 参数若 schema 提供 default，则使用该默认值
+        - 否则默认值为 None
         """
         parameters: list[inspect.Parameter] = []
         annotations: dict[str, Any] = {}
@@ -334,9 +351,12 @@ class ToolAgent:
             schema_type = info.get("type", "string") if isinstance(info, dict) else "string"
             pytype = self.schema_type_to_pytype(schema_type)
 
-            default = None
-            if isinstance(info, dict) and "default" in info:
+            if name in required_names:
+                default = inspect.Parameter.empty
+            elif isinstance(info, dict) and "default" in info:
                 default = info.get("default")
+            else:
+                default = None
 
             parameters.append(
                 inspect.Parameter(
@@ -371,6 +391,7 @@ class ToolAgent:
         tool_name: str,
         tool_description: str,
         tool_params: dict[str, Any],
+        required_names: set[str],
         tool_schema: dict[str, Any],
         available_tools: list[dict[str, Any]],
         state_key: str,
@@ -413,5 +434,6 @@ class ToolAgent:
         self.apply_explicit_signature(
             handler=_handler,
             tool_params=tool_params,
+            required_names=required_names,
         )
         return _handler
