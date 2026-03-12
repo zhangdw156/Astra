@@ -1,0 +1,33 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass(slots=True)
+class PlannerRunContext:
+    """
+    PlannerAgent 单次运行的上下文。
+    """
+
+    skill_dir: Path
+    skill_md_path: Path
+    tools_jsonl_path: Path
+
+
+@dataclass(slots=True)
+class BlueprintResult:
+    """
+    一次 blueprint 生成的结果。
+    """
+
+    blueprint: dict
+    raw_response: str
+    prompt: str
+    skill_dir: Path
+    persona_text: str
+    output_path: Path | None = None
+
+    @property
+    def skill_name(self) -> str:
+        return self.skill_dir.name
