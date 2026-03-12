@@ -8,6 +8,7 @@ from .config import SkillAgentConfig
 from .executor import OpenCodeExecutor, SubprocessOpenCodeExecutor
 from .prompt_builder import PromptBuilder
 from .types import SkillProcessResult, SkillRunSummary
+import json
 
 
 class SkillAgent:
@@ -126,7 +127,7 @@ class SkillAgent:
         if skill_errors:
             return SkillProcessResult(
                 skill_dir=skill_dir,
-                status="skipped",
+                status="failed",
                 exit_code=0,
                 message="; ".join(skill_errors),
             )
@@ -269,7 +270,12 @@ class SkillAgent:
     def validate_output(self, skill_dir: Path) -> list[str]:
         """
         校验目标输出是否生成。
-        当前只检查 tools.jsonl 是否存在、是否可读、是否非空。
+        当前检查：
+        1. tools.jsonl 是否存在
+        2. 是否是普通文件
+        3. 是否可读
+        4. 是否非空
+        5. 每个非空行是否是合法 JSON
         """
         errors: list[str] = []
 
@@ -284,13 +290,35 @@ class SkillAgent:
             return errors
 
         try:
-            content = tools_path.read_text(encoding="utf-8").strip()
+            raw_text = tools_path.read_text(encoding="utf-8")
         except OSError as exc:
             errors.append(f"无法读取 tools.jsonl: {tools_path} ({exc})")
             return errors
 
-        if not content:
+        if not raw_text.strip():
             errors.append(f"tools.jsonl 为空文件: {tools_path}")
+            return errors
+
+        non_empty_line_count = 0
+
+        for line_number, line in enumerate(raw_text.splitlines(), start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+
+            non_empty_line_count += 1
+
+            try:
+                json.loads(stripped)
+            except json.JSONDecodeError as exc:
+                errors.append(
+                    f"tools.jsonl 第 {line_number} 行不是合法 JSON: {exc.msg}"
+                )
+                # 一般一个格式错误就够了，直接返回
+                return errors
+
+        if non_empty_line_count == 0:
+            errors.append(f"tools.jsonl 不包含任何非空 JSON 行: {tools_path}")
 
         return errors
 

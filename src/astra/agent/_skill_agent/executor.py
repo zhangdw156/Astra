@@ -55,12 +55,14 @@ class SubprocessOpenCodeExecutor:
         logger.debug("OpenCode finished with exit code={}", result.returncode)
 
         if result.returncode != 0:
-            stdout = result.stdout.strip()
-            stderr = result.stderr.strip()
+        stdout = result.stdout.strip()
+        stderr = result.stderr.strip()
 
-            if stdout:
-                logger.error("OpenCode stdout:\n{}", stdout)
-            if stderr:
-                logger.error("OpenCode stderr:\n{}", stderr)
+        logger.error("OpenCode failed with exit code={}", result.returncode)
+
+        if stdout:
+            logger.warning("OpenCode stdout:\n{}", stdout)
+        if stderr:
+            logger.error("OpenCode stderr:\n{}", stderr)
 
         return result.returncode

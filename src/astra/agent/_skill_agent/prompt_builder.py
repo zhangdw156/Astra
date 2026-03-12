@@ -14,14 +14,13 @@ class PromptBuilder:
 
     def __init__(self, prompt_path: Path):
         self.prompt_path = prompt_path
+        self.template_text = self.prompt_path.read_text(encoding="utf-8")
 
     def build(self, *, skill_dir: Path, example_dir: Path) -> str:
         """
-        读取 prompt 文件并替换占位符。
+        使用初始化时缓存的模板文本做占位符替换。
         """
-        prompt_text = self.prompt_path.read_text(encoding="utf-8")
-
         return (
-            prompt_text.replace("{SKILL_DIR}", str(skill_dir.resolve()))
+            self.template_text.replace("{SKILL_DIR}", str(skill_dir.resolve()))
             .replace("{EXAMPLE_DIR}", str(example_dir.resolve()))
         )

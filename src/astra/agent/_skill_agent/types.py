@@ -31,10 +31,10 @@ class SkillRunSummary:
 
     字段说明：
     - total_discovered: 发现的 skill 目录总数
-    - attempted: 实际尝试执行 opencode 的数量（dry-run 也视为 attempted）
+    - attempted: 非 skipped 的处理数量
     - succeeded: 成功数量
     - skipped: 跳过数量
-    - failed: 失败数量
+    - failed: 失败数量（包含预检查失败和执行失败）
     - results: 每个 skill 的处理结果
     """
 
