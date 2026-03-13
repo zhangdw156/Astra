@@ -8,7 +8,6 @@
 用法：
     uv run -m astra.scripts.collect_scripts
     uv run -m astra.scripts.collect_scripts mode=run
-    uv run -m astra.scripts.collect_scripts --config-path=exps/skill_discovery/configs --config-name=collect_scripts mode=run
 """
 
 import os
@@ -17,19 +16,11 @@ import sys
 from pathlib import Path
 
 import hydra
-from hydra.core.hydra_config import HydraConfig
-from hydra.utils import get_original_cwd
-from loguru import logger
+from ..utils import logger
 from omegaconf import DictConfig
 
-from astra.utils.logging import setup_logging
-
-# 项目根目录（src/astra/scripts -> 上三级）
-SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
-
 # Hydra 默认配置目录与名称
-_config_path = str(PROJECT_ROOT / "exps" / "skill_discovery" / "configs")
+_config_path = Path(__file__).resolve().parent.parent/ "configs"
 
 # 可执行脚本的扩展名（用于判断是否为脚本文件）
 EXECUTABLE_EXTENSIONS = {".py", ".sh", ".bash", ".zsh", ".js", ".ts", ".jsx", ".tsx"}
@@ -113,16 +104,9 @@ def _copy_dir(src: Path, dst: Path) -> None:
 
 def run(cfg: DictConfig) -> int:
     """实际执行逻辑，接收 OmegaConf 配置。"""
-    skillshub_root = Path(cfg.skillshub_root)
-    skills_output = Path(cfg.skills_output)
+    skillshub_root = Path(cfg.skillshub_root).resolve()
+    skills_output = Path(cfg.skills_output).resolve()
     mode = str(cfg.mode).lower()
-
-    # 相对路径基于调用时的目录（Hydra 会改 cwd，故用 get_original_cwd）
-    base = Path(get_original_cwd())
-    if not skillshub_root.is_absolute():
-        skillshub_root = (base / skillshub_root).resolve()
-    if not skills_output.is_absolute():
-        skills_output = (base / skills_output).resolve()
 
     logger.info("skillshub_root: {}", skillshub_root)
     logger.info("skills_output: {}", skills_output)
@@ -139,8 +123,8 @@ def run(cfg: DictConfig) -> int:
         # 目标为 skills/<序号>_<目录名>，序号防止不同来源的同名 skill 覆盖
         basename = d.name
         dst = skills_output / f"{idx}_{basename}"
-        if mode == "dry_run":
-            logger.info("[dry_run] 将复制: {} -> {}", d, dst)
+        if mode == "dry-run":
+            logger.info("[dry-run] 将复制: {} -> {}", d, dst)
         else:
             _copy_dir(d, dst)
 
@@ -153,9 +137,6 @@ def run(cfg: DictConfig) -> int:
     version_base=None,
 )
 def main(cfg: DictConfig) -> None:
-    # 使用 astra 统一日志：Rich 控制台 + 写入 Hydra output_dir/run.log
-    output_dir = HydraConfig.get().runtime.output_dir
-    setup_logging(output_dir)
     sys.exit(run(cfg))
 
 

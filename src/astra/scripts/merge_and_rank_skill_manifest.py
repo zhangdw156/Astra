@@ -1,11 +1,38 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse
+"""
+合并领域过滤与可执行性过滤结果，构建带排序信息的 skill manifest。
+
+主要功能：
+- 读取 domain filter 与 executability filter 各自输出的 jsonl 结果（按 dir_name 对齐）
+- 计算是否 eligible（同时满足领域相关性、可执行性与风险约束）
+- 为每个 skill 计算 selection_score，并生成全局排序与按 primary_domain 的局部排序
+- 输出完整 manifest jsonl、汇总 summary.json，以及可选的「每个领域 top-k」子集
+
+推荐使用 Hydra 配置（在项目根目录运行）：
+    # 1. 先跑领域过滤与可执行性过滤，产出中间结果
+    uv run -m astra.scripts.filter_skills_by_domain mode=run
+    uv run -m astra.scripts.filter_skills_by_executability mode=run
+
+    # 2. 使用本脚本合并两路结果并打分排序（使用默认配置 src/astra/configs/merge_skill_manifest.yaml）
+    uv run -m astra.scripts.merge_and_rank_skill_manifest
+
+    # 3. 通过 Hydra 覆盖输出路径或 top-k 等参数，例如：
+    uv run -m astra.scripts.merge_and_rank_skill_manifest \
+        output_manifest=artifacts/skill_manifest_custom.jsonl \
+        top_k_per_domain=3 \
+        output_selected=artifacts/skill_manifest_top3.jsonl
+"""
+
 import json
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
+
+import hydra
+from hydra.utils import get_original_cwd
+from omegaconf import DictConfig
 
 DEFAULT_BLOCKED_RISK_FLAGS = {
     "oauth",
@@ -282,62 +309,35 @@ def select_top_k_per_domain(
     return selected
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Merge domain/executability filter results and build ranked skill manifest"
-    )
-    parser.add_argument(
-        "--domain-result",
-        type=Path,
-        required=True,
-        help="domain_filter_result.jsonl 路径",
-    )
-    parser.add_argument(
-        "--executability-result",
-        type=Path,
-        required=True,
-        help="executability_filter_result.jsonl 路径",
-    )
-    parser.add_argument(
-        "--output-manifest",
-        type=Path,
-        required=True,
-        help="输出 skill_manifest.jsonl 路径",
-    )
-    parser.add_argument(
-        "--output-summary",
-        type=Path,
-        default=None,
-        help="输出 manifest_summary.json 路径",
-    )
-    parser.add_argument(
-        "--output-selected",
-        type=Path,
-        default=None,
-        help="输出按 primary_domain 选 top-k 的 jsonl 路径",
-    )
-    parser.add_argument(
-        "--top-k-per-domain",
-        type=int,
-        default=0,
-        help="若 > 0，则每个 primary_domain 选前 k 个 skill",
-    )
-    parser.add_argument(
-        "--blocked-risk-flag",
-        action="append",
-        default=None,
-        help="额外屏蔽的 risk flag，可多次传入",
-    )
-    args = parser.parse_args()
+def run(cfg: DictConfig) -> int:
+    """根据 Hydra 配置合并 domain / executability 结果并生成 manifest。"""
+    base = Path(get_original_cwd())
 
-    domain_rows = read_jsonl(args.domain_result)
-    exec_rows = read_jsonl(args.executability_result)
+    def resolve_path(raw: str | None) -> Path | None:
+        if raw is None or str(raw).strip() == "":
+            return None
+        p = Path(str(raw))
+        if not p.is_absolute():
+            p = (base / p).resolve()
+        return p
+
+    domain_path = resolve_path(cfg.domain_result)
+    exec_path = resolve_path(cfg.executability_result)
+    if domain_path is None or exec_path is None:
+        raise ValueError("domain_result 和 executability_result 路径不能为空")
+
+    domain_rows = read_jsonl(domain_path)
+    exec_rows = read_jsonl(exec_path)
     domain_index = index_by_dir_name(domain_rows)
     exec_index = index_by_dir_name(exec_rows)
 
     blocked_risk_flags = set(DEFAULT_BLOCKED_RISK_FLAGS)
-    if args.blocked_risk_flag:
-        blocked_risk_flags.update(x.strip() for x in args.blocked_risk_flag if x.strip())
+    extra_flags = getattr(cfg, "blocked_risk_flags", None)
+    if extra_flags:
+        for x in extra_flags:
+            s = str(x).strip()
+            if s:
+                blocked_risk_flags.add(s)
 
     all_dir_names = sorted(set(domain_index) | set(exec_index))
     manifest_rows = [
@@ -360,17 +360,22 @@ def main() -> int:
         )
     )
 
-    write_jsonl(args.output_manifest, manifest_rows)
+    output_manifest = resolve_path(cfg.output_manifest)
+    if output_manifest is None:
+        raise ValueError("output_manifest 路径不能为空")
+    write_jsonl(output_manifest, manifest_rows)
 
-    summary_path = args.output_summary
+    summary_path = resolve_path(getattr(cfg, "output_summary", None))
     if summary_path is None:
-        summary_path = args.output_manifest.with_name("skill_manifest_summary.json")
+        summary_path = output_manifest.with_name("skill_manifest_summary.json")
     write_summary(summary_path, manifest_rows)
 
-    if args.top_k_per_domain > 0 and args.output_selected is not None:
+    top_k_per_domain = int(getattr(cfg, "top_k_per_domain", 0) or 0)
+    output_selected = resolve_path(getattr(cfg, "output_selected", None))
+    if top_k_per_domain > 0 and output_selected is not None:
         selected = select_top_k_per_domain(
             manifest_rows,
-            top_k_per_domain=args.top_k_per_domain,
+            top_k_per_domain=top_k_per_domain,
         )
         selected.sort(
             key=lambda r: (
@@ -379,14 +384,25 @@ def main() -> int:
                 r.get("dir_name", ""),
             )
         )
-        write_jsonl(args.output_selected, selected)
+        write_jsonl(output_selected, selected)
 
-    print(f"Wrote manifest: {args.output_manifest}")
+    print(f"Wrote manifest: {output_manifest}")
     print(f"Wrote summary:  {summary_path}")
-    if args.top_k_per_domain > 0 and args.output_selected is not None:
-        print(f"Wrote selected: {args.output_selected}")
+    if top_k_per_domain > 0 and output_selected is not None:
+        print(f"Wrote selected: {output_selected}")
     return 0
 
 
+@hydra.main(
+    config_path=str(
+        Path(__file__).resolve().parent.parent / "configs"
+    ),
+    config_name="merge_skill_manifest",
+    version_base=None,
+)
+def main(cfg: DictConfig) -> None:
+    raise SystemExit(run(cfg))
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()
