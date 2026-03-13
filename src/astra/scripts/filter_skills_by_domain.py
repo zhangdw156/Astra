@@ -3,7 +3,7 @@
 按领域过滤/打分 skills 的入口。
 
 升级后的行为：
-- 不再默认在 run 模式下直接删除目录
+- run 模式下对不匹配的 skill 直接删除对应目录
 - 基于 BFCL 风格 domain 相关性，对每个 skill 输出 richer schema：
   - match
   - reason

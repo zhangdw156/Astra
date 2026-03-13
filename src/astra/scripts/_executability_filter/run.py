@@ -1,7 +1,7 @@
 """按可执行/可模拟性过滤 skills 的主流程（优化版）。
 
 升级目标：
-1. 不再在 run 模式下直接删除目录
+1. run 模式下对不匹配的 skill 直接删除对应目录
 2. 让 executability filter 输出 richer schema，而不只是 match/reason
 3. 产出 jsonl 结果，便于后续与 domain filter 合并成 manifest
 """
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import random
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -218,6 +219,13 @@ def _write_jsonl(path: Path, records: list[dict[str, Any]]) -> None:
     with path.open("w", encoding="utf-8") as f:
         for obj in records:
             f.write(json.dumps(obj, ensure_ascii=False) + "\n")
+
+
+def _append_one_jsonl(path: Path, record: dict[str, Any]) -> None:
+    """追加单条结果到 jsonl，用于运行中持久化，防止中途失败丢失已算结果。"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
 def _write_summary(path: Path, records: list[dict[str, Any]]) -> None:
@@ -437,6 +445,7 @@ def run(cfg: DictConfig) -> int:
     sem = threading.Semaphore(concurrency)
     results: list[tuple[Path, dict[str, Any]]] = []
     lock = threading.Lock()
+    file_write_lock = threading.Lock()
 
     def process_one(skill_dir: Path) -> None:
         dir_name = skill_dir.name
@@ -467,6 +476,10 @@ def run(cfg: DictConfig) -> int:
             with lock:
                 results.append((skill_dir, out))
                 done[dir_name] = out
+            # 每跑完一个 skill 立即追加写入 jsonl，防止中途失败丢失已算结果
+            if cache_file:
+                with file_write_lock:
+                    _append_one_jsonl(cache_file, _build_record(skill_dir, out))
 
     threads = [threading.Thread(target=process_one, args=(d,)) for d in skill_dirs]
     for t in threads:
@@ -486,7 +499,18 @@ def run(cfg: DictConfig) -> int:
         logger.info("已写入 executability filter 汇总: {}", summary_file)
 
     kept = [r for r in records if r.get("match")]
-    logger.info("匹配 {} / {} 个 skill（本版本不执行目录删除）", len(kept), len(records))
+    # run 模式下删除不匹配的 skill 目录
+    if mode == "run":
+        unmatched_dirs = [skill_dir for skill_dir, result in results if not result.get("match")]
+        for path in unmatched_dirs:
+            try:
+                shutil.rmtree(path)
+                logger.info("已删除不匹配目录: {}", path)
+            except Exception as e:
+                logger.warning("删除目录失败 {}: {}", path, e)
+        logger.info("匹配 {} / {} 个 skill，已删除 {} 个不匹配目录", len(kept), len(records), len(unmatched_dirs))
+    else:
+        logger.info("匹配 {} / {} 个 skill（当前为 {} 模式，未删除目录）", len(kept), len(records), mode)
 
     top_records = sorted(
         kept,

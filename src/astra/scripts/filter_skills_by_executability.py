@@ -3,7 +3,7 @@
 按可执行/可模拟性过滤 skills 的入口。
 
 升级后的行为：
-- 不再默认在 run 模式下直接删除目录
+- run 模式下对不匹配的 skill 直接删除对应目录
 - 基于 mockability / determinism / schema clarity / state complexity 等维度，
   对每个 skill 输出 richer schema
 - 结果写入 jsonl，供后续与 domain filter 合并成统一 manifest
