@@ -106,6 +106,9 @@ Penalize:
 - unrealistic or low-value task setup
 - goals that are badly ordered, redundant, or not meaningfully pursued
 
+When comparing blueprint tool names with trajectory tool calls, focus on semantic equivalence rather than exact string identity.
+Ignore harmless runtime-introduced prefixes, namespaces, or wrappers in tool names if the underlying tool function is clearly the same.
+
 ---
 
 ## Scoring Principles
@@ -221,6 +224,9 @@ Use:
 
 Do not use `hallucination_risk` as a general bucket for all quality problems.
 User or planner problems should primarily lower `score` and `task_completion_score`.
+
+Do not treat superficial tool-name differences as hallucination or planner mismatch.
+Penalize only if the assistant uses a materially different tool, fails to pursue the intended action, or makes claims not supported by visible evidence.
 
 ---
 
