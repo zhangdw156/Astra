@@ -15,6 +15,7 @@ from .types import UserTurnResult
 
 
 TASK_END_MARKER = "[TASK_END]"
+OPENAI_REQUEST_TIMEOUT_SEC = 120.0
 
 
 class UserAgent:
@@ -159,7 +160,12 @@ class UserAgent:
         logger.info("Calling user model: {}", model)
         logger.debug("User prompt length: {} chars", len(prompt))
 
-        client = OpenAI(api_key=api_key, base_url=base_url)
+        client = OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=OPENAI_REQUEST_TIMEOUT_SEC,
+            max_retries=2,
+        )
         response = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],

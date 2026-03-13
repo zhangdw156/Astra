@@ -312,8 +312,13 @@ class SimulationRunner:
                 allowed_tool_names = [str(x) for x in maybe_allowed]
 
         actual_tool_names = [call.name for call in assistant_tool_calls]
+        normalized_tool_names = [
+            self.normalize_tool_name(name) for name in actual_tool_names
+        ]
         unexpected_tool_names = [
-            name for name in actual_tool_names if name not in allowed_tool_names
+            name
+            for name, normalized in zip(actual_tool_names, normalized_tool_names, strict=False)
+            if normalized not in allowed_tool_names
         ]
 
         result.update(
@@ -321,11 +326,17 @@ class SimulationRunner:
                 "tool_call_validation_enabled": True,
                 "allowed_tool_names": allowed_tool_names,
                 "actual_tool_names": actual_tool_names,
+                "normalized_tool_names": normalized_tool_names,
                 "unexpected_tool_names": unexpected_tool_names,
                 "tool_calls_within_blueprint": len(unexpected_tool_names) == 0,
             }
         )
         return result
+
+    def normalize_tool_name(self, name: str) -> str:
+        if name.startswith("skill-tools-"):
+            return name[len("skill-tools-") :]
+        return name
 
     def build_final_validation(
         self,

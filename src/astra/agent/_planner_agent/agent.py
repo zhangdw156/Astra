@@ -21,6 +21,9 @@ from .types import BlueprintResult, PlannerRunContext
 from .validator import BlueprintValidator
 
 
+OPENAI_REQUEST_TIMEOUT_SEC = 120.0
+
+
 class PlannerAgent:
     """
     PlannerAgent：基于 prompt + SKILL.md + tools.jsonl + persona_text 调用模型生成 blueprint。
@@ -160,7 +163,12 @@ class PlannerAgent:
         logger.info("Calling planner model: {}", model)
         logger.debug("Planner prompt length: {} chars", len(prompt))
 
-        client = OpenAI(api_key=api_key, base_url=base_url)
+        client = OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=OPENAI_REQUEST_TIMEOUT_SEC,
+            max_retries=2,
+        )
         response = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],

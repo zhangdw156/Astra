@@ -11,6 +11,9 @@ from .types import EvaluationBundle, EvaluationResult
 from .validator import EvalAgentValidator
 
 
+OPENAI_REQUEST_TIMEOUT_SEC = 120.0
+
+
 class EvalAgent:
     """
     EvalAgent：根据 trajectory 与 blueprint 对单条样本进行评估打分。
@@ -115,7 +118,12 @@ class EvalAgent:
         logger.info("Calling eval model: {}", model)
         logger.debug("Eval prompt length: {} chars", len(prompt))
 
-        client = OpenAI(api_key=api_key, base_url=base_url)
+        client = OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=OPENAI_REQUEST_TIMEOUT_SEC,
+            max_retries=2,
+        )
         response = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
