@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..agent._eval_agent import EvaluationResult
+from ..envs import StateTransitionRecord
 
 
 @dataclass(slots=True)
@@ -20,6 +21,8 @@ class SimulationTurn:
     tool_calls: list[dict[str, Any]]
     execution_time_ms: int
     validation: dict[str, Any]
+    before_state: dict[str, Any] = field(default_factory=dict)
+    after_state: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -38,6 +41,10 @@ class SimulationResult:
     structured_turns: list[SimulationTurn]
     validation: dict[str, Any]
     final_tool_state: dict[str, Any]
+    initial_state: dict[str, Any] = field(default_factory=dict)
+    scenario_id: str = ""
+    environment_profile: dict[str, Any] | None = None
+    state_transitions: list[StateTransitionRecord] = field(default_factory=list)
 
 
 @dataclass(slots=True)

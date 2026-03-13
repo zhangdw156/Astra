@@ -90,6 +90,14 @@ class EvalAgent:
             run_id=str(trajectory.get("run_id", "")),
             blueprint_id=str(blueprint.get("blueprint_id", "")),
             trajectory_id=str(trajectory.get("trajectory_id", "")),
+            diagnostics={
+                "final_state_match": trajectory.get("validation", {}).get(
+                    "final_state_match"
+                ),
+                "state_checkpoints": trajectory.get("validation", {}).get(
+                    "state_checkpoints"
+                ),
+            },
         )
 
     # -------------------------------------------------------------------------

@@ -16,6 +16,8 @@ class BlueprintValidator:
     REQUIRED_FIELDS = [
         "goals",
         "possible_tool_calls",
+        "scenario_id",
+        "environment_profile",
         "initial_state",
         "user_agent_config",
         "end_condition",
@@ -24,8 +26,11 @@ class BlueprintValidator:
     ALLOWED_FIELDS = {
         "goals",
         "possible_tool_calls",
+        "scenario_id",
+        "environment_profile",
         "initial_state",
         "expected_final_state",
+        "state_checkpoints",
         "user_agent_config",
         "end_condition",
     }
@@ -103,6 +108,78 @@ class BlueprintValidator:
         for key in ("initial_state", "expected_final_state"):
             if key in data and data[key] is not None and not isinstance(data[key], dict):
                 errors.append(f"{key} 必须为 JSON 对象或 null")
+
+        if "scenario_id" in data:
+            scenario_id = data["scenario_id"]
+            if not isinstance(scenario_id, str) or not scenario_id.strip():
+                errors.append("scenario_id 必须为非空字符串")
+
+        if "environment_profile" in data:
+            profile = data["environment_profile"]
+            if not isinstance(profile, dict):
+                errors.append("environment_profile 必须为对象")
+            else:
+                backend_mode = profile.get("backend_mode")
+                validation_mode = profile.get("validation_mode")
+                if backend_mode is not None and backend_mode not in {
+                    "program-direct",
+                    "program-fixture",
+                    "hybrid",
+                    "llm-fallback",
+                }:
+                    errors.append(f"environment_profile.backend_mode 非法: {backend_mode}")
+                if validation_mode is not None and validation_mode not in {
+                    "none",
+                    "final_state",
+                    "turn_state",
+                }:
+                    errors.append(
+                        f"environment_profile.validation_mode 非法: {validation_mode}"
+                    )
+                state_mutation_policy = profile.get("state_mutation_policy")
+                if state_mutation_policy is not None and state_mutation_policy not in {
+                    "programmatic",
+                }:
+                    errors.append(
+                        "environment_profile.state_mutation_policy 非法: "
+                        f"{state_mutation_policy}"
+                    )
+                generated_text_policy = profile.get("generated_text_policy")
+                if generated_text_policy is not None and generated_text_policy not in {
+                    "none",
+                    "templated-summary",
+                    "derived-text",
+                }:
+                    errors.append(
+                        "environment_profile.generated_text_policy 非法: "
+                        f"{generated_text_policy}"
+                    )
+                generated_fields = profile.get("generated_result_fields")
+                if generated_fields is not None and not (
+                    isinstance(generated_fields, list)
+                    and all(isinstance(item, str) and item.strip() for item in generated_fields)
+                ):
+                    errors.append(
+                        "environment_profile.generated_result_fields 必须为字符串数组"
+                    )
+
+        if "state_checkpoints" in data:
+            checkpoints = data["state_checkpoints"]
+            if checkpoints is not None and not isinstance(checkpoints, list):
+                errors.append("state_checkpoints 必须为数组或 null")
+            elif isinstance(checkpoints, list):
+                for i, checkpoint in enumerate(checkpoints):
+                    if not isinstance(checkpoint, dict):
+                        errors.append(f"state_checkpoints[{i}] 必须为对象")
+                        continue
+                    if not isinstance(checkpoint.get("turn_index"), int):
+                        errors.append(
+                            f"state_checkpoints[{i}].turn_index 必须为整数"
+                        )
+                    if not isinstance(checkpoint.get("expected_state"), dict):
+                        errors.append(
+                            f"state_checkpoints[{i}].expected_state 必须为对象"
+                        )
 
         if "goals" in data:
             goals = data["goals"]

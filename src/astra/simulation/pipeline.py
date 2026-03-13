@@ -69,6 +69,7 @@ class SynthesisPipeline:
 
         trajectory = self.simulation_runner.run(
             blueprint=blueprint,
+            skill_dir=skill_dir,
             tools_path=tools_path,
             run_id=actual_run_id,
             runtime=runtime,
@@ -116,7 +117,10 @@ class SynthesisPipeline:
 
         runtime: LocalMCPRuntime | None = None
         if self.config.reuse_runtime:
-            runtime = self.simulation_runner.build_runtime(tools_path=tools_path)
+            runtime = self.simulation_runner.build_runtime(
+                skill_dir=skill_dir,
+                tools_path=tools_path,
+            )
             runtime.start()
 
         samples: list[SynthesisSampleResult] = []

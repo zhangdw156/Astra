@@ -7,6 +7,11 @@ from pathlib import Path
 
 from openai import OpenAI
 
+from ...envs.context import (
+    load_environment_context,
+    render_environment_summary,
+    render_scenario_summary,
+)
 from ...utils import config as astra_config
 from ...utils import logger
 
@@ -60,6 +65,14 @@ class PlannerAgent:
             skill_md_content=skill_content,
             tools_jsonl_content=tools_content,
             persona_content=persona_text,
+            environment_profile=render_environment_summary(
+                {
+                    "environment_profile": context.environment_profile_summary or {},
+                }
+            ),
+            scenario_summary=render_scenario_summary(
+                {"scenario_summary": context.scenario_summary or {}}
+            ),
         )
 
         raw_response = self.call_model(prompt)
@@ -112,10 +125,20 @@ class PlannerAgent:
         构造本次运行上下文。
         假定输入路径正确，不做额外校验。
         """
+        env_context = load_environment_context(skill_dir)
+
         return PlannerRunContext(
             skill_dir=skill_dir,
             skill_md_path=skill_dir / "SKILL.md",
             tools_jsonl_path=skill_dir / "tools.jsonl",
+            environment_profile_path=(
+                skill_dir / "environment_profile.json"
+                if (skill_dir / "environment_profile.json").exists()
+                else None
+            ),
+            scenario_dir=skill_dir / "scenarios" if (skill_dir / "scenarios").exists() else None,
+            environment_profile_summary=env_context.get("environment_profile"),
+            scenario_summary=env_context.get("scenario_summary"),
         )
 
     def resolve_skill_dir(self, skill_dir: Path) -> Path:
@@ -165,6 +188,18 @@ class PlannerAgent:
         data["skill_name"] = skill_dir.name
         data["persona_id"] = persona_obj.get("id", "")
         data["created_at"] = datetime.now(timezone.utc).isoformat()
+        env_context = load_environment_context(skill_dir)
+        if env_context:
+            data["scenario_id"] = env_context.get("scenario_id", "default")
+            data["environment_profile"] = {
+                "backend_mode": env_context["environment_profile"].get("backend_mode"),
+                "validation_mode": env_context["environment_profile"].get(
+                    "validation_mode"
+                ),
+            }
+            data.setdefault("initial_state", {})
+            data.setdefault("expected_final_state", {})
+            data.setdefault("state_checkpoints", [])
 
         return data
 

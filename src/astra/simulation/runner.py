@@ -8,6 +8,7 @@ from typing import Any
 from ..agent._assistant_agent import AssistantAgent, AssistantAgentConfig
 from ..agent._user_agent import UserAgent, UserAgentConfig
 from ..agent._tool_agent import ToolAgentConfig
+from ..envs.validation import compare_state
 from ..utils import logger
 
 from .config import SimulationRunnerConfig
@@ -45,13 +46,14 @@ class SimulationRunner:
     # Public API
     # -------------------------------------------------------------------------
 
-    def build_runtime(self, *, tools_path: Path) -> LocalMCPRuntime:
+    def build_runtime(self, *, skill_dir: Path, tools_path: Path) -> LocalMCPRuntime:
         """
         基于 tools.jsonl 构造本地 MCP runtime。
         """
         return LocalMCPRuntime(
             config=self.config.runtime,
             tool_agent_config=self.tool_agent_config,
+            skill_dir=skill_dir,
             tools_path=tools_path,
             state_key=self.config.assistant_state_key,
         )
@@ -60,6 +62,7 @@ class SimulationRunner:
         self,
         *,
         blueprint: dict[str, Any],
+        skill_dir: Path,
         tools_path: Path,
         run_id: str | None = None,
         runtime: LocalMCPRuntime | None = None,
@@ -75,7 +78,7 @@ class SimulationRunner:
 
         actual_run_id = run_id or str(uuid.uuid4())
         own_runtime = runtime is None
-        runtime = runtime or self.build_runtime(tools_path=tools_path)
+        runtime = runtime or self.build_runtime(skill_dir=skill_dir, tools_path=tools_path)
 
         if own_runtime:
             runtime.start()
@@ -83,6 +86,7 @@ class SimulationRunner:
         try:
             runtime.reset_state(self.config.assistant_state_key)
             assistant_agent = self.ensure_assistant(runtime=runtime)
+            initial_state = runtime.get_state(self.config.assistant_state_key)
 
             goals = blueprint.get("goals") or []
             messages: list[dict[str, Any]] = []
@@ -161,6 +165,16 @@ class SimulationRunner:
                     ],
                     execution_time_ms=execution_time_ms,
                     validation=turn_validation,
+                    before_state=(
+                        runtime.state_transitions[-1].before_state
+                        if runtime.state_transitions
+                        else {}
+                    ),
+                    after_state=(
+                        runtime.state_transitions[-1].after_state
+                        if runtime.state_transitions
+                        else {}
+                    ),
                 )
                 turns.append(turn)
 
@@ -188,6 +202,10 @@ class SimulationRunner:
                 structured_turns=turns,
                 validation=final_validation,
                 final_tool_state=final_tool_state,
+                initial_state=initial_state,
+                scenario_id=runtime.scenario_id or str(blueprint.get("scenario_id", "")),
+                environment_profile=runtime.environment_profile,
+                state_transitions=list(runtime.state_transitions),
             )
 
         finally:
@@ -333,6 +351,36 @@ class SimulationRunner:
         final_assistant_message_nonempty = bool(
             turns and (turns[-1].assistant_message or "").strip()
         )
+        final_state_diffs: list[dict[str, Any]] = []
+        expected_final_state = blueprint.get("expected_final_state")
+        if isinstance(expected_final_state, dict):
+            final_state_diffs = compare_state(
+                final_tool_state,
+                expected_final_state,
+                subset=True,
+            )
+
+        checkpoint_results: list[dict[str, Any]] = []
+        state_checkpoints = blueprint.get("state_checkpoints")
+        if isinstance(state_checkpoints, list):
+            for checkpoint in state_checkpoints:
+                if not isinstance(checkpoint, dict):
+                    continue
+                turn_index = checkpoint.get("turn_index")
+                expected_state = checkpoint.get("expected_state")
+                if not isinstance(turn_index, int) or not isinstance(expected_state, dict):
+                    continue
+                matched_turn = next(
+                    (turn for turn in turns if turn.turn_index == turn_index),
+                    None,
+                )
+                actual_state = matched_turn.after_state if matched_turn is not None else None
+                checkpoint_results.append(
+                    {
+                        "turn_index": turn_index,
+                        "diffs": compare_state(actual_state, expected_state, subset=True),
+                    }
+                )
 
         return {
             "ended_normally": ended_normally,
@@ -343,4 +391,7 @@ class SimulationRunner:
             "tool_call_validation_passed": tool_call_validation_passed,
             "final_assistant_message_nonempty": final_assistant_message_nonempty,
             "final_tool_state_nonempty": bool(final_tool_state),
+            "final_state_diffs": final_state_diffs,
+            "final_state_match": len(final_state_diffs) == 0,
+            "state_checkpoints": checkpoint_results,
         }

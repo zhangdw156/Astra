@@ -21,8 +21,11 @@ class EvalAgentPromptBuilder:
         "created_at",
         "goals",
         "possible_tool_calls",
+        "scenario_id",
+        "environment_profile",
         "initial_state",
         "expected_final_state",
+        "state_checkpoints",
         "user_agent_config",
         "end_condition",
     }
@@ -36,6 +39,12 @@ class EvalAgentPromptBuilder:
         "tools",
         "messages",
         "structured_turns",
+        "validation",
+        "final_tool_state",
+        "initial_state",
+        "scenario_id",
+        "environment_profile",
+        "state_transitions",
     }
 
     def __init__(

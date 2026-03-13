@@ -33,6 +33,8 @@ You will receive three injected text inputs:
 | **SKILL.md**    | Skill specification: purpose, supported workflows, constraints, outputs, examples | `{SKILL_MD_CONTENT}`    |
 | **tools.jsonl** | One JSON object per line; each includes `name`, `description`, and `inputSchema` | `{TOOLS_JSONL_CONTENT}` |
 | **Persona**     | A single JSON object describing the user persona             | `{PERSONA_CONTENT}`     |
+| **Environment profile** | Optional backend metadata for migrated skills | `{ENVIRONMENT_PROFILE}` |
+| **Scenario summary** | Optional summary of the default scenario shape | `{SCENARIO_SUMMARY}` |
 
 ---
 
@@ -50,8 +52,14 @@ The JSON object must follow this schema:
 {
   "goals": ["<goal 1>", "<goal 2>", "..."],
   "possible_tool_calls": [["<tool_name>", "..."], ["<tool_name>", "..."]],
+  "scenario_id": "default",
+  "environment_profile": {
+    "backend_mode": "program-direct",
+    "validation_mode": "final_state"
+  },
   "initial_state": {},
   "expected_final_state": {},
+  "state_checkpoints": [],
   "user_agent_config": {
     "role": "<user role label>",
     "personality": "<1–2 sentence description>",
@@ -127,6 +135,8 @@ Avoid:
 - unnecessary fields
 - speculative results
 
+For migrated program backends, keep this consistent with the provided scenario summary.
+
 ---
 
 ### `expected_final_state`
@@ -170,6 +180,15 @@ Bad example:
 ```
 
 The bad example invents concrete results instead of describing the expected structural outcome.
+
+### `state_checkpoints`
+
+Optional intermediate state assertions for migrated skills.
+
+- Must be an array
+- Each item should contain `turn_index` and `expected_state`
+- Use only when an intermediate program state transition materially matters
+- Keep checkpoint states minimal and structural
 
 ---
 

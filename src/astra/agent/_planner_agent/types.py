@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 
 @dataclass(slots=True)
@@ -13,6 +14,10 @@ class PlannerRunContext:
     skill_dir: Path
     skill_md_path: Path
     tools_jsonl_path: Path
+    environment_profile_path: Path | None = None
+    scenario_dir: Path | None = None
+    environment_profile_summary: dict[str, Any] | None = None
+    scenario_summary: dict[str, Any] | None = None
 
 
 @dataclass(slots=True)

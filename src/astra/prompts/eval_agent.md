@@ -7,6 +7,7 @@ You are evaluating the quality of a synthetic multi-agent sample as dataset mate
 The sample includes:
 - a **task blueprint** produced by a planner agent
 - a **trajectory** produced by a user agent, an assistant agent, and tool interactions
+- machine-derived environment/state validation signals when available
 
 Your job is to judge the overall dataset quality of the sample, not just whether the assistant sounds fluent.
 
@@ -98,6 +99,7 @@ Check whether:
 - the trajectory actually reflects the blueprint goals
 - the requested actions align with the available tools
 - the task matches the skill and tool environment
+- for migrated program backends, the final state and checkpoints match the intended structural outcome
 
 Penalize:
 
@@ -123,6 +125,7 @@ A sample with a competent assistant can still score poorly if:
 - the conversation does not meaningfully reflect the intended blueprint
 
 Judge the visible sample as training/evaluation data, not as an isolated assistant answer.
+When machine-derived state validation is present, prioritize state correctness over stylistic fluency.
 
 ---
 

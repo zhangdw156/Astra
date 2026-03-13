@@ -6,10 +6,13 @@ from pathlib import Path
 from typing import Any
 from urllib.request import urlopen
 
-from ..agent._tool_agent import ToolAgent, ToolAgentConfig
+from ..agent._tool_agent import ToolAgentConfig
+from ..envs import StateTransitionRecord, load_backend_from_skill_dir
 from ..utils import logger
 
 from .config import MCPRuntimeConfig
+from .executors import LLMToolExecutor, ProgramToolExecutor
+from .tool_registry import ToolRegistry
 
 
 class LocalMCPRuntime:
@@ -28,15 +31,28 @@ class LocalMCPRuntime:
         *,
         config: MCPRuntimeConfig,
         tool_agent_config: ToolAgentConfig,
+        skill_dir: Path,
         tools_path: Path,
         state_key: str,
     ):
         self.config = config
+        self.skill_dir = skill_dir.resolve()
         self.tools_path = tools_path.resolve()
         self.state_key = state_key
 
-        self.tool_agent = ToolAgent(tool_agent_config)
-        self.tools = self.tool_agent.load_tools_from_jsonl(self.tools_path)
+        self.registry = ToolRegistry()
+        self.tools = self.registry.load_tools_from_jsonl(self.tools_path)
+        self.state_transitions: list[StateTransitionRecord] = []
+
+        has_program_backend = load_backend_from_skill_dir(self.skill_dir) is not None
+        if has_program_backend:
+            self.executor = ProgramToolExecutor(skill_dir=self.skill_dir)
+            self.environment_profile = self.executor.profile.raw
+            self.scenario_id = self.executor.scenario_id
+        else:
+            self.executor = LLMToolExecutor(tool_agent_config=tool_agent_config)
+            self.environment_profile = None
+            self.scenario_id = None
 
         self._mcp: Any | None = None
         self._thread: threading.Thread | None = None
@@ -77,10 +93,10 @@ class LocalMCPRuntime:
         from fastmcp import FastMCP
 
         self._mcp = FastMCP(self.config.server_name)
-        self.tool_agent.create_mcp_tools(
+        self.registry.create_mcp_tools(
             mcp=self._mcp,
             tools=self.tools,
-            state_key=self.state_key,
+            handler_factory=self.make_tool_handler,
         )
 
         self._thread = threading.Thread(
@@ -133,14 +149,73 @@ class LocalMCPRuntime:
         重置某个 state 分区。
         """
         target_key = key or self.state_key
-        self.tool_agent.set_state({}, target_key)
+        self.state_transitions.clear()
+        self.executor.reset_state(target_key)
 
     def get_state(self, key: str | None = None) -> dict[str, Any]:
         """
         获取某个 state 分区。
         """
         target_key = key or self.state_key
-        return self.tool_agent.get_state(target_key)
+        return self.executor.get_state(target_key)
+
+    def make_tool_handler(self, schema: dict[str, Any]) -> Any:
+        from fastmcp.tools import tool
+
+        name = schema.get("name")
+        if not name:
+            return None
+
+        description = schema.get("description", "")
+        tool_params, required_names = self.registry.extract_schema_info(schema)
+
+        @tool(name=name, description=description)
+        def _handler(**kwargs: Any) -> str:
+            runtime_state_key, runtime_kwargs = self.extract_runtime_state_key(
+                kwargs=kwargs,
+                default_state_key=self.state_key,
+            )
+            execution = self.executor.execute_tool(
+                tool_name=name,
+                arguments=runtime_kwargs,
+                state_key=runtime_state_key,
+                tool_schema=schema,
+                available_tools=self.tools,
+            )
+            self.state_transitions.append(
+                StateTransitionRecord(
+                    tool_name=name,
+                    arguments=runtime_kwargs,
+                    before_state=execution.before_state,
+                    after_state=execution.after_state,
+                    result=execution.result,
+                )
+            )
+            return execution.response_text
+
+        self.registry.apply_explicit_signature(
+            handler=_handler,
+            tool_params=tool_params,
+            required_names=required_names,
+        )
+        return _handler
+
+    def extract_runtime_state_key(
+        self,
+        *,
+        kwargs: dict[str, Any],
+        default_state_key: str,
+    ) -> tuple[str, dict[str, Any]]:
+        if not isinstance(kwargs, dict):
+            return default_state_key, {}
+
+        runtime_key = kwargs.get("__state_key")
+        clean_kwargs = {k: v for k, v in kwargs.items() if k != "__state_key"}
+
+        if isinstance(runtime_key, str) and runtime_key.strip():
+            return runtime_key.strip(), clean_kwargs
+
+        return default_state_key, clean_kwargs
 
     def _serve(self) -> None:
         """

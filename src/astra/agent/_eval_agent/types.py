@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(slots=True)
@@ -17,6 +18,7 @@ class EvaluationResult:
     run_id: str = ""
     blueprint_id: str = ""
     trajectory_id: str = ""
+    diagnostics: dict[str, Any] | None = None
 
 
 @dataclass(slots=True)
