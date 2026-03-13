@@ -1,1 +1,0 @@
-# Farnam Street Skill
