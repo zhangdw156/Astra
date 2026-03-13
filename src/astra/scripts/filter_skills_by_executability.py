@@ -1,18 +1,30 @@
 #!/usr/bin/env python3
 """
-按“可执行性（docker-only + 可 mock）”过滤 skills：
-- 输入：skills/ 下的 skill 目录
-- 方式：读取 SKILL.md + scripts 概要，调用大模型判定 keep/drop
-  - mode=dry-run：仅预览，不调用 API
-  - mode=test：抽样调用 LLM，不做删除
-  - mode=run：全量调用 LLM，并删除不保留的 skill 目录
+按可执行/可模拟性过滤 skills 的入口。
+
+升级后的行为：
+- 不再默认在 run 模式下直接删除目录
+- 基于 mockability / determinism / schema clarity / state complexity 等维度，
+  对每个 skill 输出 richer schema
+- 结果写入 jsonl，供后续与 domain filter 合并成统一 manifest
 
 用法：
-  uv run -m astra.scripts.filter_skills_by_executability
-  uv run -m astra.scripts.filter_skills_by_executability mode=dry-run
-  uv run -m astra.scripts.filter_skills_by_executability mode=test skills_dir=skills_demo n_test=5
-  uv run -m astra.scripts.filter_skills_by_executability mode=run
+    uv run -m astra.scripts.filter_skills_by_executability
+    uv run -m astra.scripts.filter_skills_by_executability mode=run
+    uv run -m astra.scripts.filter_skills_by_executability mode=test
+    uv run -m astra.scripts.filter_skills_by_executability mode=dry-run
+    uv run -m astra.scripts.filter_skills_by_executability \
+        --config-path=exps/skill_discovery/configs \
+        --config-name=filter_by_executability \
+        mode=run
+
+需在项目根目录 .env 中配置：
+- OPENAI_API_KEY
+- OPENAI_MODEL
+- 可选 OPENAI_BASE_URL
 """
+
+from __future__ import annotations
 
 import sys
 from pathlib import Path
@@ -24,8 +36,12 @@ from omegaconf import DictConfig
 from astra.scripts._executability_filter import run
 from astra.utils.logging import setup_logging
 
-# Hydra 默认配置目录与名称（项目根 exps/skill_discovery）
-_config_path = str(Path(__file__).resolve().parent.parent.parent.parent / "exps" / "skill_discovery" / "configs")
+_config_path = str(
+    Path(__file__).resolve().parent.parent.parent.parent
+    / "exps"
+    / "skill_discovery"
+    / "configs"
+)
 
 
 @hydra.main(
@@ -41,4 +57,3 @@ def main(cfg: DictConfig) -> None:
 
 if __name__ == "__main__":
     main()
-
