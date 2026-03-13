@@ -34,7 +34,7 @@ _config_path = str(PROJECT_ROOT / "exps" / "skill_discovery" / "configs")
 # 可执行脚本的扩展名（用于判断是否为脚本文件）
 EXECUTABLE_EXTENSIONS = {".py", ".sh", ".bash", ".zsh", ".js", ".ts", ".jsx", ".tsx"}
 # 仅保留 scripts 里全是以下类型脚本的目录
-ALLOWED_SCRIPT_EXTENSIONS = {".py", ".sh", ".bash"}
+ALLOWED_SCRIPT_EXTENSIONS = {".py", ".sh", ".bash", ".zsh", ".js", ".ts", ".jsx", ".tsx"}
 
 
 def _has_shebang(path: Path) -> bool:
