@@ -18,10 +18,10 @@ selected_skills.jsonl 每行至少应包含：
 
 使用示例：
     uv run exps/data_synthesis_workflow/pipeline1_selected_skills.py \
-        --selected-skills artifacts/selected_skills.jsonl \
-        --skills-root skills_demo \
-        --persona-path data/persona_5K.jsonl \
-        --count-per-skill 20 \
+        --selected-skills artifacts/skill_manifest_top3.jsonl \
+        --skills-root skills \
+        --persona-path persona/persona_5K.jsonl \
+        --count-per-skill 50 \
         --output-root artifacts/pipeline1_results \
         --planner-prompt-path src/astra/prompts/planner_agent.md \
         --user-prompt-path src/astra/prompts/user_agent.md \
@@ -43,10 +43,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-from astra.agent._eval_agent import EvalAgent, EvalAgentConfig
-from astra.agent._planner_agent import PlannerAgent, PlannerAgentConfig
-from astra.agent._tool_agent import ToolAgentConfig
-from astra.agent._user_agent import UserAgentConfig
+from astra.agent import EvalAgent, EvalAgentConfig
+from astra.agent import PlannerAgent, PlannerAgentConfig
+from astra.agent import ToolAgentConfig
+from astra.agent import UserAgentConfig
 from astra.simulation import (
     MCPRuntimeConfig,
     SimulationRunner,

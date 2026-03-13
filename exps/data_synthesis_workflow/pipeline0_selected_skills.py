@@ -4,7 +4,7 @@
 
 设计目标：
 - 输入不再是“遍历整个 skills_root”，而是“只处理 selected_skills.jsonl 中列出的 skill”
-- 尽量贴近旧版 pipeline2 的行为：仍然通过 `opencode run <task>` 生成 tools.jsonl
+- 尽量贴近旧版 pipeline0 的行为：仍然通过 `opencode run <task>` 生成 tools.jsonl
 - 支持并发、dry-run、skip-existing、limit
 
 selected_skills.jsonl 每行至少应包含：
@@ -15,12 +15,12 @@ selected_skills.jsonl 每行至少应包含：
 - 其他字段会被忽略
 
 使用方式示例：
-    uv run exps/data_synthesis_workflow/pipeline2_selected_skills.py \
-        --selected-skills artifacts/selected_skills.jsonl \
-        --skills-root skills_demo \
+    uv run exps/data_synthesis_workflow/pipeline0_selected_skills.py \
+        --selected-skills artifacts/skill_manifest_top3.jsonl \
+        --skills-root skills \
         --example-skill-dir examples/2896_prediction-trader \
         --prompt-path src/astra/prompts/skill_agent.md \
-        --max-workers 8 \
+        --max-workers 1 \
         --skip-existing
 """
 
@@ -224,10 +224,11 @@ def main() -> int:
         default=0,
         help="最多处理多少个 skill（0 表示不限制）",
     )
+    # TODO: 暂时不支持并发
     parser.add_argument(
         "--max-workers",
         type=int,
-        default=8,
+        default=1,
         help="并发 worker 数量",
     )
     parser.add_argument(
@@ -259,7 +260,7 @@ def main() -> int:
         records = records[: args.limit]
 
     print("=" * 60)
-    print("Pipeline2 (selected skills): 生成 tools.jsonl")
+    print("pipeline0 (selected skills): 生成 tools.jsonl")
     print("=" * 60)
     print(f"Selected skills: {selected_skills_path}")
     print(f"Skills root:     {skills_root}")
