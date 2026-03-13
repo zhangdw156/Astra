@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import json
 import random
+import re
 import shutil
 import threading
 import time
+from ast import literal_eval
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -140,9 +142,37 @@ def _normalize_judgement(parsed: dict[str, Any]) -> dict[str, Any]:
 
 
 def _extract_json_candidate(text: str) -> dict[str, Any]:
+    def _find_matching_brace(s: str, start: int) -> int:
+        depth = 0
+        in_string = False
+        quote = ""
+        escape = False
+        for i in range(start, len(s)):
+            ch = s[i]
+            if in_string:
+                if escape:
+                    escape = False
+                elif ch == "\\":
+                    escape = True
+                elif ch == quote:
+                    in_string = False
+                continue
+            if ch in ('"', "'"):
+                in_string = True
+                quote = ch
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return i
+        return -1
+
     text = (text or "").strip()
     if not text:
         raise ValueError("空回复")
+
+    candidates: list[str] = [text]
 
     fenced_start = text.find("```")
     if fenced_start != -1:
@@ -151,14 +181,43 @@ def _extract_json_candidate(text: str) -> dict[str, Any]:
             fenced_body = text[fenced_start + 3 : fenced_end].strip()
             if fenced_body.lower().startswith("json"):
                 fenced_body = fenced_body[4:].strip()
-            text = fenced_body
+            if fenced_body:
+                candidates.append(fenced_body)
 
     start = text.find("{")
     end = text.rfind("}")
     if start != -1 and end != -1 and end > start:
-        text = text[start : end + 1]
+        candidates.append(text[start : end + 1])
 
-    return json.loads(text)
+    # 模型可能先输出思考过程，再在尾部给出目标 JSON；优先抽取以 match 开头的对象。
+    for m in re.finditer(r"\{\s*(['\"])match\1\s*:", text):
+        start_idx = m.start()
+        end_idx = _find_matching_brace(text, start_idx)
+        if end_idx > start_idx:
+            candidates.append(text[start_idx : end_idx + 1])
+
+    seen: set[str] = set()
+    for raw in candidates:
+        s = raw.strip()
+        if not s or s in seen:
+            continue
+        seen.add(s)
+        try:
+            parsed = json.loads(s)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+
+        # 兼容部分模型输出 Python 字典风格（单引号）而非严格 JSON。
+        try:
+            parsed = literal_eval(s)
+            if isinstance(parsed, dict):
+                return parsed
+        except (SyntaxError, ValueError):
+            pass
+
+    raise ValueError("无法从模型回复中提取 JSON 对象")
 
 
 def _judge_one_rich(
@@ -428,7 +487,17 @@ def run(cfg: DictConfig) -> int:
             return
 
         content = skills.read_skill_content(skill_dir)
-        user_content = user_tpl.replace("{{skill_content}}", content)
+        scripts_summary = skills.summarize_scripts(skill_dir)
+        user_content = (
+            user_tpl.replace("{{domain_summary}}", domain_summary)
+            .replace("{DOMAIN_SUMMARY}", domain_summary)
+            .replace("{{dir_name}}", dir_name)
+            .replace("{DIR_NAME}", dir_name)
+            .replace("{{skill_content}}", content)
+            .replace("{SKILL_CONTENT}", content)
+            .replace("{{scripts_summary}}", scripts_summary)
+            .replace("{SCRIPTS_SUMMARY}", scripts_summary)
+        )
 
         with sem:
             out = dict(_DEFAULT_RESULT)

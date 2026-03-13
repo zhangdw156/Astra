@@ -5,6 +5,7 @@ from pathlib import Path
 
 # 单条 skill 内容长度上限（字符），超出则截断并注明，避免超 context
 MAX_SKILL_CONTENT_CHARS = 80_000
+MAX_SCRIPT_SUMMARY_FILES = 10
 
 
 def skill_name_from_dirname(dirname: str) -> str:
@@ -31,6 +32,42 @@ def read_skill_content(skill_dir: Path) -> str:
         raw = raw[:MAX_SKILL_CONTENT_CHARS] + "\n\n[... 内容已截断，超过长度上限 ...]"
 
     return f"Skill name: {name}\n\n--- SKILL.md 内容 ---\n\n{raw}"
+
+
+def summarize_scripts(skill_dir: Path, max_files: int = MAX_SCRIPT_SUMMARY_FILES) -> str:
+    """生成轻量 scripts 摘要：列出常见脚本文件相对路径。"""
+    allow_ext = {
+        ".py",
+        ".sh",
+        ".js",
+        ".ts",
+        ".mjs",
+        ".cjs",
+        ".go",
+        ".rs",
+        ".java",
+        ".rb",
+        ".php",
+        ".ps1",
+    }
+    candidates: list[str] = []
+    for p in sorted(skill_dir.rglob("*")):
+        if not p.is_file():
+            continue
+        rel = p.relative_to(skill_dir).as_posix()
+        if rel.startswith("."):
+            continue
+        if rel.endswith("SKILL.md") or rel.endswith("README.md"):
+            continue
+        if p.suffix.lower() not in allow_ext:
+            continue
+        candidates.append(rel)
+        if len(candidates) >= max_files:
+            break
+
+    if not candidates:
+        return "(no script files found)"
+    return "\n".join(f"- {item}" for item in candidates)
 
 
 def list_skill_dirs(skills_root: Path) -> list[Path]:
