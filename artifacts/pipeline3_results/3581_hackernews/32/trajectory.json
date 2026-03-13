@@ -1,0 +1,628 @@
+{
+  "run_id": "3581_hackernews-sample-032",
+  "trajectory_id": "a333dffe-115e-4e55-b422-15c9f2a9140a",
+  "blueprint_id": "30d5d4ed-6ceb-453c-9b14-5d597bdb1c7c",
+  "skill_name": "3581_hackernews",
+  "persona_id": "3581_hackernews-smoke",
+  "tools": [
+    {
+      "name": "top",
+      "description": "Get top/trending stories from Hacker News. Use this when users ask what's trending or popular on HN. For newest stories, use the 'new' command instead. For highest rated, use 'best' instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "default": 10,
+            "description": "Maximum number of stories to return"
+          }
+        }
+      }
+    },
+    {
+      "name": "new",
+      "description": "Get newest stories from Hacker News. Use this to see the latest submissions. For top/trending stories, use 'top' instead. For highest rated, use 'best' instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "default": 10,
+            "description": "Maximum number of stories to return"
+          }
+        }
+      }
+    },
+    {
+      "name": "best",
+      "description": "Get highest rated stories from Hacker News. Use this to see the best-performing stories by score. For top/trending, use 'top' instead. For newest, use 'new' instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "default": 10,
+            "description": "Maximum number of stories to return"
+          }
+        }
+      }
+    },
+    {
+      "name": "ask",
+      "description": "Get Ask HN posts from Hacker News. Use this when users ask about latest Ask HN posts or want to see community questions. For Show HN posts, use 'show' instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "show",
+      "description": "Get Show HN posts from Hacker News. Use this when users want to see showcased projects, products, or demonstrations. For Ask HN posts, use 'ask' instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "jobs",
+      "description": "Get job postings from Hacker News. Use this when users are looking for job opportunities or want to see who's hiring.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "item",
+      "description": "Get full details of a Hacker News item (story, comment, job, poll). Use this to view the complete content of a specific HN item by its ID. For viewing comments on a story, use 'comments' instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "The HN item ID to fetch"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "comments",
+      "description": "Get comments on a Hacker News story. Use this when users want to see the discussion thread for a specific story. For fetching full item details, use 'item' instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "The HN story ID to fetch comments for"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 10,
+            "description": "Maximum number of top-level comments to return"
+          },
+          "depth": {
+            "type": "integer",
+            "default": 1,
+            "description": "Comment depth level to retrieve"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "user",
+      "description": "Get Hacker News user profile. Use this to look up information about an HN user including their account age, karma, and recent submissions.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "The HN username to look up"
+          }
+        },
+        "required": [
+          "username"
+        ]
+      }
+    },
+    {
+      "name": "search",
+      "description": "Search Hacker News stories and comments via Algolia. Use this when users want to find specific topics, keywords, or content on HN. Supports filtering by type (story/comment), sort order, and time period.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query keywords"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "story",
+              "comment",
+              "all"
+            ],
+            "default": "all",
+            "description": "Type of items to search"
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "date",
+              "relevance",
+              "popularity"
+            ],
+            "default": "relevance",
+            "description": "Sort order for results"
+          },
+          "period": {
+            "type": "string",
+            "enum": [
+              "hour",
+              "day",
+              "week",
+              "month",
+              "year",
+              "all"
+            ],
+            "default": "all",
+            "description": "Time period to search within"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 10,
+            "description": "Maximum number of results to return"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    {
+      "name": "whoishiring",
+      "description": "Get 'Who is hiring?' job postings from Hacker News. Use this when users ask about job opportunities or want to find hiring threads. For general job postings, use 'jobs' instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "default": 10,
+            "description": "Maximum number of job postings to return"
+          }
+        }
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": "Please help with: Read top stories"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"stories\": [{\"id\": 101, \"title\": \"Open-source agent runtime reaches v1\", \"score\": 320, \"by\": \"alice\", \"type\": \"top\"}]}"
+    }
+  ],
+  "structured_turns": [
+    {
+      "turn_index": 1,
+      "goal_index": 1,
+      "goal_text": "Read top stories",
+      "user_message": "Please help with: Read top stories",
+      "assistant_message": "{\"stories\": [{\"id\": 101, \"title\": \"Open-source agent runtime reaches v1\", \"score\": 320, \"by\": \"alice\", \"type\": \"top\"}]}",
+      "tool_calls": [
+        {
+          "name": "top",
+          "arguments": {
+            "limit": 1
+          },
+          "result": {
+            "stories": [
+              {
+                "id": 101,
+                "title": "Open-source agent runtime reaches v1",
+                "score": 320,
+                "by": "alice",
+                "type": "top"
+              }
+            ]
+          }
+        }
+      ],
+      "execution_time_ms": 0,
+      "validation": {
+        "tool_execution_succeeded": true
+      },
+      "before_state": {
+        "stories": [
+          {
+            "id": 101,
+            "title": "Open-source agent runtime reaches v1",
+            "type": "top",
+            "score": 320,
+            "by": "alice",
+            "text": "Launch post",
+            "comments": [
+              {
+                "id": 1001,
+                "by": "bob",
+                "text": "Interesting architecture"
+              }
+            ]
+          },
+          {
+            "id": 102,
+            "title": "Ask HN: How are you testing agents?",
+            "type": "ask",
+            "score": 180,
+            "by": "carol",
+            "text": "Testing ideas",
+            "comments": []
+          },
+          {
+            "id": 103,
+            "title": "Show HN: A local search engine for notes",
+            "type": "show",
+            "score": 210,
+            "by": "dave",
+            "text": "Project demo",
+            "comments": []
+          },
+          {
+            "id": 104,
+            "title": "Who is hiring? March 2026",
+            "type": "jobs",
+            "score": 150,
+            "by": "whoishiring",
+            "text": "Hiring thread",
+            "comments": []
+          }
+        ],
+        "users": {
+          "alice": {
+            "id": "alice",
+            "karma": 1200
+          },
+          "carol": {
+            "id": "carol",
+            "karma": 800
+          }
+        }
+      },
+      "after_state": {
+        "stories": [
+          {
+            "id": 101,
+            "title": "Open-source agent runtime reaches v1",
+            "type": "top",
+            "score": 320,
+            "by": "alice",
+            "text": "Launch post",
+            "comments": [
+              {
+                "id": 1001,
+                "by": "bob",
+                "text": "Interesting architecture"
+              }
+            ]
+          },
+          {
+            "id": 102,
+            "title": "Ask HN: How are you testing agents?",
+            "type": "ask",
+            "score": 180,
+            "by": "carol",
+            "text": "Testing ideas",
+            "comments": []
+          },
+          {
+            "id": 103,
+            "title": "Show HN: A local search engine for notes",
+            "type": "show",
+            "score": 210,
+            "by": "dave",
+            "text": "Project demo",
+            "comments": []
+          },
+          {
+            "id": 104,
+            "title": "Who is hiring? March 2026",
+            "type": "jobs",
+            "score": 150,
+            "by": "whoishiring",
+            "text": "Hiring thread",
+            "comments": []
+          }
+        ],
+        "users": {
+          "alice": {
+            "id": "alice",
+            "karma": 1200
+          },
+          "carol": {
+            "id": "carol",
+            "karma": 800
+          }
+        }
+      }
+    }
+  ],
+  "validation": {
+    "ended_normally": true,
+    "turn_count": 1,
+    "state_transition_count": 1,
+    "final_state_diff_vs_expected": []
+  },
+  "final_tool_state": {
+    "stories": [
+      {
+        "id": 101,
+        "title": "Open-source agent runtime reaches v1",
+        "type": "top",
+        "score": 320,
+        "by": "alice",
+        "text": "Launch post",
+        "comments": [
+          {
+            "id": 1001,
+            "by": "bob",
+            "text": "Interesting architecture"
+          }
+        ]
+      },
+      {
+        "id": 102,
+        "title": "Ask HN: How are you testing agents?",
+        "type": "ask",
+        "score": 180,
+        "by": "carol",
+        "text": "Testing ideas",
+        "comments": []
+      },
+      {
+        "id": 103,
+        "title": "Show HN: A local search engine for notes",
+        "type": "show",
+        "score": 210,
+        "by": "dave",
+        "text": "Project demo",
+        "comments": []
+      },
+      {
+        "id": 104,
+        "title": "Who is hiring? March 2026",
+        "type": "jobs",
+        "score": 150,
+        "by": "whoishiring",
+        "text": "Hiring thread",
+        "comments": []
+      }
+    ],
+    "users": {
+      "alice": {
+        "id": "alice",
+        "karma": 1200
+      },
+      "carol": {
+        "id": "carol",
+        "karma": 800
+      }
+    }
+  },
+  "initial_state": {
+    "stories": [
+      {
+        "id": 101,
+        "title": "Open-source agent runtime reaches v1",
+        "type": "top",
+        "score": 320,
+        "by": "alice",
+        "text": "Launch post",
+        "comments": [
+          {
+            "id": 1001,
+            "by": "bob",
+            "text": "Interesting architecture"
+          }
+        ]
+      },
+      {
+        "id": 102,
+        "title": "Ask HN: How are you testing agents?",
+        "type": "ask",
+        "score": 180,
+        "by": "carol",
+        "text": "Testing ideas",
+        "comments": []
+      },
+      {
+        "id": 103,
+        "title": "Show HN: A local search engine for notes",
+        "type": "show",
+        "score": 210,
+        "by": "dave",
+        "text": "Project demo",
+        "comments": []
+      },
+      {
+        "id": 104,
+        "title": "Who is hiring? March 2026",
+        "type": "jobs",
+        "score": 150,
+        "by": "whoishiring",
+        "text": "Hiring thread",
+        "comments": []
+      }
+    ],
+    "users": {
+      "alice": {
+        "id": "alice",
+        "karma": 1200
+      },
+      "carol": {
+        "id": "carol",
+        "karma": 800
+      }
+    }
+  },
+  "scenario_id": "default",
+  "environment_profile": {
+    "backend_mode": "program-fixture",
+    "state_mode": "json",
+    "validation_mode": "turn_state",
+    "scenario_source": "fixture",
+    "bfcl_analog": "web_search",
+    "entry_class": "SkillBackend",
+    "tool_names": [
+      "top",
+      "new",
+      "best",
+      "ask",
+      "show",
+      "jobs",
+      "item",
+      "comments",
+      "user",
+      "search",
+      "whoishiring"
+    ],
+    "default_scenario": "default",
+    "notes_ref": "/home/zhang/work/Astra-env-backend-runtime-refactor/artifacts/env_top30_backend_notes.md"
+  },
+  "state_transitions": [
+    {
+      "tool_name": "top",
+      "arguments": {
+        "limit": 1
+      },
+      "before_state": {
+        "stories": [
+          {
+            "id": 101,
+            "title": "Open-source agent runtime reaches v1",
+            "type": "top",
+            "score": 320,
+            "by": "alice",
+            "text": "Launch post",
+            "comments": [
+              {
+                "id": 1001,
+                "by": "bob",
+                "text": "Interesting architecture"
+              }
+            ]
+          },
+          {
+            "id": 102,
+            "title": "Ask HN: How are you testing agents?",
+            "type": "ask",
+            "score": 180,
+            "by": "carol",
+            "text": "Testing ideas",
+            "comments": []
+          },
+          {
+            "id": 103,
+            "title": "Show HN: A local search engine for notes",
+            "type": "show",
+            "score": 210,
+            "by": "dave",
+            "text": "Project demo",
+            "comments": []
+          },
+          {
+            "id": 104,
+            "title": "Who is hiring? March 2026",
+            "type": "jobs",
+            "score": 150,
+            "by": "whoishiring",
+            "text": "Hiring thread",
+            "comments": []
+          }
+        ],
+        "users": {
+          "alice": {
+            "id": "alice",
+            "karma": 1200
+          },
+          "carol": {
+            "id": "carol",
+            "karma": 800
+          }
+        }
+      },
+      "after_state": {
+        "stories": [
+          {
+            "id": 101,
+            "title": "Open-source agent runtime reaches v1",
+            "type": "top",
+            "score": 320,
+            "by": "alice",
+            "text": "Launch post",
+            "comments": [
+              {
+                "id": 1001,
+                "by": "bob",
+                "text": "Interesting architecture"
+              }
+            ]
+          },
+          {
+            "id": 102,
+            "title": "Ask HN: How are you testing agents?",
+            "type": "ask",
+            "score": 180,
+            "by": "carol",
+            "text": "Testing ideas",
+            "comments": []
+          },
+          {
+            "id": 103,
+            "title": "Show HN: A local search engine for notes",
+            "type": "show",
+            "score": 210,
+            "by": "dave",
+            "text": "Project demo",
+            "comments": []
+          },
+          {
+            "id": 104,
+            "title": "Who is hiring? March 2026",
+            "type": "jobs",
+            "score": 150,
+            "by": "whoishiring",
+            "text": "Hiring thread",
+            "comments": []
+          }
+        ],
+        "users": {
+          "alice": {
+            "id": "alice",
+            "karma": 1200
+          },
+          "carol": {
+            "id": "carol",
+            "karma": 800
+          }
+        }
+      },
+      "result": {
+        "stories": [
+          {
+            "id": 101,
+            "title": "Open-source agent runtime reaches v1",
+            "score": 320,
+            "by": "alice",
+            "type": "top"
+          }
+        ]
+      }
+    }
+  ]
+}

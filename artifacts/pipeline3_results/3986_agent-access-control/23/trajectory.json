@@ -1,0 +1,694 @@
+{
+  "run_id": "3986_agent-access-control-sample-023",
+  "trajectory_id": "602b6421-38af-422b-9cb4-08ac6b39c045",
+  "blueprint_id": "e890e5ae-fa8a-4355-8907-e926d1896521",
+  "skill_name": "3986_agent-access-control",
+  "persona_id": "3986_agent-access-control-smoke",
+  "tools": [
+    {
+      "name": "check_access_tier",
+      "description": "Determine the access tier for an incoming message sender. Checks ownerIds, blockedIds, and approvedContacts to return the appropriate tier (0=stranger, 1=chat-only, 2=trusted, 3=owner). Use this on every incoming message before processing. This is the entry point for access control - if sender is tier 3 (owner), grant full access; if tier 0 (stranger), use handle_stranger; otherwise enforce tier restrictions.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "senderId": {
+            "type": "string",
+            "description": "Sender's unique identifier (phone number, Telegram ID, Discord ID, etc.)"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "whatsapp",
+              "telegram",
+              "discord",
+              "signal",
+              "imessage"
+            ],
+            "description": "Messaging platform the message came from"
+          }
+        },
+        "required": [
+          "senderId",
+          "platform"
+        ]
+      }
+    },
+    {
+      "name": "handle_stranger",
+      "description": "Handle incoming message from a stranger (unauthorized contact). Executes the full stranger flow: send diplomatic deflection message, notify owner via configured channel, store in pendingApprovals, and respond with NO_REPLY. Use this when check_access_tier returns tier 0. This is the core protection mechanism - it deflects unknown contacts while alerting the owner.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "senderId": {
+            "type": "string",
+            "description": "Stranger's unique identifier"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "whatsapp",
+              "telegram",
+              "discord",
+              "signal",
+              "imessage"
+            ],
+            "description": "Messaging platform"
+          },
+          "message": {
+            "type": "string",
+            "description": "The stranger's first message (truncated to 100 chars for notification)"
+          }
+        },
+        "required": [
+          "senderId",
+          "platform",
+          "message"
+        ]
+      }
+    },
+    {
+      "name": "approve_contact",
+      "description": "Process owner approval response to a stranger notification. Parses owner's reply (approve/trusted, chat/chat-only, block, ignore) and updates access-control.json accordingly. Use this when owner responds to a notification from handle_stranger. After approval, sends notification to the newly approved contact.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ownerResponse": {
+            "type": "string",
+            "description": "Owner's response: 'approve'/'yes'/'trusted' (tier 2), 'chat'/'chat-only'/'chat only' (tier 1), 'block'/'no'/'deny' (block), 'ignore' (no action)"
+          },
+          "senderId": {
+            "type": "string",
+            "description": "The contact's sender ID to approve/block/ignore"
+          }
+        },
+        "required": [
+          "ownerResponse",
+          "senderId"
+        ]
+      }
+    },
+    {
+      "name": "enforce_tier",
+      "description": "Enforce access restrictions based on sender's tier. Tier 1 (chat-only): conversation only, no tools, no memory access. Tier 2 (trusted): can use web_search, weather, time queries only. Use this before responding to any non-owner message. For tier 0 (stranger), use handle_stranger instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tier": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ],
+            "description": "Access tier: 1 = chat-only, 2 = trusted"
+          },
+          "requestedAction": {
+            "type": "string",
+            "description": "What the user is asking to do (e.g., 'read file', 'send message', 'search web')"
+          }
+        },
+        "required": [
+          "tier",
+          "requestedAction"
+        ]
+      }
+    },
+    {
+      "name": "normalize_id",
+      "description": "Normalize sender ID for consistent matching across platforms. Phone numbers: strip non-digits except leading '+'. Telegram/Discord: use numeric ID with platform prefix. Use this before checking access-control.json. Multiple platform prefixes: 'telegram:', 'discord:', 'whatsapp:', 'signal:'.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "rawId": {
+            "type": "string",
+            "description": "Raw sender ID as received from platform"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "whatsapp",
+              "telegram",
+              "discord",
+              "signal",
+              "imessage"
+            ],
+            "description": "Messaging platform"
+          }
+        },
+        "required": [
+          "rawId",
+          "platform"
+        ]
+      }
+    },
+    {
+      "name": "check_rate_limit",
+      "description": "Check and enforce per-tier rate limits. Stranger: 1 msg/hour, 3/day. Chat-only: 20/hour, 100/day. Trusted: 50/hour, 500/day. Owner: unlimited. Use this before responding. If limit exceeded, return deflection message instead of normal response. Updates rate limit counters in access-control.json.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "senderId": {
+            "type": "string",
+            "description": "Sender's normalized ID"
+          },
+          "tier": {
+            "type": "integer",
+            "enum": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "description": "Access tier: 0=stranger, 1=chat-only, 2=trusted, 3=owner"
+          }
+        },
+        "required": [
+          "senderId",
+          "tier"
+        ]
+      }
+    },
+    {
+      "name": "log_event",
+      "description": "Log access control events to audit log (memory/access-control-log.json). Logs: stranger contacts, deflections, approvals, blocks. Keeps last 100 entries, rotates older ones. Use this for compliance and debugging. Events include timestamp, senderId, platform, action, and message preview.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "deflected",
+              "approved",
+              "blocked",
+              "ignored",
+              "rate_limited"
+            ],
+            "description": "Action type to log"
+          },
+          "senderId": {
+            "type": "string",
+            "description": "Sender's normalized ID"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "whatsapp",
+              "telegram",
+              "discord",
+              "signal",
+              "imessage"
+            ],
+            "description": "Messaging platform"
+          },
+          "message": {
+            "type": "string",
+            "description": "First 50 chars of message (for deflected events)"
+          }
+        },
+        "required": [
+          "action",
+          "senderId",
+          "platform"
+        ]
+      }
+    },
+    {
+      "name": "init_access_control",
+      "description": "Initialize access-control.json configuration file in the agent's memory directory. Creates the config file with default values: empty ownerIds, empty contacts, default stranger message, and rate limit tracking. Run this once during skill setup. Customize ownerIds, notifyChannel, notifyTarget, and strangerMessage after initialization.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "memoryDir": {
+            "type": "string",
+            "default": "memory",
+            "description": "Directory to create config in (default: memory)"
+          },
+          "agentName": {
+            "type": "string",
+            "default": "Assistant",
+            "description": "Agent name for stranger message template"
+          }
+        },
+        "required": []
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": "Please help with: Handle an unknown contact"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"senderId\": \"telegram:99\", \"status\": \"pending_approval\", \"reply\": \"NO_REPLY\"}"
+    },
+    {
+      "role": "user",
+      "content": "Please help with: Approve the contact"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"senderId\": \"telegram:99\", \"action\": \"approved\"}"
+    },
+    {
+      "role": "user",
+      "content": "Please help with: Check access tier"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"senderId\": \"telegram:99\", \"tier\": 2}"
+    }
+  ],
+  "structured_turns": [
+    {
+      "turn_index": 1,
+      "goal_index": 1,
+      "goal_text": "Handle an unknown contact",
+      "user_message": "Please help with: Handle an unknown contact",
+      "assistant_message": "{\"senderId\": \"telegram:99\", \"status\": \"pending_approval\", \"reply\": \"NO_REPLY\"}",
+      "tool_calls": [
+        {
+          "name": "handle_stranger",
+          "arguments": {
+            "senderId": "telegram:99",
+            "platform": "telegram",
+            "message": "hello there"
+          },
+          "result": {
+            "senderId": "telegram:99",
+            "status": "pending_approval",
+            "reply": "NO_REPLY"
+          }
+        }
+      ],
+      "execution_time_ms": 0,
+      "validation": {
+        "tool_execution_succeeded": true
+      },
+      "before_state": {
+        "ownerIds": [
+          "telegram:1"
+        ],
+        "blockedIds": [],
+        "approvedContacts": {},
+        "pendingApprovals": {},
+        "rateLimits": {},
+        "logs": []
+      },
+      "after_state": {
+        "ownerIds": [
+          "telegram:1"
+        ],
+        "blockedIds": [],
+        "approvedContacts": {},
+        "pendingApprovals": {
+          "telegram:99": {
+            "platform": "telegram",
+            "message": "hello there"
+          }
+        },
+        "rateLimits": {},
+        "logs": [
+          {
+            "action": "deflected",
+            "senderId": "telegram:99",
+            "platform": "telegram",
+            "message": "hello there"
+          }
+        ]
+      }
+    },
+    {
+      "turn_index": 2,
+      "goal_index": 2,
+      "goal_text": "Approve the contact",
+      "user_message": "Please help with: Approve the contact",
+      "assistant_message": "{\"senderId\": \"telegram:99\", \"action\": \"approved\"}",
+      "tool_calls": [
+        {
+          "name": "approve_contact",
+          "arguments": {
+            "senderId": "telegram:99",
+            "ownerResponse": "trusted"
+          },
+          "result": {
+            "senderId": "telegram:99",
+            "action": "approved"
+          }
+        }
+      ],
+      "execution_time_ms": 0,
+      "validation": {
+        "tool_execution_succeeded": true
+      },
+      "before_state": {
+        "ownerIds": [
+          "telegram:1"
+        ],
+        "blockedIds": [],
+        "approvedContacts": {},
+        "pendingApprovals": {
+          "telegram:99": {
+            "platform": "telegram",
+            "message": "hello there"
+          }
+        },
+        "rateLimits": {},
+        "logs": [
+          {
+            "action": "deflected",
+            "senderId": "telegram:99",
+            "platform": "telegram",
+            "message": "hello there"
+          }
+        ]
+      },
+      "after_state": {
+        "ownerIds": [
+          "telegram:1"
+        ],
+        "blockedIds": [],
+        "approvedContacts": {
+          "telegram:99": 2
+        },
+        "pendingApprovals": {},
+        "rateLimits": {},
+        "logs": [
+          {
+            "action": "deflected",
+            "senderId": "telegram:99",
+            "platform": "telegram",
+            "message": "hello there"
+          },
+          {
+            "action": "approved",
+            "senderId": "telegram:99",
+            "platform": "telegram",
+            "message": "trusted"
+          }
+        ]
+      }
+    },
+    {
+      "turn_index": 3,
+      "goal_index": 3,
+      "goal_text": "Check access tier",
+      "user_message": "Please help with: Check access tier",
+      "assistant_message": "{\"senderId\": \"telegram:99\", \"tier\": 2}",
+      "tool_calls": [
+        {
+          "name": "check_access_tier",
+          "arguments": {
+            "senderId": "telegram:99",
+            "platform": "telegram"
+          },
+          "result": {
+            "senderId": "telegram:99",
+            "tier": 2
+          }
+        }
+      ],
+      "execution_time_ms": 0,
+      "validation": {
+        "tool_execution_succeeded": true
+      },
+      "before_state": {
+        "ownerIds": [
+          "telegram:1"
+        ],
+        "blockedIds": [],
+        "approvedContacts": {
+          "telegram:99": 2
+        },
+        "pendingApprovals": {},
+        "rateLimits": {},
+        "logs": [
+          {
+            "action": "deflected",
+            "senderId": "telegram:99",
+            "platform": "telegram",
+            "message": "hello there"
+          },
+          {
+            "action": "approved",
+            "senderId": "telegram:99",
+            "platform": "telegram",
+            "message": "trusted"
+          }
+        ]
+      },
+      "after_state": {
+        "ownerIds": [
+          "telegram:1"
+        ],
+        "blockedIds": [],
+        "approvedContacts": {
+          "telegram:99": 2
+        },
+        "pendingApprovals": {},
+        "rateLimits": {},
+        "logs": [
+          {
+            "action": "deflected",
+            "senderId": "telegram:99",
+            "platform": "telegram",
+            "message": "hello there"
+          },
+          {
+            "action": "approved",
+            "senderId": "telegram:99",
+            "platform": "telegram",
+            "message": "trusted"
+          }
+        ]
+      }
+    }
+  ],
+  "validation": {
+    "ended_normally": true,
+    "turn_count": 3,
+    "state_transition_count": 3,
+    "final_state_diff_vs_expected": []
+  },
+  "final_tool_state": {
+    "ownerIds": [
+      "telegram:1"
+    ],
+    "blockedIds": [],
+    "approvedContacts": {
+      "telegram:99": 2
+    },
+    "pendingApprovals": {},
+    "rateLimits": {},
+    "logs": [
+      {
+        "action": "deflected",
+        "senderId": "telegram:99",
+        "platform": "telegram",
+        "message": "hello there"
+      },
+      {
+        "action": "approved",
+        "senderId": "telegram:99",
+        "platform": "telegram",
+        "message": "trusted"
+      }
+    ]
+  },
+  "initial_state": {
+    "ownerIds": [
+      "telegram:1"
+    ],
+    "blockedIds": [],
+    "approvedContacts": {},
+    "pendingApprovals": {},
+    "rateLimits": {},
+    "logs": []
+  },
+  "scenario_id": "default",
+  "environment_profile": {
+    "backend_mode": "program-direct",
+    "state_mode": "json",
+    "validation_mode": "turn_state",
+    "scenario_source": "inline",
+    "bfcl_analog": "message_api",
+    "entry_class": "SkillBackend",
+    "tool_names": [
+      "check_access_tier",
+      "handle_stranger",
+      "approve_contact",
+      "enforce_tier",
+      "normalize_id",
+      "check_rate_limit",
+      "log_event",
+      "init_access_control"
+    ],
+    "default_scenario": "default",
+    "notes_ref": "/home/zhang/work/Astra-env-backend-runtime-refactor/artifacts/env_top30_backend_notes.md"
+  },
+  "state_transitions": [
+    {
+      "tool_name": "handle_stranger",
+      "arguments": {
+        "senderId": "telegram:99",
+        "platform": "telegram",
+        "message": "hello there"
+      },
+      "before_state": {
+        "ownerIds": [
+          "telegram:1"
+        ],
+        "blockedIds": [],
+        "approvedContacts": {},
+        "pendingApprovals": {},
+        "rateLimits": {},
+        "logs": []
+      },
+      "after_state": {
+        "ownerIds": [
+          "telegram:1"
+        ],
+        "blockedIds": [],
+        "approvedContacts": {},
+        "pendingApprovals": {
+          "telegram:99": {
+            "platform": "telegram",
+            "message": "hello there"
+          }
+        },
+        "rateLimits": {},
+        "logs": [
+          {
+            "action": "deflected",
+            "senderId": "telegram:99",
+            "platform": "telegram",
+            "message": "hello there"
+          }
+        ]
+      },
+      "result": {
+        "senderId": "telegram:99",
+        "status": "pending_approval",
+        "reply": "NO_REPLY"
+      }
+    },
+    {
+      "tool_name": "approve_contact",
+      "arguments": {
+        "senderId": "telegram:99",
+        "ownerResponse": "trusted"
+      },
+      "before_state": {
+        "ownerIds": [
+          "telegram:1"
+        ],
+        "blockedIds": [],
+        "approvedContacts": {},
+        "pendingApprovals": {
+          "telegram:99": {
+            "platform": "telegram",
+            "message": "hello there"
+          }
+        },
+        "rateLimits": {},
+        "logs": [
+          {
+            "action": "deflected",
+            "senderId": "telegram:99",
+            "platform": "telegram",
+            "message": "hello there"
+          }
+        ]
+      },
+      "after_state": {
+        "ownerIds": [
+          "telegram:1"
+        ],
+        "blockedIds": [],
+        "approvedContacts": {
+          "telegram:99": 2
+        },
+        "pendingApprovals": {},
+        "rateLimits": {},
+        "logs": [
+          {
+            "action": "deflected",
+            "senderId": "telegram:99",
+            "platform": "telegram",
+            "message": "hello there"
+          },
+          {
+            "action": "approved",
+            "senderId": "telegram:99",
+            "platform": "telegram",
+            "message": "trusted"
+          }
+        ]
+      },
+      "result": {
+        "senderId": "telegram:99",
+        "action": "approved"
+      }
+    },
+    {
+      "tool_name": "check_access_tier",
+      "arguments": {
+        "senderId": "telegram:99",
+        "platform": "telegram"
+      },
+      "before_state": {
+        "ownerIds": [
+          "telegram:1"
+        ],
+        "blockedIds": [],
+        "approvedContacts": {
+          "telegram:99": 2
+        },
+        "pendingApprovals": {},
+        "rateLimits": {},
+        "logs": [
+          {
+            "action": "deflected",
+            "senderId": "telegram:99",
+            "platform": "telegram",
+            "message": "hello there"
+          },
+          {
+            "action": "approved",
+            "senderId": "telegram:99",
+            "platform": "telegram",
+            "message": "trusted"
+          }
+        ]
+      },
+      "after_state": {
+        "ownerIds": [
+          "telegram:1"
+        ],
+        "blockedIds": [],
+        "approvedContacts": {
+          "telegram:99": 2
+        },
+        "pendingApprovals": {},
+        "rateLimits": {},
+        "logs": [
+          {
+            "action": "deflected",
+            "senderId": "telegram:99",
+            "platform": "telegram",
+            "message": "hello there"
+          },
+          {
+            "action": "approved",
+            "senderId": "telegram:99",
+            "platform": "telegram",
+            "message": "trusted"
+          }
+        ]
+      },
+      "result": {
+        "senderId": "telegram:99",
+        "tier": 2
+      }
+    }
+  ]
+}

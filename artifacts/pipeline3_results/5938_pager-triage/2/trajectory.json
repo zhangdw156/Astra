@@ -1,0 +1,1525 @@
+{
+  "run_id": "5938_pager-triage-sample-002",
+  "trajectory_id": "5a693f8f-793a-4f7e-8823-35914ada473a",
+  "blueprint_id": "88871ca5-a80e-4ed3-85bb-6f72e24381ab",
+  "skill_name": "5938_pager-triage",
+  "persona_id": "5938_pager-triage-smoke",
+  "tools": [
+    {
+      "name": "pd_incidents",
+      "description": "List all active PagerDuty incidents (triggered and acknowledged), sorted by urgency. Use this to answer 'what's firing?' or 'what's on fire?' questions. For detailed incident information, use pd_incident_detail instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "pd_incident_detail",
+      "description": "Get detailed information about a specific incident including timeline, alerts, and notes. Use this after pd_incidents to deep-dive into a specific incident. For a quick overview of all active incidents, use pd_incidents instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "incident_id": {
+            "type": "string",
+            "description": "The PagerDuty incident ID (e.g., P123ABC)"
+          }
+        },
+        "required": [
+          "incident_id"
+        ]
+      }
+    },
+    {
+      "name": "pd_oncall",
+      "description": "Show current on-call schedules and escalation policies across all schedules. Use this to answer 'who's on call?' or 'who's oncall right now?' questions.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "pd_services",
+      "description": "List all PagerDuty services and their current operational status (critical, warning, active, disabled). Use this to check service health or get service IDs for use with pd_recent.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "pd_recent",
+      "description": "Show recent incidents for a service or across all services with summary statistics. Use this to answer 'what happened last night?' or investigate incident patterns. Use pd_incidents for currently active incidents instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string",
+            "description": "Filter to a specific PagerDuty service ID"
+          },
+          "since": {
+            "type": "string",
+            "enum": [
+              "24h",
+              "7d",
+              "30d"
+            ],
+            "default": "24h",
+            "description": "Time window: 24h, 7d, or 30d"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "pd_incident_ack",
+      "description": "Acknowledge a triggered incident, stopping further escalation. Requires --confirm flag and PAGERDUTY_EMAIL to be set. Read-only by default; use pd_incidents to view incidents before acknowledging. For resolving incidents, use pd_incident_resolve instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "incident_id": {
+            "type": "string",
+            "description": "The PagerDuty incident ID to acknowledge (e.g., P123ABC)"
+          },
+          "confirm": {
+            "type": "boolean",
+            "default": false,
+            "description": "Must be set to true to actually acknowledge the incident"
+          }
+        },
+        "required": [
+          "incident_id"
+        ]
+      }
+    },
+    {
+      "name": "pd_incident_resolve",
+      "description": "Resolve an incident, marking it as fixed. Requires --confirm flag and PAGERDUTY_EMAIL to be set. Read-only by default; use pd_incidents to view incidents before resolving. For acknowledging incidents, use pd_incident_ack instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "incident_id": {
+            "type": "string",
+            "description": "The PagerDuty incident ID to resolve (e.g., P123ABC)"
+          },
+          "confirm": {
+            "type": "boolean",
+            "default": false,
+            "description": "Must be set to true to actually resolve the incident"
+          }
+        },
+        "required": [
+          "incident_id"
+        ]
+      }
+    },
+    {
+      "name": "pd_incident_note",
+      "description": "Add a permanent note to an incident's timeline. Useful for documenting root cause, investigation steps, or remediation actions. Requires --confirm flag and PAGERDUTY_EMAIL to be set. For viewing incidents, use pd_incidents or pd_incident_detail instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "incident_id": {
+            "type": "string",
+            "description": "The PagerDuty incident ID to add a note to (e.g., P123ABC)"
+          },
+          "content": {
+            "type": "string",
+            "description": "The note text to add"
+          },
+          "confirm": {
+            "type": "boolean",
+            "default": false,
+            "description": "Must be set to true to actually add the note"
+          }
+        },
+        "required": [
+          "incident_id",
+          "content"
+        ]
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": "Please help with: List incidents"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"total_incidents\": 2, \"incidents\": [{\"id\": \"P123ABC\", \"incident_number\": 4521, \"title\": \"High CPU on prod-web-03\", \"status\": \"triggered\", \"urgency\": \"high\", \"service\": {\"id\": \"PSVC123\", \"name\": \"Production Web\"}, \"created_at\": \"2026-03-13T08:15:00Z\", \"assignments\": [{\"name\": \"Jane Doe\", \"email\": \"jane@company.com\"}], \"alert_count\": 3, \"escalation_level\": 1, \"last_status_change\": \"2026-03-13T08:20:00Z\"}, {\"id\": \"P999XYZ\", \"incident_number\": 4520, \"title\": \"Queue lag on workers\", \"status\": \"acknowledged\", \"urgency\": \"low\", \"service\": {\"id\": \"PSVC456\", \"name\": \"Worker Fleet\"}, \"created_at\": \"2026-03-12T21:00:00Z\", \"assignments\": [{\"name\": \"Bob Smith\", \"email\": \"bob@company.com\"}], \"alert_count\": 1, \"escalation_level\": 1, \"last_status_change\": \"2026-03-12T21:10:00Z\"}]}"
+    },
+    {
+      "role": "user",
+      "content": "Please help with: Preview acknowledge"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"would_update\": true, \"incident_id\": \"P123ABC\", \"target_status\": \"acknowledged\"}"
+    }
+  ],
+  "structured_turns": [
+    {
+      "turn_index": 1,
+      "goal_index": 1,
+      "goal_text": "List incidents",
+      "user_message": "Please help with: List incidents",
+      "assistant_message": "{\"total_incidents\": 2, \"incidents\": [{\"id\": \"P123ABC\", \"incident_number\": 4521, \"title\": \"High CPU on prod-web-03\", \"status\": \"triggered\", \"urgency\": \"high\", \"service\": {\"id\": \"PSVC123\", \"name\": \"Production Web\"}, \"created_at\": \"2026-03-13T08:15:00Z\", \"assignments\": [{\"name\": \"Jane Doe\", \"email\": \"jane@company.com\"}], \"alert_count\": 3, \"escalation_level\": 1, \"last_status_change\": \"2026-03-13T08:20:00Z\"}, {\"id\": \"P999XYZ\", \"incident_number\": 4520, \"title\": \"Queue lag on workers\", \"status\": \"acknowledged\", \"urgency\": \"low\", \"service\": {\"id\": \"PSVC456\", \"name\": \"Worker Fleet\"}, \"created_at\": \"2026-03-12T21:00:00Z\", \"assignments\": [{\"name\": \"Bob Smith\", \"email\": \"bob@company.com\"}], \"alert_count\": 1, \"escalation_level\": 1, \"last_status_change\": \"2026-03-12T21:10:00Z\"}]}",
+      "tool_calls": [
+        {
+          "name": "pd_incidents",
+          "arguments": {},
+          "result": {
+            "total_incidents": 2,
+            "incidents": [
+              {
+                "id": "P123ABC",
+                "incident_number": 4521,
+                "title": "High CPU on prod-web-03",
+                "status": "triggered",
+                "urgency": "high",
+                "service": {
+                  "id": "PSVC123",
+                  "name": "Production Web"
+                },
+                "created_at": "2026-03-13T08:15:00Z",
+                "assignments": [
+                  {
+                    "name": "Jane Doe",
+                    "email": "jane@company.com"
+                  }
+                ],
+                "alert_count": 3,
+                "escalation_level": 1,
+                "last_status_change": "2026-03-13T08:20:00Z"
+              },
+              {
+                "id": "P999XYZ",
+                "incident_number": 4520,
+                "title": "Queue lag on workers",
+                "status": "acknowledged",
+                "urgency": "low",
+                "service": {
+                  "id": "PSVC456",
+                  "name": "Worker Fleet"
+                },
+                "created_at": "2026-03-12T21:00:00Z",
+                "assignments": [
+                  {
+                    "name": "Bob Smith",
+                    "email": "bob@company.com"
+                  }
+                ],
+                "alert_count": 1,
+                "escalation_level": 1,
+                "last_status_change": "2026-03-12T21:10:00Z"
+              }
+            ]
+          }
+        }
+      ],
+      "execution_time_ms": 0,
+      "validation": {
+        "tool_execution_succeeded": true
+      },
+      "before_state": {
+        "services": [
+          {
+            "id": "PSVC123",
+            "name": "Production Web",
+            "status": "critical",
+            "description": "Production web application servers",
+            "escalation_policy": "Production Escalation",
+            "integrations": [
+              "Prometheus Alertmanager",
+              "CloudWatch"
+            ]
+          },
+          {
+            "id": "PSVC456",
+            "name": "Worker Fleet",
+            "status": "active",
+            "description": "Background workers",
+            "escalation_policy": "Worker Escalation",
+            "integrations": [
+              "Datadog"
+            ]
+          }
+        ],
+        "oncalls": [
+          {
+            "user": {
+              "name": "Jane Doe",
+              "email": "jane@company.com"
+            },
+            "schedule": {
+              "name": "Primary SRE",
+              "id": "PSCHED1"
+            },
+            "escalation_policy": {
+              "name": "Production Escalation"
+            },
+            "escalation_level": 1,
+            "start": "2026-03-13T00:00:00Z",
+            "end": "2026-03-14T00:00:00Z"
+          }
+        ],
+        "incidents": [
+          {
+            "id": "P123ABC",
+            "incident_number": 4521,
+            "title": "High CPU on prod-web-03",
+            "status": "triggered",
+            "urgency": "high",
+            "service_id": "PSVC123",
+            "created_at": "2026-03-13T08:15:00Z",
+            "last_status_change": "2026-03-13T08:20:00Z",
+            "assignments": [
+              {
+                "name": "Jane Doe",
+                "email": "jane@company.com"
+              }
+            ],
+            "alert_count": 3,
+            "escalation_level": 1,
+            "timeline": [
+              {
+                "type": "trigger_log_entry",
+                "created_at": "2026-03-13T08:15:00Z",
+                "summary": "Incident triggered via Prometheus Alertmanager"
+              },
+              {
+                "type": "escalate_log_entry",
+                "created_at": "2026-03-13T08:18:00Z",
+                "summary": "Escalated to Jane Doe (Level 1)"
+              }
+            ],
+            "alerts": [
+              {
+                "id": "A456DEF",
+                "severity": "critical",
+                "summary": "CPU > 95% on prod-web-03",
+                "source": "Prometheus Alertmanager"
+              }
+            ],
+            "notes": []
+          },
+          {
+            "id": "P999XYZ",
+            "incident_number": 4520,
+            "title": "Queue lag on workers",
+            "status": "acknowledged",
+            "urgency": "low",
+            "service_id": "PSVC456",
+            "created_at": "2026-03-12T21:00:00Z",
+            "last_status_change": "2026-03-12T21:10:00Z",
+            "assignments": [
+              {
+                "name": "Bob Smith",
+                "email": "bob@company.com"
+              }
+            ],
+            "alert_count": 1,
+            "escalation_level": 1,
+            "timeline": [
+              {
+                "type": "trigger_log_entry",
+                "created_at": "2026-03-12T21:00:00Z",
+                "summary": "Incident triggered via Datadog"
+              }
+            ],
+            "alerts": [
+              {
+                "id": "A000111",
+                "severity": "warning",
+                "summary": "Queue lag exceeded threshold",
+                "source": "Datadog"
+              }
+            ],
+            "notes": []
+          }
+        ]
+      },
+      "after_state": {
+        "services": [
+          {
+            "id": "PSVC123",
+            "name": "Production Web",
+            "status": "critical",
+            "description": "Production web application servers",
+            "escalation_policy": "Production Escalation",
+            "integrations": [
+              "Prometheus Alertmanager",
+              "CloudWatch"
+            ]
+          },
+          {
+            "id": "PSVC456",
+            "name": "Worker Fleet",
+            "status": "active",
+            "description": "Background workers",
+            "escalation_policy": "Worker Escalation",
+            "integrations": [
+              "Datadog"
+            ]
+          }
+        ],
+        "oncalls": [
+          {
+            "user": {
+              "name": "Jane Doe",
+              "email": "jane@company.com"
+            },
+            "schedule": {
+              "name": "Primary SRE",
+              "id": "PSCHED1"
+            },
+            "escalation_policy": {
+              "name": "Production Escalation"
+            },
+            "escalation_level": 1,
+            "start": "2026-03-13T00:00:00Z",
+            "end": "2026-03-14T00:00:00Z"
+          }
+        ],
+        "incidents": [
+          {
+            "id": "P123ABC",
+            "incident_number": 4521,
+            "title": "High CPU on prod-web-03",
+            "status": "triggered",
+            "urgency": "high",
+            "service_id": "PSVC123",
+            "created_at": "2026-03-13T08:15:00Z",
+            "last_status_change": "2026-03-13T08:20:00Z",
+            "assignments": [
+              {
+                "name": "Jane Doe",
+                "email": "jane@company.com"
+              }
+            ],
+            "alert_count": 3,
+            "escalation_level": 1,
+            "timeline": [
+              {
+                "type": "trigger_log_entry",
+                "created_at": "2026-03-13T08:15:00Z",
+                "summary": "Incident triggered via Prometheus Alertmanager"
+              },
+              {
+                "type": "escalate_log_entry",
+                "created_at": "2026-03-13T08:18:00Z",
+                "summary": "Escalated to Jane Doe (Level 1)"
+              }
+            ],
+            "alerts": [
+              {
+                "id": "A456DEF",
+                "severity": "critical",
+                "summary": "CPU > 95% on prod-web-03",
+                "source": "Prometheus Alertmanager"
+              }
+            ],
+            "notes": []
+          },
+          {
+            "id": "P999XYZ",
+            "incident_number": 4520,
+            "title": "Queue lag on workers",
+            "status": "acknowledged",
+            "urgency": "low",
+            "service_id": "PSVC456",
+            "created_at": "2026-03-12T21:00:00Z",
+            "last_status_change": "2026-03-12T21:10:00Z",
+            "assignments": [
+              {
+                "name": "Bob Smith",
+                "email": "bob@company.com"
+              }
+            ],
+            "alert_count": 1,
+            "escalation_level": 1,
+            "timeline": [
+              {
+                "type": "trigger_log_entry",
+                "created_at": "2026-03-12T21:00:00Z",
+                "summary": "Incident triggered via Datadog"
+              }
+            ],
+            "alerts": [
+              {
+                "id": "A000111",
+                "severity": "warning",
+                "summary": "Queue lag exceeded threshold",
+                "source": "Datadog"
+              }
+            ],
+            "notes": []
+          }
+        ]
+      }
+    },
+    {
+      "turn_index": 2,
+      "goal_index": 2,
+      "goal_text": "Preview acknowledge",
+      "user_message": "Please help with: Preview acknowledge",
+      "assistant_message": "{\"would_update\": true, \"incident_id\": \"P123ABC\", \"target_status\": \"acknowledged\"}",
+      "tool_calls": [
+        {
+          "name": "pd_incident_ack",
+          "arguments": {
+            "incident_id": "P123ABC",
+            "confirm": false
+          },
+          "result": {
+            "would_update": true,
+            "incident_id": "P123ABC",
+            "target_status": "acknowledged"
+          }
+        }
+      ],
+      "execution_time_ms": 0,
+      "validation": {
+        "tool_execution_succeeded": true
+      },
+      "before_state": {
+        "services": [
+          {
+            "id": "PSVC123",
+            "name": "Production Web",
+            "status": "critical",
+            "description": "Production web application servers",
+            "escalation_policy": "Production Escalation",
+            "integrations": [
+              "Prometheus Alertmanager",
+              "CloudWatch"
+            ]
+          },
+          {
+            "id": "PSVC456",
+            "name": "Worker Fleet",
+            "status": "active",
+            "description": "Background workers",
+            "escalation_policy": "Worker Escalation",
+            "integrations": [
+              "Datadog"
+            ]
+          }
+        ],
+        "oncalls": [
+          {
+            "user": {
+              "name": "Jane Doe",
+              "email": "jane@company.com"
+            },
+            "schedule": {
+              "name": "Primary SRE",
+              "id": "PSCHED1"
+            },
+            "escalation_policy": {
+              "name": "Production Escalation"
+            },
+            "escalation_level": 1,
+            "start": "2026-03-13T00:00:00Z",
+            "end": "2026-03-14T00:00:00Z"
+          }
+        ],
+        "incidents": [
+          {
+            "id": "P123ABC",
+            "incident_number": 4521,
+            "title": "High CPU on prod-web-03",
+            "status": "triggered",
+            "urgency": "high",
+            "service_id": "PSVC123",
+            "created_at": "2026-03-13T08:15:00Z",
+            "last_status_change": "2026-03-13T08:20:00Z",
+            "assignments": [
+              {
+                "name": "Jane Doe",
+                "email": "jane@company.com"
+              }
+            ],
+            "alert_count": 3,
+            "escalation_level": 1,
+            "timeline": [
+              {
+                "type": "trigger_log_entry",
+                "created_at": "2026-03-13T08:15:00Z",
+                "summary": "Incident triggered via Prometheus Alertmanager"
+              },
+              {
+                "type": "escalate_log_entry",
+                "created_at": "2026-03-13T08:18:00Z",
+                "summary": "Escalated to Jane Doe (Level 1)"
+              }
+            ],
+            "alerts": [
+              {
+                "id": "A456DEF",
+                "severity": "critical",
+                "summary": "CPU > 95% on prod-web-03",
+                "source": "Prometheus Alertmanager"
+              }
+            ],
+            "notes": []
+          },
+          {
+            "id": "P999XYZ",
+            "incident_number": 4520,
+            "title": "Queue lag on workers",
+            "status": "acknowledged",
+            "urgency": "low",
+            "service_id": "PSVC456",
+            "created_at": "2026-03-12T21:00:00Z",
+            "last_status_change": "2026-03-12T21:10:00Z",
+            "assignments": [
+              {
+                "name": "Bob Smith",
+                "email": "bob@company.com"
+              }
+            ],
+            "alert_count": 1,
+            "escalation_level": 1,
+            "timeline": [
+              {
+                "type": "trigger_log_entry",
+                "created_at": "2026-03-12T21:00:00Z",
+                "summary": "Incident triggered via Datadog"
+              }
+            ],
+            "alerts": [
+              {
+                "id": "A000111",
+                "severity": "warning",
+                "summary": "Queue lag exceeded threshold",
+                "source": "Datadog"
+              }
+            ],
+            "notes": []
+          }
+        ]
+      },
+      "after_state": {
+        "services": [
+          {
+            "id": "PSVC123",
+            "name": "Production Web",
+            "status": "critical",
+            "description": "Production web application servers",
+            "escalation_policy": "Production Escalation",
+            "integrations": [
+              "Prometheus Alertmanager",
+              "CloudWatch"
+            ]
+          },
+          {
+            "id": "PSVC456",
+            "name": "Worker Fleet",
+            "status": "active",
+            "description": "Background workers",
+            "escalation_policy": "Worker Escalation",
+            "integrations": [
+              "Datadog"
+            ]
+          }
+        ],
+        "oncalls": [
+          {
+            "user": {
+              "name": "Jane Doe",
+              "email": "jane@company.com"
+            },
+            "schedule": {
+              "name": "Primary SRE",
+              "id": "PSCHED1"
+            },
+            "escalation_policy": {
+              "name": "Production Escalation"
+            },
+            "escalation_level": 1,
+            "start": "2026-03-13T00:00:00Z",
+            "end": "2026-03-14T00:00:00Z"
+          }
+        ],
+        "incidents": [
+          {
+            "id": "P123ABC",
+            "incident_number": 4521,
+            "title": "High CPU on prod-web-03",
+            "status": "triggered",
+            "urgency": "high",
+            "service_id": "PSVC123",
+            "created_at": "2026-03-13T08:15:00Z",
+            "last_status_change": "2026-03-13T08:20:00Z",
+            "assignments": [
+              {
+                "name": "Jane Doe",
+                "email": "jane@company.com"
+              }
+            ],
+            "alert_count": 3,
+            "escalation_level": 1,
+            "timeline": [
+              {
+                "type": "trigger_log_entry",
+                "created_at": "2026-03-13T08:15:00Z",
+                "summary": "Incident triggered via Prometheus Alertmanager"
+              },
+              {
+                "type": "escalate_log_entry",
+                "created_at": "2026-03-13T08:18:00Z",
+                "summary": "Escalated to Jane Doe (Level 1)"
+              }
+            ],
+            "alerts": [
+              {
+                "id": "A456DEF",
+                "severity": "critical",
+                "summary": "CPU > 95% on prod-web-03",
+                "source": "Prometheus Alertmanager"
+              }
+            ],
+            "notes": []
+          },
+          {
+            "id": "P999XYZ",
+            "incident_number": 4520,
+            "title": "Queue lag on workers",
+            "status": "acknowledged",
+            "urgency": "low",
+            "service_id": "PSVC456",
+            "created_at": "2026-03-12T21:00:00Z",
+            "last_status_change": "2026-03-12T21:10:00Z",
+            "assignments": [
+              {
+                "name": "Bob Smith",
+                "email": "bob@company.com"
+              }
+            ],
+            "alert_count": 1,
+            "escalation_level": 1,
+            "timeline": [
+              {
+                "type": "trigger_log_entry",
+                "created_at": "2026-03-12T21:00:00Z",
+                "summary": "Incident triggered via Datadog"
+              }
+            ],
+            "alerts": [
+              {
+                "id": "A000111",
+                "severity": "warning",
+                "summary": "Queue lag exceeded threshold",
+                "source": "Datadog"
+              }
+            ],
+            "notes": []
+          }
+        ]
+      }
+    }
+  ],
+  "validation": {
+    "ended_normally": true,
+    "turn_count": 2,
+    "state_transition_count": 2,
+    "final_state_diff_vs_expected": []
+  },
+  "final_tool_state": {
+    "services": [
+      {
+        "id": "PSVC123",
+        "name": "Production Web",
+        "status": "critical",
+        "description": "Production web application servers",
+        "escalation_policy": "Production Escalation",
+        "integrations": [
+          "Prometheus Alertmanager",
+          "CloudWatch"
+        ]
+      },
+      {
+        "id": "PSVC456",
+        "name": "Worker Fleet",
+        "status": "active",
+        "description": "Background workers",
+        "escalation_policy": "Worker Escalation",
+        "integrations": [
+          "Datadog"
+        ]
+      }
+    ],
+    "oncalls": [
+      {
+        "user": {
+          "name": "Jane Doe",
+          "email": "jane@company.com"
+        },
+        "schedule": {
+          "name": "Primary SRE",
+          "id": "PSCHED1"
+        },
+        "escalation_policy": {
+          "name": "Production Escalation"
+        },
+        "escalation_level": 1,
+        "start": "2026-03-13T00:00:00Z",
+        "end": "2026-03-14T00:00:00Z"
+      }
+    ],
+    "incidents": [
+      {
+        "id": "P123ABC",
+        "incident_number": 4521,
+        "title": "High CPU on prod-web-03",
+        "status": "triggered",
+        "urgency": "high",
+        "service_id": "PSVC123",
+        "created_at": "2026-03-13T08:15:00Z",
+        "last_status_change": "2026-03-13T08:20:00Z",
+        "assignments": [
+          {
+            "name": "Jane Doe",
+            "email": "jane@company.com"
+          }
+        ],
+        "alert_count": 3,
+        "escalation_level": 1,
+        "timeline": [
+          {
+            "type": "trigger_log_entry",
+            "created_at": "2026-03-13T08:15:00Z",
+            "summary": "Incident triggered via Prometheus Alertmanager"
+          },
+          {
+            "type": "escalate_log_entry",
+            "created_at": "2026-03-13T08:18:00Z",
+            "summary": "Escalated to Jane Doe (Level 1)"
+          }
+        ],
+        "alerts": [
+          {
+            "id": "A456DEF",
+            "severity": "critical",
+            "summary": "CPU > 95% on prod-web-03",
+            "source": "Prometheus Alertmanager"
+          }
+        ],
+        "notes": []
+      },
+      {
+        "id": "P999XYZ",
+        "incident_number": 4520,
+        "title": "Queue lag on workers",
+        "status": "acknowledged",
+        "urgency": "low",
+        "service_id": "PSVC456",
+        "created_at": "2026-03-12T21:00:00Z",
+        "last_status_change": "2026-03-12T21:10:00Z",
+        "assignments": [
+          {
+            "name": "Bob Smith",
+            "email": "bob@company.com"
+          }
+        ],
+        "alert_count": 1,
+        "escalation_level": 1,
+        "timeline": [
+          {
+            "type": "trigger_log_entry",
+            "created_at": "2026-03-12T21:00:00Z",
+            "summary": "Incident triggered via Datadog"
+          }
+        ],
+        "alerts": [
+          {
+            "id": "A000111",
+            "severity": "warning",
+            "summary": "Queue lag exceeded threshold",
+            "source": "Datadog"
+          }
+        ],
+        "notes": []
+      }
+    ]
+  },
+  "initial_state": {
+    "services": [
+      {
+        "id": "PSVC123",
+        "name": "Production Web",
+        "status": "critical",
+        "description": "Production web application servers",
+        "escalation_policy": "Production Escalation",
+        "integrations": [
+          "Prometheus Alertmanager",
+          "CloudWatch"
+        ]
+      },
+      {
+        "id": "PSVC456",
+        "name": "Worker Fleet",
+        "status": "active",
+        "description": "Background workers",
+        "escalation_policy": "Worker Escalation",
+        "integrations": [
+          "Datadog"
+        ]
+      }
+    ],
+    "oncalls": [
+      {
+        "user": {
+          "name": "Jane Doe",
+          "email": "jane@company.com"
+        },
+        "schedule": {
+          "name": "Primary SRE",
+          "id": "PSCHED1"
+        },
+        "escalation_policy": {
+          "name": "Production Escalation"
+        },
+        "escalation_level": 1,
+        "start": "2026-03-13T00:00:00Z",
+        "end": "2026-03-14T00:00:00Z"
+      }
+    ],
+    "incidents": [
+      {
+        "id": "P123ABC",
+        "incident_number": 4521,
+        "title": "High CPU on prod-web-03",
+        "status": "triggered",
+        "urgency": "high",
+        "service_id": "PSVC123",
+        "created_at": "2026-03-13T08:15:00Z",
+        "last_status_change": "2026-03-13T08:20:00Z",
+        "assignments": [
+          {
+            "name": "Jane Doe",
+            "email": "jane@company.com"
+          }
+        ],
+        "alert_count": 3,
+        "escalation_level": 1,
+        "timeline": [
+          {
+            "type": "trigger_log_entry",
+            "created_at": "2026-03-13T08:15:00Z",
+            "summary": "Incident triggered via Prometheus Alertmanager"
+          },
+          {
+            "type": "escalate_log_entry",
+            "created_at": "2026-03-13T08:18:00Z",
+            "summary": "Escalated to Jane Doe (Level 1)"
+          }
+        ],
+        "alerts": [
+          {
+            "id": "A456DEF",
+            "severity": "critical",
+            "summary": "CPU > 95% on prod-web-03",
+            "source": "Prometheus Alertmanager"
+          }
+        ],
+        "notes": []
+      },
+      {
+        "id": "P999XYZ",
+        "incident_number": 4520,
+        "title": "Queue lag on workers",
+        "status": "acknowledged",
+        "urgency": "low",
+        "service_id": "PSVC456",
+        "created_at": "2026-03-12T21:00:00Z",
+        "last_status_change": "2026-03-12T21:10:00Z",
+        "assignments": [
+          {
+            "name": "Bob Smith",
+            "email": "bob@company.com"
+          }
+        ],
+        "alert_count": 1,
+        "escalation_level": 1,
+        "timeline": [
+          {
+            "type": "trigger_log_entry",
+            "created_at": "2026-03-12T21:00:00Z",
+            "summary": "Incident triggered via Datadog"
+          }
+        ],
+        "alerts": [
+          {
+            "id": "A000111",
+            "severity": "warning",
+            "summary": "Queue lag exceeded threshold",
+            "source": "Datadog"
+          }
+        ],
+        "notes": []
+      }
+    ]
+  },
+  "scenario_id": "default",
+  "environment_profile": {
+    "backend_mode": "program-fixture",
+    "state_mode": "json",
+    "validation_mode": "turn_state",
+    "scenario_source": "fixture",
+    "bfcl_analog": "incident_management",
+    "entry_class": "SkillBackend",
+    "tool_names": [
+      "pd_incidents",
+      "pd_incident_detail",
+      "pd_oncall",
+      "pd_services",
+      "pd_recent",
+      "pd_incident_ack",
+      "pd_incident_resolve",
+      "pd_incident_note"
+    ],
+    "default_scenario": "default",
+    "notes_ref": "/home/zhang/work/Astra-env-backend-runtime-refactor/artifacts/env_top30_backend_notes.md"
+  },
+  "state_transitions": [
+    {
+      "tool_name": "pd_incidents",
+      "arguments": {},
+      "before_state": {
+        "services": [
+          {
+            "id": "PSVC123",
+            "name": "Production Web",
+            "status": "critical",
+            "description": "Production web application servers",
+            "escalation_policy": "Production Escalation",
+            "integrations": [
+              "Prometheus Alertmanager",
+              "CloudWatch"
+            ]
+          },
+          {
+            "id": "PSVC456",
+            "name": "Worker Fleet",
+            "status": "active",
+            "description": "Background workers",
+            "escalation_policy": "Worker Escalation",
+            "integrations": [
+              "Datadog"
+            ]
+          }
+        ],
+        "oncalls": [
+          {
+            "user": {
+              "name": "Jane Doe",
+              "email": "jane@company.com"
+            },
+            "schedule": {
+              "name": "Primary SRE",
+              "id": "PSCHED1"
+            },
+            "escalation_policy": {
+              "name": "Production Escalation"
+            },
+            "escalation_level": 1,
+            "start": "2026-03-13T00:00:00Z",
+            "end": "2026-03-14T00:00:00Z"
+          }
+        ],
+        "incidents": [
+          {
+            "id": "P123ABC",
+            "incident_number": 4521,
+            "title": "High CPU on prod-web-03",
+            "status": "triggered",
+            "urgency": "high",
+            "service_id": "PSVC123",
+            "created_at": "2026-03-13T08:15:00Z",
+            "last_status_change": "2026-03-13T08:20:00Z",
+            "assignments": [
+              {
+                "name": "Jane Doe",
+                "email": "jane@company.com"
+              }
+            ],
+            "alert_count": 3,
+            "escalation_level": 1,
+            "timeline": [
+              {
+                "type": "trigger_log_entry",
+                "created_at": "2026-03-13T08:15:00Z",
+                "summary": "Incident triggered via Prometheus Alertmanager"
+              },
+              {
+                "type": "escalate_log_entry",
+                "created_at": "2026-03-13T08:18:00Z",
+                "summary": "Escalated to Jane Doe (Level 1)"
+              }
+            ],
+            "alerts": [
+              {
+                "id": "A456DEF",
+                "severity": "critical",
+                "summary": "CPU > 95% on prod-web-03",
+                "source": "Prometheus Alertmanager"
+              }
+            ],
+            "notes": []
+          },
+          {
+            "id": "P999XYZ",
+            "incident_number": 4520,
+            "title": "Queue lag on workers",
+            "status": "acknowledged",
+            "urgency": "low",
+            "service_id": "PSVC456",
+            "created_at": "2026-03-12T21:00:00Z",
+            "last_status_change": "2026-03-12T21:10:00Z",
+            "assignments": [
+              {
+                "name": "Bob Smith",
+                "email": "bob@company.com"
+              }
+            ],
+            "alert_count": 1,
+            "escalation_level": 1,
+            "timeline": [
+              {
+                "type": "trigger_log_entry",
+                "created_at": "2026-03-12T21:00:00Z",
+                "summary": "Incident triggered via Datadog"
+              }
+            ],
+            "alerts": [
+              {
+                "id": "A000111",
+                "severity": "warning",
+                "summary": "Queue lag exceeded threshold",
+                "source": "Datadog"
+              }
+            ],
+            "notes": []
+          }
+        ]
+      },
+      "after_state": {
+        "services": [
+          {
+            "id": "PSVC123",
+            "name": "Production Web",
+            "status": "critical",
+            "description": "Production web application servers",
+            "escalation_policy": "Production Escalation",
+            "integrations": [
+              "Prometheus Alertmanager",
+              "CloudWatch"
+            ]
+          },
+          {
+            "id": "PSVC456",
+            "name": "Worker Fleet",
+            "status": "active",
+            "description": "Background workers",
+            "escalation_policy": "Worker Escalation",
+            "integrations": [
+              "Datadog"
+            ]
+          }
+        ],
+        "oncalls": [
+          {
+            "user": {
+              "name": "Jane Doe",
+              "email": "jane@company.com"
+            },
+            "schedule": {
+              "name": "Primary SRE",
+              "id": "PSCHED1"
+            },
+            "escalation_policy": {
+              "name": "Production Escalation"
+            },
+            "escalation_level": 1,
+            "start": "2026-03-13T00:00:00Z",
+            "end": "2026-03-14T00:00:00Z"
+          }
+        ],
+        "incidents": [
+          {
+            "id": "P123ABC",
+            "incident_number": 4521,
+            "title": "High CPU on prod-web-03",
+            "status": "triggered",
+            "urgency": "high",
+            "service_id": "PSVC123",
+            "created_at": "2026-03-13T08:15:00Z",
+            "last_status_change": "2026-03-13T08:20:00Z",
+            "assignments": [
+              {
+                "name": "Jane Doe",
+                "email": "jane@company.com"
+              }
+            ],
+            "alert_count": 3,
+            "escalation_level": 1,
+            "timeline": [
+              {
+                "type": "trigger_log_entry",
+                "created_at": "2026-03-13T08:15:00Z",
+                "summary": "Incident triggered via Prometheus Alertmanager"
+              },
+              {
+                "type": "escalate_log_entry",
+                "created_at": "2026-03-13T08:18:00Z",
+                "summary": "Escalated to Jane Doe (Level 1)"
+              }
+            ],
+            "alerts": [
+              {
+                "id": "A456DEF",
+                "severity": "critical",
+                "summary": "CPU > 95% on prod-web-03",
+                "source": "Prometheus Alertmanager"
+              }
+            ],
+            "notes": []
+          },
+          {
+            "id": "P999XYZ",
+            "incident_number": 4520,
+            "title": "Queue lag on workers",
+            "status": "acknowledged",
+            "urgency": "low",
+            "service_id": "PSVC456",
+            "created_at": "2026-03-12T21:00:00Z",
+            "last_status_change": "2026-03-12T21:10:00Z",
+            "assignments": [
+              {
+                "name": "Bob Smith",
+                "email": "bob@company.com"
+              }
+            ],
+            "alert_count": 1,
+            "escalation_level": 1,
+            "timeline": [
+              {
+                "type": "trigger_log_entry",
+                "created_at": "2026-03-12T21:00:00Z",
+                "summary": "Incident triggered via Datadog"
+              }
+            ],
+            "alerts": [
+              {
+                "id": "A000111",
+                "severity": "warning",
+                "summary": "Queue lag exceeded threshold",
+                "source": "Datadog"
+              }
+            ],
+            "notes": []
+          }
+        ]
+      },
+      "result": {
+        "total_incidents": 2,
+        "incidents": [
+          {
+            "id": "P123ABC",
+            "incident_number": 4521,
+            "title": "High CPU on prod-web-03",
+            "status": "triggered",
+            "urgency": "high",
+            "service": {
+              "id": "PSVC123",
+              "name": "Production Web"
+            },
+            "created_at": "2026-03-13T08:15:00Z",
+            "assignments": [
+              {
+                "name": "Jane Doe",
+                "email": "jane@company.com"
+              }
+            ],
+            "alert_count": 3,
+            "escalation_level": 1,
+            "last_status_change": "2026-03-13T08:20:00Z"
+          },
+          {
+            "id": "P999XYZ",
+            "incident_number": 4520,
+            "title": "Queue lag on workers",
+            "status": "acknowledged",
+            "urgency": "low",
+            "service": {
+              "id": "PSVC456",
+              "name": "Worker Fleet"
+            },
+            "created_at": "2026-03-12T21:00:00Z",
+            "assignments": [
+              {
+                "name": "Bob Smith",
+                "email": "bob@company.com"
+              }
+            ],
+            "alert_count": 1,
+            "escalation_level": 1,
+            "last_status_change": "2026-03-12T21:10:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "tool_name": "pd_incident_ack",
+      "arguments": {
+        "incident_id": "P123ABC",
+        "confirm": false
+      },
+      "before_state": {
+        "services": [
+          {
+            "id": "PSVC123",
+            "name": "Production Web",
+            "status": "critical",
+            "description": "Production web application servers",
+            "escalation_policy": "Production Escalation",
+            "integrations": [
+              "Prometheus Alertmanager",
+              "CloudWatch"
+            ]
+          },
+          {
+            "id": "PSVC456",
+            "name": "Worker Fleet",
+            "status": "active",
+            "description": "Background workers",
+            "escalation_policy": "Worker Escalation",
+            "integrations": [
+              "Datadog"
+            ]
+          }
+        ],
+        "oncalls": [
+          {
+            "user": {
+              "name": "Jane Doe",
+              "email": "jane@company.com"
+            },
+            "schedule": {
+              "name": "Primary SRE",
+              "id": "PSCHED1"
+            },
+            "escalation_policy": {
+              "name": "Production Escalation"
+            },
+            "escalation_level": 1,
+            "start": "2026-03-13T00:00:00Z",
+            "end": "2026-03-14T00:00:00Z"
+          }
+        ],
+        "incidents": [
+          {
+            "id": "P123ABC",
+            "incident_number": 4521,
+            "title": "High CPU on prod-web-03",
+            "status": "triggered",
+            "urgency": "high",
+            "service_id": "PSVC123",
+            "created_at": "2026-03-13T08:15:00Z",
+            "last_status_change": "2026-03-13T08:20:00Z",
+            "assignments": [
+              {
+                "name": "Jane Doe",
+                "email": "jane@company.com"
+              }
+            ],
+            "alert_count": 3,
+            "escalation_level": 1,
+            "timeline": [
+              {
+                "type": "trigger_log_entry",
+                "created_at": "2026-03-13T08:15:00Z",
+                "summary": "Incident triggered via Prometheus Alertmanager"
+              },
+              {
+                "type": "escalate_log_entry",
+                "created_at": "2026-03-13T08:18:00Z",
+                "summary": "Escalated to Jane Doe (Level 1)"
+              }
+            ],
+            "alerts": [
+              {
+                "id": "A456DEF",
+                "severity": "critical",
+                "summary": "CPU > 95% on prod-web-03",
+                "source": "Prometheus Alertmanager"
+              }
+            ],
+            "notes": []
+          },
+          {
+            "id": "P999XYZ",
+            "incident_number": 4520,
+            "title": "Queue lag on workers",
+            "status": "acknowledged",
+            "urgency": "low",
+            "service_id": "PSVC456",
+            "created_at": "2026-03-12T21:00:00Z",
+            "last_status_change": "2026-03-12T21:10:00Z",
+            "assignments": [
+              {
+                "name": "Bob Smith",
+                "email": "bob@company.com"
+              }
+            ],
+            "alert_count": 1,
+            "escalation_level": 1,
+            "timeline": [
+              {
+                "type": "trigger_log_entry",
+                "created_at": "2026-03-12T21:00:00Z",
+                "summary": "Incident triggered via Datadog"
+              }
+            ],
+            "alerts": [
+              {
+                "id": "A000111",
+                "severity": "warning",
+                "summary": "Queue lag exceeded threshold",
+                "source": "Datadog"
+              }
+            ],
+            "notes": []
+          }
+        ]
+      },
+      "after_state": {
+        "services": [
+          {
+            "id": "PSVC123",
+            "name": "Production Web",
+            "status": "critical",
+            "description": "Production web application servers",
+            "escalation_policy": "Production Escalation",
+            "integrations": [
+              "Prometheus Alertmanager",
+              "CloudWatch"
+            ]
+          },
+          {
+            "id": "PSVC456",
+            "name": "Worker Fleet",
+            "status": "active",
+            "description": "Background workers",
+            "escalation_policy": "Worker Escalation",
+            "integrations": [
+              "Datadog"
+            ]
+          }
+        ],
+        "oncalls": [
+          {
+            "user": {
+              "name": "Jane Doe",
+              "email": "jane@company.com"
+            },
+            "schedule": {
+              "name": "Primary SRE",
+              "id": "PSCHED1"
+            },
+            "escalation_policy": {
+              "name": "Production Escalation"
+            },
+            "escalation_level": 1,
+            "start": "2026-03-13T00:00:00Z",
+            "end": "2026-03-14T00:00:00Z"
+          }
+        ],
+        "incidents": [
+          {
+            "id": "P123ABC",
+            "incident_number": 4521,
+            "title": "High CPU on prod-web-03",
+            "status": "triggered",
+            "urgency": "high",
+            "service_id": "PSVC123",
+            "created_at": "2026-03-13T08:15:00Z",
+            "last_status_change": "2026-03-13T08:20:00Z",
+            "assignments": [
+              {
+                "name": "Jane Doe",
+                "email": "jane@company.com"
+              }
+            ],
+            "alert_count": 3,
+            "escalation_level": 1,
+            "timeline": [
+              {
+                "type": "trigger_log_entry",
+                "created_at": "2026-03-13T08:15:00Z",
+                "summary": "Incident triggered via Prometheus Alertmanager"
+              },
+              {
+                "type": "escalate_log_entry",
+                "created_at": "2026-03-13T08:18:00Z",
+                "summary": "Escalated to Jane Doe (Level 1)"
+              }
+            ],
+            "alerts": [
+              {
+                "id": "A456DEF",
+                "severity": "critical",
+                "summary": "CPU > 95% on prod-web-03",
+                "source": "Prometheus Alertmanager"
+              }
+            ],
+            "notes": []
+          },
+          {
+            "id": "P999XYZ",
+            "incident_number": 4520,
+            "title": "Queue lag on workers",
+            "status": "acknowledged",
+            "urgency": "low",
+            "service_id": "PSVC456",
+            "created_at": "2026-03-12T21:00:00Z",
+            "last_status_change": "2026-03-12T21:10:00Z",
+            "assignments": [
+              {
+                "name": "Bob Smith",
+                "email": "bob@company.com"
+              }
+            ],
+            "alert_count": 1,
+            "escalation_level": 1,
+            "timeline": [
+              {
+                "type": "trigger_log_entry",
+                "created_at": "2026-03-12T21:00:00Z",
+                "summary": "Incident triggered via Datadog"
+              }
+            ],
+            "alerts": [
+              {
+                "id": "A000111",
+                "severity": "warning",
+                "summary": "Queue lag exceeded threshold",
+                "source": "Datadog"
+              }
+            ],
+            "notes": []
+          }
+        ]
+      },
+      "result": {
+        "would_update": true,
+        "incident_id": "P123ABC",
+        "target_status": "acknowledged"
+      }
+    }
+  ]
+}

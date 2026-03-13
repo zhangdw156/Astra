@@ -1,0 +1,918 @@
+{
+  "run_id": "5374_kontour-travel-planner-sample-027",
+  "trajectory_id": "f8f0a7d0-b54b-4913-b110-cf55bf17dadf",
+  "blueprint_id": "353460ee-8e02-4ef3-8dc8-2de118a955e3",
+  "skill_name": "5374_kontour-travel-planner",
+  "persona_id": "5374_kontour-travel-planner-smoke",
+  "tools": [
+    {
+      "name": "plan_trip",
+      "description": "Extract structured trip context from natural language queries using the 9-dimension progressive planning model. Use this to convert a user's travel request into structured data covering destination, dates, duration, travelers, budget, interests, accommodation, transport, and constraints. For exporting the final itinerary to maps, use export_gmaps instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Natural language trip description (e.g., '2 weeks in Japan for a couple, mid-range budget, food and temples')"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    {
+      "name": "export_gmaps",
+      "description": "Export a structured itinerary JSON to shareable Google Maps URLs and optionally KML files. Use this when you have a completed itinerary with daily activities and locations. For generating the itinerary from natural language, use plan_trip first.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "itinerary_file": {
+            "type": "string",
+            "description": "Path to the itinerary JSON file containing days with locations (each day has 'day' number and 'locations' array with name/lat/lng)"
+          },
+          "export_kml": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether to also export a KML file for Google Earth/Maps import"
+          }
+        },
+        "required": [
+          "itinerary_file"
+        ]
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": "Please help with: Extract trip context"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"trip_context\": {\"destination\": {\"name\": \"Tokyo\", \"country\": \"Japan\", \"coordinates\": [35.6762, 139.6503], \"currency\": \"JPY\", \"timezone\": \"Asia/Tokyo\"}, \"duration\": 14, \"travelers\": {\"adults\": 2}, \"budget\": {\"tier\": \"mid\", \"daily_per_person\": 175, \"estimated_total\": 4900}, \"interests\": [\"food\", \"temples\"]}, \"progress_percent\": 60, \"planning_stage\": \"refine\", \"open_dimensions\": [\"dates\", \"accommodation\", \"transport\", \"constraints\"], \"conflicts\": [], \"summary\": \"Tokyo is the current target, planning is in the refine stage, for 14 days, with a mid budget, focused on food, temples. Context: Need a concise planning brief.\", \"recommended_next_question\": \"What travel window works best for this trip?\"}"
+    },
+    {
+      "role": "user",
+      "content": "Please help with: Export itinerary to maps"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"itinerary_file\": \"sample_tokyo.json\", \"trip_url\": \"https://www.google.com/maps/dir/35.7148,139.7967/35.6654,139.7707/35.6764,139.6993/35.6595,139.7005\", \"day_routes\": [{\"day\": 1, \"url\": \"https://www.google.com/maps/dir/35.7148,139.7967/35.6654,139.7707\"}, {\"day\": 2, \"url\": \"https://www.google.com/maps/dir/35.6764,139.6993/35.6595,139.7005\"}], \"kml_file\": \"sample_tokyo.json.kml\"}"
+    }
+  ],
+  "structured_turns": [
+    {
+      "turn_index": 1,
+      "goal_index": 1,
+      "goal_text": "Extract trip context",
+      "user_message": "Please help with: Extract trip context",
+      "assistant_message": "{\"trip_context\": {\"destination\": {\"name\": \"Tokyo\", \"country\": \"Japan\", \"coordinates\": [35.6762, 139.6503], \"currency\": \"JPY\", \"timezone\": \"Asia/Tokyo\"}, \"duration\": 14, \"travelers\": {\"adults\": 2}, \"budget\": {\"tier\": \"mid\", \"daily_per_person\": 175, \"estimated_total\": 4900}, \"interests\": [\"food\", \"temples\"]}, \"progress_percent\": 60, \"planning_stage\": \"refine\", \"open_dimensions\": [\"dates\", \"accommodation\", \"transport\", \"constraints\"], \"conflicts\": [], \"summary\": \"Tokyo is the current target, planning is in the refine stage, for 14 days, with a mid budget, focused on food, temples. Context: Need a concise planning brief.\", \"recommended_next_question\": \"What travel window works best for this trip?\"}",
+      "tool_calls": [
+        {
+          "name": "plan_trip",
+          "arguments": {
+            "query": "2 weeks in Japan for a couple, mid-range budget, interested in food and temples"
+          },
+          "result": {
+            "trip_context": {
+              "destination": {
+                "name": "Tokyo",
+                "country": "Japan",
+                "coordinates": [
+                  35.6762,
+                  139.6503
+                ],
+                "currency": "JPY",
+                "timezone": "Asia/Tokyo"
+              },
+              "duration": 14,
+              "travelers": {
+                "adults": 2
+              },
+              "budget": {
+                "tier": "mid",
+                "daily_per_person": 175,
+                "estimated_total": 4900
+              },
+              "interests": [
+                "food",
+                "temples"
+              ]
+            },
+            "progress_percent": 60,
+            "planning_stage": "refine",
+            "open_dimensions": [
+              "dates",
+              "accommodation",
+              "transport",
+              "constraints"
+            ],
+            "conflicts": [],
+            "summary": "Tokyo is the current target, planning is in the refine stage, for 14 days, with a mid budget, focused on food, temples. Context: Need a concise planning brief.",
+            "recommended_next_question": "What travel window works best for this trip?"
+          }
+        }
+      ],
+      "execution_time_ms": 0,
+      "validation": {
+        "tool_execution_succeeded": true
+      },
+      "before_state": {
+        "saved_itineraries": {
+          "sample_tokyo.json": {
+            "days": [
+              {
+                "day": 1,
+                "locations": [
+                  {
+                    "name": "Senso-ji Temple",
+                    "lat": 35.7148,
+                    "lng": 139.7967
+                  },
+                  {
+                    "name": "Tsukiji Outer Market",
+                    "lat": 35.6654,
+                    "lng": 139.7707
+                  }
+                ]
+              },
+              {
+                "day": 2,
+                "locations": [
+                  {
+                    "name": "Meiji Shrine",
+                    "lat": 35.6764,
+                    "lng": 139.6993
+                  },
+                  {
+                    "name": "Shibuya Crossing",
+                    "lat": 35.6595,
+                    "lng": 139.7005
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "planned_trips": [],
+        "exports": []
+      },
+      "after_state": {
+        "saved_itineraries": {
+          "sample_tokyo.json": {
+            "days": [
+              {
+                "day": 1,
+                "locations": [
+                  {
+                    "name": "Senso-ji Temple",
+                    "lat": 35.7148,
+                    "lng": 139.7967
+                  },
+                  {
+                    "name": "Tsukiji Outer Market",
+                    "lat": 35.6654,
+                    "lng": 139.7707
+                  }
+                ]
+              },
+              {
+                "day": 2,
+                "locations": [
+                  {
+                    "name": "Meiji Shrine",
+                    "lat": 35.6764,
+                    "lng": 139.6993
+                  },
+                  {
+                    "name": "Shibuya Crossing",
+                    "lat": 35.6595,
+                    "lng": 139.7005
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "planned_trips": [
+          {
+            "query": "2 weeks in Japan for a couple, mid-range budget, interested in food and temples",
+            "trip_context": {
+              "destination": {
+                "name": "Tokyo",
+                "country": "Japan",
+                "coordinates": [
+                  35.6762,
+                  139.6503
+                ],
+                "currency": "JPY",
+                "timezone": "Asia/Tokyo"
+              },
+              "duration": 14,
+              "travelers": {
+                "adults": 2
+              },
+              "budget": {
+                "tier": "mid",
+                "daily_per_person": 175,
+                "estimated_total": 4900
+              },
+              "interests": [
+                "food",
+                "temples"
+              ]
+            },
+            "planning_stage": "refine",
+            "progress_percent": 60
+          }
+        ],
+        "exports": []
+      }
+    },
+    {
+      "turn_index": 2,
+      "goal_index": 2,
+      "goal_text": "Export itinerary to maps",
+      "user_message": "Please help with: Export itinerary to maps",
+      "assistant_message": "{\"itinerary_file\": \"sample_tokyo.json\", \"trip_url\": \"https://www.google.com/maps/dir/35.7148,139.7967/35.6654,139.7707/35.6764,139.6993/35.6595,139.7005\", \"day_routes\": [{\"day\": 1, \"url\": \"https://www.google.com/maps/dir/35.7148,139.7967/35.6654,139.7707\"}, {\"day\": 2, \"url\": \"https://www.google.com/maps/dir/35.6764,139.6993/35.6595,139.7005\"}], \"kml_file\": \"sample_tokyo.json.kml\"}",
+      "tool_calls": [
+        {
+          "name": "export_gmaps",
+          "arguments": {
+            "itinerary_file": "sample_tokyo.json",
+            "export_kml": true
+          },
+          "result": {
+            "itinerary_file": "sample_tokyo.json",
+            "trip_url": "https://www.google.com/maps/dir/35.7148,139.7967/35.6654,139.7707/35.6764,139.6993/35.6595,139.7005",
+            "day_routes": [
+              {
+                "day": 1,
+                "url": "https://www.google.com/maps/dir/35.7148,139.7967/35.6654,139.7707"
+              },
+              {
+                "day": 2,
+                "url": "https://www.google.com/maps/dir/35.6764,139.6993/35.6595,139.7005"
+              }
+            ],
+            "kml_file": "sample_tokyo.json.kml"
+          }
+        }
+      ],
+      "execution_time_ms": 0,
+      "validation": {
+        "tool_execution_succeeded": true
+      },
+      "before_state": {
+        "saved_itineraries": {
+          "sample_tokyo.json": {
+            "days": [
+              {
+                "day": 1,
+                "locations": [
+                  {
+                    "name": "Senso-ji Temple",
+                    "lat": 35.7148,
+                    "lng": 139.7967
+                  },
+                  {
+                    "name": "Tsukiji Outer Market",
+                    "lat": 35.6654,
+                    "lng": 139.7707
+                  }
+                ]
+              },
+              {
+                "day": 2,
+                "locations": [
+                  {
+                    "name": "Meiji Shrine",
+                    "lat": 35.6764,
+                    "lng": 139.6993
+                  },
+                  {
+                    "name": "Shibuya Crossing",
+                    "lat": 35.6595,
+                    "lng": 139.7005
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "planned_trips": [
+          {
+            "query": "2 weeks in Japan for a couple, mid-range budget, interested in food and temples",
+            "trip_context": {
+              "destination": {
+                "name": "Tokyo",
+                "country": "Japan",
+                "coordinates": [
+                  35.6762,
+                  139.6503
+                ],
+                "currency": "JPY",
+                "timezone": "Asia/Tokyo"
+              },
+              "duration": 14,
+              "travelers": {
+                "adults": 2
+              },
+              "budget": {
+                "tier": "mid",
+                "daily_per_person": 175,
+                "estimated_total": 4900
+              },
+              "interests": [
+                "food",
+                "temples"
+              ]
+            },
+            "planning_stage": "refine",
+            "progress_percent": 60
+          }
+        ],
+        "exports": []
+      },
+      "after_state": {
+        "saved_itineraries": {
+          "sample_tokyo.json": {
+            "days": [
+              {
+                "day": 1,
+                "locations": [
+                  {
+                    "name": "Senso-ji Temple",
+                    "lat": 35.7148,
+                    "lng": 139.7967
+                  },
+                  {
+                    "name": "Tsukiji Outer Market",
+                    "lat": 35.6654,
+                    "lng": 139.7707
+                  }
+                ]
+              },
+              {
+                "day": 2,
+                "locations": [
+                  {
+                    "name": "Meiji Shrine",
+                    "lat": 35.6764,
+                    "lng": 139.6993
+                  },
+                  {
+                    "name": "Shibuya Crossing",
+                    "lat": 35.6595,
+                    "lng": 139.7005
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "planned_trips": [
+          {
+            "query": "2 weeks in Japan for a couple, mid-range budget, interested in food and temples",
+            "trip_context": {
+              "destination": {
+                "name": "Tokyo",
+                "country": "Japan",
+                "coordinates": [
+                  35.6762,
+                  139.6503
+                ],
+                "currency": "JPY",
+                "timezone": "Asia/Tokyo"
+              },
+              "duration": 14,
+              "travelers": {
+                "adults": 2
+              },
+              "budget": {
+                "tier": "mid",
+                "daily_per_person": 175,
+                "estimated_total": 4900
+              },
+              "interests": [
+                "food",
+                "temples"
+              ]
+            },
+            "planning_stage": "refine",
+            "progress_percent": 60
+          }
+        ],
+        "exports": [
+          {
+            "itinerary_file": "sample_tokyo.json",
+            "trip_url": "https://www.google.com/maps/dir/35.7148,139.7967/35.6654,139.7707/35.6764,139.6993/35.6595,139.7005",
+            "day_routes": [
+              {
+                "day": 1,
+                "url": "https://www.google.com/maps/dir/35.7148,139.7967/35.6654,139.7707"
+              },
+              {
+                "day": 2,
+                "url": "https://www.google.com/maps/dir/35.6764,139.6993/35.6595,139.7005"
+              }
+            ],
+            "kml_file": "sample_tokyo.json.kml"
+          }
+        ]
+      }
+    }
+  ],
+  "validation": {
+    "ended_normally": true,
+    "turn_count": 2,
+    "state_transition_count": 2,
+    "final_state_diff_vs_expected": []
+  },
+  "final_tool_state": {
+    "saved_itineraries": {
+      "sample_tokyo.json": {
+        "days": [
+          {
+            "day": 1,
+            "locations": [
+              {
+                "name": "Senso-ji Temple",
+                "lat": 35.7148,
+                "lng": 139.7967
+              },
+              {
+                "name": "Tsukiji Outer Market",
+                "lat": 35.6654,
+                "lng": 139.7707
+              }
+            ]
+          },
+          {
+            "day": 2,
+            "locations": [
+              {
+                "name": "Meiji Shrine",
+                "lat": 35.6764,
+                "lng": 139.6993
+              },
+              {
+                "name": "Shibuya Crossing",
+                "lat": 35.6595,
+                "lng": 139.7005
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "planned_trips": [
+      {
+        "query": "2 weeks in Japan for a couple, mid-range budget, interested in food and temples",
+        "trip_context": {
+          "destination": {
+            "name": "Tokyo",
+            "country": "Japan",
+            "coordinates": [
+              35.6762,
+              139.6503
+            ],
+            "currency": "JPY",
+            "timezone": "Asia/Tokyo"
+          },
+          "duration": 14,
+          "travelers": {
+            "adults": 2
+          },
+          "budget": {
+            "tier": "mid",
+            "daily_per_person": 175,
+            "estimated_total": 4900
+          },
+          "interests": [
+            "food",
+            "temples"
+          ]
+        },
+        "planning_stage": "refine",
+        "progress_percent": 60
+      }
+    ],
+    "exports": [
+      {
+        "itinerary_file": "sample_tokyo.json",
+        "trip_url": "https://www.google.com/maps/dir/35.7148,139.7967/35.6654,139.7707/35.6764,139.6993/35.6595,139.7005",
+        "day_routes": [
+          {
+            "day": 1,
+            "url": "https://www.google.com/maps/dir/35.7148,139.7967/35.6654,139.7707"
+          },
+          {
+            "day": 2,
+            "url": "https://www.google.com/maps/dir/35.6764,139.6993/35.6595,139.7005"
+          }
+        ],
+        "kml_file": "sample_tokyo.json.kml"
+      }
+    ]
+  },
+  "initial_state": {
+    "saved_itineraries": {
+      "sample_tokyo.json": {
+        "days": [
+          {
+            "day": 1,
+            "locations": [
+              {
+                "name": "Senso-ji Temple",
+                "lat": 35.7148,
+                "lng": 139.7967
+              },
+              {
+                "name": "Tsukiji Outer Market",
+                "lat": 35.6654,
+                "lng": 139.7707
+              }
+            ]
+          },
+          {
+            "day": 2,
+            "locations": [
+              {
+                "name": "Meiji Shrine",
+                "lat": 35.6764,
+                "lng": 139.6993
+              },
+              {
+                "name": "Shibuya Crossing",
+                "lat": 35.6595,
+                "lng": 139.7005
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "planned_trips": [],
+    "exports": []
+  },
+  "scenario_id": "default",
+  "environment_profile": {
+    "backend_mode": "hybrid",
+    "state_mode": "json",
+    "validation_mode": "turn_state",
+    "scenario_source": "fixture",
+    "bfcl_analog": "travel_planner",
+    "entry_class": "SkillBackend",
+    "tool_names": [
+      "plan_trip",
+      "export_gmaps"
+    ],
+    "default_scenario": "default",
+    "notes_ref": "/home/zhang/work/Astra-env-backend-runtime-refactor/artifacts/env_top30_backend_notes.md",
+    "state_mutation_policy": "programmatic",
+    "generated_result_fields": [
+      "summary",
+      "recommended_next_question"
+    ],
+    "generated_text_policy": "derived-text"
+  },
+  "state_transitions": [
+    {
+      "tool_name": "plan_trip",
+      "arguments": {
+        "query": "2 weeks in Japan for a couple, mid-range budget, interested in food and temples"
+      },
+      "before_state": {
+        "saved_itineraries": {
+          "sample_tokyo.json": {
+            "days": [
+              {
+                "day": 1,
+                "locations": [
+                  {
+                    "name": "Senso-ji Temple",
+                    "lat": 35.7148,
+                    "lng": 139.7967
+                  },
+                  {
+                    "name": "Tsukiji Outer Market",
+                    "lat": 35.6654,
+                    "lng": 139.7707
+                  }
+                ]
+              },
+              {
+                "day": 2,
+                "locations": [
+                  {
+                    "name": "Meiji Shrine",
+                    "lat": 35.6764,
+                    "lng": 139.6993
+                  },
+                  {
+                    "name": "Shibuya Crossing",
+                    "lat": 35.6595,
+                    "lng": 139.7005
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "planned_trips": [],
+        "exports": []
+      },
+      "after_state": {
+        "saved_itineraries": {
+          "sample_tokyo.json": {
+            "days": [
+              {
+                "day": 1,
+                "locations": [
+                  {
+                    "name": "Senso-ji Temple",
+                    "lat": 35.7148,
+                    "lng": 139.7967
+                  },
+                  {
+                    "name": "Tsukiji Outer Market",
+                    "lat": 35.6654,
+                    "lng": 139.7707
+                  }
+                ]
+              },
+              {
+                "day": 2,
+                "locations": [
+                  {
+                    "name": "Meiji Shrine",
+                    "lat": 35.6764,
+                    "lng": 139.6993
+                  },
+                  {
+                    "name": "Shibuya Crossing",
+                    "lat": 35.6595,
+                    "lng": 139.7005
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "planned_trips": [
+          {
+            "query": "2 weeks in Japan for a couple, mid-range budget, interested in food and temples",
+            "trip_context": {
+              "destination": {
+                "name": "Tokyo",
+                "country": "Japan",
+                "coordinates": [
+                  35.6762,
+                  139.6503
+                ],
+                "currency": "JPY",
+                "timezone": "Asia/Tokyo"
+              },
+              "duration": 14,
+              "travelers": {
+                "adults": 2
+              },
+              "budget": {
+                "tier": "mid",
+                "daily_per_person": 175,
+                "estimated_total": 4900
+              },
+              "interests": [
+                "food",
+                "temples"
+              ]
+            },
+            "planning_stage": "refine",
+            "progress_percent": 60
+          }
+        ],
+        "exports": []
+      },
+      "result": {
+        "trip_context": {
+          "destination": {
+            "name": "Tokyo",
+            "country": "Japan",
+            "coordinates": [
+              35.6762,
+              139.6503
+            ],
+            "currency": "JPY",
+            "timezone": "Asia/Tokyo"
+          },
+          "duration": 14,
+          "travelers": {
+            "adults": 2
+          },
+          "budget": {
+            "tier": "mid",
+            "daily_per_person": 175,
+            "estimated_total": 4900
+          },
+          "interests": [
+            "food",
+            "temples"
+          ]
+        },
+        "progress_percent": 60,
+        "planning_stage": "refine",
+        "open_dimensions": [
+          "dates",
+          "accommodation",
+          "transport",
+          "constraints"
+        ],
+        "conflicts": [],
+        "summary": "Tokyo is the current target, planning is in the refine stage, for 14 days, with a mid budget, focused on food, temples. Context: Need a concise planning brief.",
+        "recommended_next_question": "What travel window works best for this trip?"
+      }
+    },
+    {
+      "tool_name": "export_gmaps",
+      "arguments": {
+        "itinerary_file": "sample_tokyo.json",
+        "export_kml": true
+      },
+      "before_state": {
+        "saved_itineraries": {
+          "sample_tokyo.json": {
+            "days": [
+              {
+                "day": 1,
+                "locations": [
+                  {
+                    "name": "Senso-ji Temple",
+                    "lat": 35.7148,
+                    "lng": 139.7967
+                  },
+                  {
+                    "name": "Tsukiji Outer Market",
+                    "lat": 35.6654,
+                    "lng": 139.7707
+                  }
+                ]
+              },
+              {
+                "day": 2,
+                "locations": [
+                  {
+                    "name": "Meiji Shrine",
+                    "lat": 35.6764,
+                    "lng": 139.6993
+                  },
+                  {
+                    "name": "Shibuya Crossing",
+                    "lat": 35.6595,
+                    "lng": 139.7005
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "planned_trips": [
+          {
+            "query": "2 weeks in Japan for a couple, mid-range budget, interested in food and temples",
+            "trip_context": {
+              "destination": {
+                "name": "Tokyo",
+                "country": "Japan",
+                "coordinates": [
+                  35.6762,
+                  139.6503
+                ],
+                "currency": "JPY",
+                "timezone": "Asia/Tokyo"
+              },
+              "duration": 14,
+              "travelers": {
+                "adults": 2
+              },
+              "budget": {
+                "tier": "mid",
+                "daily_per_person": 175,
+                "estimated_total": 4900
+              },
+              "interests": [
+                "food",
+                "temples"
+              ]
+            },
+            "planning_stage": "refine",
+            "progress_percent": 60
+          }
+        ],
+        "exports": []
+      },
+      "after_state": {
+        "saved_itineraries": {
+          "sample_tokyo.json": {
+            "days": [
+              {
+                "day": 1,
+                "locations": [
+                  {
+                    "name": "Senso-ji Temple",
+                    "lat": 35.7148,
+                    "lng": 139.7967
+                  },
+                  {
+                    "name": "Tsukiji Outer Market",
+                    "lat": 35.6654,
+                    "lng": 139.7707
+                  }
+                ]
+              },
+              {
+                "day": 2,
+                "locations": [
+                  {
+                    "name": "Meiji Shrine",
+                    "lat": 35.6764,
+                    "lng": 139.6993
+                  },
+                  {
+                    "name": "Shibuya Crossing",
+                    "lat": 35.6595,
+                    "lng": 139.7005
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "planned_trips": [
+          {
+            "query": "2 weeks in Japan for a couple, mid-range budget, interested in food and temples",
+            "trip_context": {
+              "destination": {
+                "name": "Tokyo",
+                "country": "Japan",
+                "coordinates": [
+                  35.6762,
+                  139.6503
+                ],
+                "currency": "JPY",
+                "timezone": "Asia/Tokyo"
+              },
+              "duration": 14,
+              "travelers": {
+                "adults": 2
+              },
+              "budget": {
+                "tier": "mid",
+                "daily_per_person": 175,
+                "estimated_total": 4900
+              },
+              "interests": [
+                "food",
+                "temples"
+              ]
+            },
+            "planning_stage": "refine",
+            "progress_percent": 60
+          }
+        ],
+        "exports": [
+          {
+            "itinerary_file": "sample_tokyo.json",
+            "trip_url": "https://www.google.com/maps/dir/35.7148,139.7967/35.6654,139.7707/35.6764,139.6993/35.6595,139.7005",
+            "day_routes": [
+              {
+                "day": 1,
+                "url": "https://www.google.com/maps/dir/35.7148,139.7967/35.6654,139.7707"
+              },
+              {
+                "day": 2,
+                "url": "https://www.google.com/maps/dir/35.6764,139.6993/35.6595,139.7005"
+              }
+            ],
+            "kml_file": "sample_tokyo.json.kml"
+          }
+        ]
+      },
+      "result": {
+        "itinerary_file": "sample_tokyo.json",
+        "trip_url": "https://www.google.com/maps/dir/35.7148,139.7967/35.6654,139.7707/35.6764,139.6993/35.6595,139.7005",
+        "day_routes": [
+          {
+            "day": 1,
+            "url": "https://www.google.com/maps/dir/35.7148,139.7967/35.6654,139.7707"
+          },
+          {
+            "day": 2,
+            "url": "https://www.google.com/maps/dir/35.6764,139.6993/35.6595,139.7005"
+          }
+        ],
+        "kml_file": "sample_tokyo.json.kml"
+      }
+    }
+  ]
+}

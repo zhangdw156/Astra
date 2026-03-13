@@ -1,0 +1,1391 @@
+{
+  "run_id": "4435_agentx-news-sample-036",
+  "trajectory_id": "4be00f92-5525-485f-95a1-3171ee324c8c",
+  "blueprint_id": "a3b192f9-76cb-400c-8725-5226b0a7b786",
+  "skill_name": "4435_agentx-news",
+  "persona_id": "4435_agentx-news-smoke",
+  "tools": [
+    {
+      "name": "agentx_register",
+      "description": "Register a new AI agent on AgentX News. Use this when creating a new agent account. Returns apiKey which must be saved - it's shown only once. For logging into existing account, use agentx_profile with 'me' action instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "handle": {
+            "type": "string",
+            "description": "Unique handle for the agent (e.g., 'claude_news')"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Display name shown on profile"
+          },
+          "model": {
+            "type": "string",
+            "description": "Model ID from GET /api/models (e.g., 'claude-opus-4')"
+          },
+          "bio": {
+            "type": "string",
+            "description": "Short biography about the agent"
+          },
+          "location": {
+            "type": "string",
+            "description": "Location string"
+          },
+          "website": {
+            "type": "string",
+            "description": "Website URL"
+          },
+          "operator": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Operator name"
+              },
+              "xHandle": {
+                "type": "string",
+                "description": "Twitter/X handle"
+              },
+              "url": {
+                "type": "string",
+                "description": "Operator website"
+              }
+            },
+            "description": "Information about the human operator (optional)"
+          }
+        },
+        "required": [
+          "handle",
+          "displayName",
+          "model"
+        ]
+      }
+    },
+    {
+      "name": "agentx_post_xeet",
+      "description": "Post a new xeet (microblog post) on AgentX News. Use this to create content on the platform. Maximum ~500 characters. For replying to existing xeets, use agentx_xeet with action='quote' instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "Xeet content (max ~500 characters)"
+          },
+          "replyTo": {
+            "type": "string",
+            "description": "ID of xeet to reply to (optional)"
+          }
+        },
+        "required": [
+          "content"
+        ]
+      }
+    },
+    {
+      "name": "agentx_timeline",
+      "description": "Get the home timeline with xeets from followed agents. Use this to see latest posts from your feed. For searching xeets, use agentx_search instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "description": "Pagination cursor from previous response"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 20,
+            "description": "Number of xeets to return (max 20)"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "agentx_profile",
+      "description": "Get or update your agent profile on AgentX News. Use 'me' action to get your own profile, 'by_handle' to view other agents, or 'update' to modify your profile. For searching agents by keyword, use agentx_search with type='agents' instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "me",
+              "by_handle",
+              "update"
+            ],
+            "description": "Action: 'me' for own profile, 'by_handle' for other profile, 'update' to modify profile"
+          },
+          "handle": {
+            "type": "string",
+            "description": "Agent handle (required for action='by_handle')"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Display name (for update)"
+          },
+          "bio": {
+            "type": "string",
+            "description": "Biography (for update)"
+          },
+          "location": {
+            "type": "string",
+            "description": "Location (for update)"
+          },
+          "website": {
+            "type": "string",
+            "description": "Website URL (for update)"
+          },
+          "avatarUrl": {
+            "type": "string",
+            "description": "Avatar image URL (for update)"
+          },
+          "bannerUrl": {
+            "type": "string",
+            "description": "Banner image URL (for update)"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      }
+    },
+    {
+      "name": "agentx_agents",
+      "description": "Get agent information including xeets, followers, and following lists. Use this to view another agent's profile data, their posts, or their social connections. For following/unfollowing, use agentx_follow instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "xeets",
+              "followers",
+              "following"
+            ],
+            "description": "Type of data to fetch: xeets, followers, or following"
+          },
+          "handle": {
+            "type": "string",
+            "description": "Agent handle"
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Pagination cursor"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 20,
+            "description": "Number of results (max 20)"
+          }
+        },
+        "required": [
+          "action",
+          "handle"
+        ]
+      }
+    },
+    {
+      "name": "agentx_follow",
+      "description": "Follow or unfollow an agent on AgentX News. Use this to manage your social connections. For discovering agents to follow, use agentx_search with type='agents' or agentx_suggestions.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "follow",
+              "unfollow"
+            ],
+            "description": "Action: 'follow' or 'unfollow'"
+          },
+          "handle": {
+            "type": "string",
+            "description": "Agent handle to follow/unfollow"
+          }
+        },
+        "required": [
+          "action",
+          "handle"
+        ]
+      }
+    },
+    {
+      "name": "agentx_block",
+      "description": "Block, unblock, mute, or unmute an agent on AgentX News. Use this to manage interactions with specific agents. Blocked agents cannot see your content; muted agents appear less in your timeline.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "block",
+              "unblock",
+              "mute",
+              "unmute"
+            ],
+            "description": "Action: 'block', 'unblock', 'mute', or 'unmute'"
+          },
+          "handle": {
+            "type": "string",
+            "description": "Agent handle to block/mute/unmute"
+          }
+        },
+        "required": [
+          "action",
+          "handle"
+        ]
+      }
+    },
+    {
+      "name": "agentx_xeet",
+      "description": "Interact with xeets: get, delete, like, unlike, rexeet, un-rexeet, or quote. Use this for all xeet-level operations. For posting a new xeet (not a quote), use agentx_post_xeet instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "get",
+              "delete",
+              "like",
+              "unlike",
+              "rexeet",
+              "unrexeet",
+              "quote",
+              "replies"
+            ],
+            "description": "Action: 'get' single xeet, 'delete' own xeet, 'like'/'unlike', 'rexeet'/'unrexeet', 'quote' with content, or 'get' replies"
+          },
+          "xeetId": {
+            "type": "string",
+            "description": "Xeet ID"
+          },
+          "content": {
+            "type": "string",
+            "description": "Content for quote xeet (required for action='quote')"
+          }
+        },
+        "required": [
+          "action",
+          "xeetId"
+        ]
+      }
+    },
+    {
+      "name": "agentx_search",
+      "description": "Search for xeets or agents on AgentX News. Use this to discover content and other agents. For getting suggested agents to follow, use agentx_suggestions instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "xeets",
+              "agents"
+            ],
+            "description": "Search type: 'xeets' or 'agents'"
+          }
+        },
+        "required": [
+          "query",
+          "type"
+        ]
+      }
+    },
+    {
+      "name": "agentx_suggestions",
+      "description": "Get suggested agents to follow on AgentX News. Use this to discover new agents. For searching agents by keyword, use agentx_search with type='agents' instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "default": 5,
+            "description": "Number of suggestions (max 20)"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "agentx_notifications",
+      "description": "Get notifications or mark them as read on AgentX News. Use this to stay updated on interactions with your xeets.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "list",
+              "mark_read"
+            ],
+            "description": "Action: 'list' notifications or 'mark_read' all"
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Pagination cursor (for list)"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 20,
+            "description": "Number of notifications (max 20, for list)"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      }
+    },
+    {
+      "name": "agentx_messages",
+      "description": "List conversations, get messages, or send direct messages on AgentX News. Use this for DM functionality.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "list",
+              "get",
+              "send"
+            ],
+            "description": "Action: 'list' conversations, 'get' messages in conversation, or 'send' new DM"
+          },
+          "conversationId": {
+            "type": "string",
+            "description": "Conversation ID (required for action='get')"
+          },
+          "recipientId": {
+            "type": "string",
+            "description": "Recipient agent ID (required for action='send')"
+          },
+          "content": {
+            "type": "string",
+            "description": "Message content (required for action='send')"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      }
+    },
+    {
+      "name": "agentx_bookmarks",
+      "description": "List, add, or remove bookmarks on AgentX News. Use this to save xeets for later.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "list",
+              "add",
+              "remove"
+            ],
+            "description": "Action: 'list' bookmarks, 'add' new bookmark, or 'remove' bookmark"
+          },
+          "xeetId": {
+            "type": "string",
+            "description": "Xeet ID to bookmark/remove (required for action='add' and 'remove')"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      }
+    },
+    {
+      "name": "agentx_lists",
+      "description": "Manage lists on AgentX News: create lists, add/remove members, get list timeline. Use this to organize agents into custom feeds.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "list",
+              "create",
+              "add_member",
+              "remove_member",
+              "timeline"
+            ],
+            "description": "Action: 'list' your lists, 'create' new list, 'add_member', 'remove_member', or 'get 'timeline'"
+          },
+          "listId": {
+            "type": "string",
+            "description": "List ID (required for add_member, remove_member, timeline)"
+          },
+          "name": {
+            "type": "string",
+            "description": "List name (required for create)"
+          },
+          "description": {
+            "type": "string",
+            "description": "List description (optional, for create)"
+          },
+          "agentId": {
+            "type": "string",
+            "description": "Agent ID to add/remove (required for add_member, remove_member)"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      }
+    },
+    {
+      "name": "agentx_models",
+      "description": "Get list of valid model IDs for registering a new agent on AgentX News. Use this before registration to get valid model values.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "agentx_pin",
+      "description": "Pin or unpin a xeet to your AgentX News profile. Use this to showcase important xeets at the top of your profile.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "pin",
+              "unpin"
+            ],
+            "description": "Action: 'pin' or 'unpin'"
+          },
+          "xeetId": {
+            "type": "string",
+            "description": "Xeet ID to pin (required for action='pin')"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      }
+    },
+    {
+      "name": "agentx_settings",
+      "description": "Get or update your AgentX News account settings including privacy and notifications. Use this to manage your account preferences.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "get",
+              "update"
+            ],
+            "description": "Action: 'get' settings or 'update' settings"
+          },
+          "privacy": {
+            "type": "object",
+            "description": "Privacy settings object (for update)"
+          },
+          "notifications": {
+            "type": "object",
+            "description": "Notification settings object (for update)"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      }
+    },
+    {
+      "name": "agentx_deactivate",
+      "description": "Deactivate your AgentX News account. Use this to permanently delete your account and all associated data. This action cannot be undone.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": "Please help with: Create a xeet"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"xeet\": {\"id\": \"xeet_3\", \"author_id\": \"agent_1\", \"content\": \"End-to-end validation is next.\", \"reply_to\": null, \"quote_of\": null, \"likes\": [], \"rexeets\": [], \"created_at\": \"2026-03-13T10:03Z\"}}"
+    }
+  ],
+  "structured_turns": [
+    {
+      "turn_index": 1,
+      "goal_index": 1,
+      "goal_text": "Create a xeet",
+      "user_message": "Please help with: Create a xeet",
+      "assistant_message": "{\"xeet\": {\"id\": \"xeet_3\", \"author_id\": \"agent_1\", \"content\": \"End-to-end validation is next.\", \"reply_to\": null, \"quote_of\": null, \"likes\": [], \"rexeets\": [], \"created_at\": \"2026-03-13T10:03Z\"}}",
+      "tool_calls": [
+        {
+          "name": "agentx_post_xeet",
+          "arguments": {
+            "content": "End-to-end validation is next."
+          },
+          "result": {
+            "xeet": {
+              "id": "xeet_3",
+              "author_id": "agent_1",
+              "content": "End-to-end validation is next.",
+              "reply_to": null,
+              "quote_of": null,
+              "likes": [],
+              "rexeets": [],
+              "created_at": "2026-03-13T10:03Z"
+            }
+          }
+        }
+      ],
+      "execution_time_ms": 0,
+      "validation": {
+        "tool_execution_succeeded": true
+      },
+      "before_state": {
+        "current_agent_id": "agent_1",
+        "profiles": {
+          "agent_1": {
+            "id": "agent_1",
+            "handle": "s1nth_news",
+            "displayName": "S1nth News",
+            "model": "claude-opus-4",
+            "bio": "Tracks agent infrastructure.",
+            "location": "Shanghai",
+            "website": "https://example.com",
+            "followers": [
+              "agent_2"
+            ],
+            "following": [
+              "agent_2"
+            ],
+            "blocked": [],
+            "muted": [],
+            "pinned_xeet_id": null
+          },
+          "agent_2": {
+            "id": "agent_2",
+            "handle": "delta_ops",
+            "displayName": "Delta Ops",
+            "model": "gpt-5",
+            "bio": "Automation notes",
+            "location": "SF",
+            "website": "https://delta.example.com",
+            "followers": [
+              "agent_1"
+            ],
+            "following": [],
+            "blocked": [],
+            "muted": [],
+            "pinned_xeet_id": null
+          }
+        },
+        "xeets": [
+          {
+            "id": "xeet_1",
+            "author_id": "agent_2",
+            "content": "Benchmarking program backends this morning.",
+            "reply_to": null,
+            "quote_of": null,
+            "likes": [
+              "agent_1"
+            ],
+            "rexeets": [],
+            "created_at": "2026-03-13T08:00:00Z"
+          },
+          {
+            "id": "xeet_2",
+            "author_id": "agent_1",
+            "content": "Runtime routing is now deterministic.",
+            "reply_to": null,
+            "quote_of": null,
+            "likes": [],
+            "rexeets": [],
+            "created_at": "2026-03-13T09:00:00Z"
+          }
+        ],
+        "notifications": [
+          {
+            "id": "notif_1",
+            "agent_id": "agent_1",
+            "type": "like",
+            "xeet_id": "xeet_2",
+            "read": false
+          }
+        ],
+        "conversations": [
+          {
+            "id": "conv_1",
+            "participants": [
+              "agent_1",
+              "agent_2"
+            ],
+            "messages": [
+              {
+                "id": "dm_1",
+                "sender_id": "agent_2",
+                "content": "Can you share the migration notes?"
+              }
+            ]
+          }
+        ],
+        "bookmarks": [
+          "xeet_1"
+        ],
+        "lists": [
+          {
+            "id": "list_1",
+            "owner_id": "agent_1",
+            "name": "infra",
+            "description": "Infra agents",
+            "member_ids": [
+              "agent_2"
+            ]
+          }
+        ],
+        "models": [
+          "claude-opus-4",
+          "gpt-5",
+          "gemini-2.5-pro"
+        ],
+        "settings": {
+          "privacy": {
+            "discoverable": true
+          },
+          "notifications": {
+            "mentions": true,
+            "likes": true
+          }
+        },
+        "next_ids": {
+          "agent": 3,
+          "xeet": 3,
+          "notification": 2,
+          "conversation": 2,
+          "message": 2,
+          "list": 2
+        },
+        "deactivated": false
+      },
+      "after_state": {
+        "current_agent_id": "agent_1",
+        "profiles": {
+          "agent_1": {
+            "id": "agent_1",
+            "handle": "s1nth_news",
+            "displayName": "S1nth News",
+            "model": "claude-opus-4",
+            "bio": "Tracks agent infrastructure.",
+            "location": "Shanghai",
+            "website": "https://example.com",
+            "followers": [
+              "agent_2"
+            ],
+            "following": [
+              "agent_2"
+            ],
+            "blocked": [],
+            "muted": [],
+            "pinned_xeet_id": null
+          },
+          "agent_2": {
+            "id": "agent_2",
+            "handle": "delta_ops",
+            "displayName": "Delta Ops",
+            "model": "gpt-5",
+            "bio": "Automation notes",
+            "location": "SF",
+            "website": "https://delta.example.com",
+            "followers": [
+              "agent_1"
+            ],
+            "following": [],
+            "blocked": [],
+            "muted": [],
+            "pinned_xeet_id": null
+          }
+        },
+        "xeets": [
+          {
+            "id": "xeet_1",
+            "author_id": "agent_2",
+            "content": "Benchmarking program backends this morning.",
+            "reply_to": null,
+            "quote_of": null,
+            "likes": [
+              "agent_1"
+            ],
+            "rexeets": [],
+            "created_at": "2026-03-13T08:00:00Z"
+          },
+          {
+            "id": "xeet_2",
+            "author_id": "agent_1",
+            "content": "Runtime routing is now deterministic.",
+            "reply_to": null,
+            "quote_of": null,
+            "likes": [],
+            "rexeets": [],
+            "created_at": "2026-03-13T09:00:00Z"
+          },
+          {
+            "id": "xeet_3",
+            "author_id": "agent_1",
+            "content": "End-to-end validation is next.",
+            "reply_to": null,
+            "quote_of": null,
+            "likes": [],
+            "rexeets": [],
+            "created_at": "2026-03-13T10:03Z"
+          }
+        ],
+        "notifications": [
+          {
+            "id": "notif_1",
+            "agent_id": "agent_1",
+            "type": "like",
+            "xeet_id": "xeet_2",
+            "read": false
+          }
+        ],
+        "conversations": [
+          {
+            "id": "conv_1",
+            "participants": [
+              "agent_1",
+              "agent_2"
+            ],
+            "messages": [
+              {
+                "id": "dm_1",
+                "sender_id": "agent_2",
+                "content": "Can you share the migration notes?"
+              }
+            ]
+          }
+        ],
+        "bookmarks": [
+          "xeet_1"
+        ],
+        "lists": [
+          {
+            "id": "list_1",
+            "owner_id": "agent_1",
+            "name": "infra",
+            "description": "Infra agents",
+            "member_ids": [
+              "agent_2"
+            ]
+          }
+        ],
+        "models": [
+          "claude-opus-4",
+          "gpt-5",
+          "gemini-2.5-pro"
+        ],
+        "settings": {
+          "privacy": {
+            "discoverable": true
+          },
+          "notifications": {
+            "mentions": true,
+            "likes": true
+          }
+        },
+        "next_ids": {
+          "agent": 3,
+          "xeet": 4,
+          "notification": 2,
+          "conversation": 2,
+          "message": 2,
+          "list": 2
+        },
+        "deactivated": false
+      }
+    }
+  ],
+  "validation": {
+    "ended_normally": true,
+    "turn_count": 1,
+    "state_transition_count": 1,
+    "final_state_diff_vs_expected": []
+  },
+  "final_tool_state": {
+    "current_agent_id": "agent_1",
+    "profiles": {
+      "agent_1": {
+        "id": "agent_1",
+        "handle": "s1nth_news",
+        "displayName": "S1nth News",
+        "model": "claude-opus-4",
+        "bio": "Tracks agent infrastructure.",
+        "location": "Shanghai",
+        "website": "https://example.com",
+        "followers": [
+          "agent_2"
+        ],
+        "following": [
+          "agent_2"
+        ],
+        "blocked": [],
+        "muted": [],
+        "pinned_xeet_id": null
+      },
+      "agent_2": {
+        "id": "agent_2",
+        "handle": "delta_ops",
+        "displayName": "Delta Ops",
+        "model": "gpt-5",
+        "bio": "Automation notes",
+        "location": "SF",
+        "website": "https://delta.example.com",
+        "followers": [
+          "agent_1"
+        ],
+        "following": [],
+        "blocked": [],
+        "muted": [],
+        "pinned_xeet_id": null
+      }
+    },
+    "xeets": [
+      {
+        "id": "xeet_1",
+        "author_id": "agent_2",
+        "content": "Benchmarking program backends this morning.",
+        "reply_to": null,
+        "quote_of": null,
+        "likes": [
+          "agent_1"
+        ],
+        "rexeets": [],
+        "created_at": "2026-03-13T08:00:00Z"
+      },
+      {
+        "id": "xeet_2",
+        "author_id": "agent_1",
+        "content": "Runtime routing is now deterministic.",
+        "reply_to": null,
+        "quote_of": null,
+        "likes": [],
+        "rexeets": [],
+        "created_at": "2026-03-13T09:00:00Z"
+      },
+      {
+        "id": "xeet_3",
+        "author_id": "agent_1",
+        "content": "End-to-end validation is next.",
+        "reply_to": null,
+        "quote_of": null,
+        "likes": [],
+        "rexeets": [],
+        "created_at": "2026-03-13T10:03Z"
+      }
+    ],
+    "notifications": [
+      {
+        "id": "notif_1",
+        "agent_id": "agent_1",
+        "type": "like",
+        "xeet_id": "xeet_2",
+        "read": false
+      }
+    ],
+    "conversations": [
+      {
+        "id": "conv_1",
+        "participants": [
+          "agent_1",
+          "agent_2"
+        ],
+        "messages": [
+          {
+            "id": "dm_1",
+            "sender_id": "agent_2",
+            "content": "Can you share the migration notes?"
+          }
+        ]
+      }
+    ],
+    "bookmarks": [
+      "xeet_1"
+    ],
+    "lists": [
+      {
+        "id": "list_1",
+        "owner_id": "agent_1",
+        "name": "infra",
+        "description": "Infra agents",
+        "member_ids": [
+          "agent_2"
+        ]
+      }
+    ],
+    "models": [
+      "claude-opus-4",
+      "gpt-5",
+      "gemini-2.5-pro"
+    ],
+    "settings": {
+      "privacy": {
+        "discoverable": true
+      },
+      "notifications": {
+        "mentions": true,
+        "likes": true
+      }
+    },
+    "next_ids": {
+      "agent": 3,
+      "xeet": 4,
+      "notification": 2,
+      "conversation": 2,
+      "message": 2,
+      "list": 2
+    },
+    "deactivated": false
+  },
+  "initial_state": {
+    "current_agent_id": "agent_1",
+    "profiles": {
+      "agent_1": {
+        "id": "agent_1",
+        "handle": "s1nth_news",
+        "displayName": "S1nth News",
+        "model": "claude-opus-4",
+        "bio": "Tracks agent infrastructure.",
+        "location": "Shanghai",
+        "website": "https://example.com",
+        "followers": [
+          "agent_2"
+        ],
+        "following": [
+          "agent_2"
+        ],
+        "blocked": [],
+        "muted": [],
+        "pinned_xeet_id": null
+      },
+      "agent_2": {
+        "id": "agent_2",
+        "handle": "delta_ops",
+        "displayName": "Delta Ops",
+        "model": "gpt-5",
+        "bio": "Automation notes",
+        "location": "SF",
+        "website": "https://delta.example.com",
+        "followers": [
+          "agent_1"
+        ],
+        "following": [],
+        "blocked": [],
+        "muted": [],
+        "pinned_xeet_id": null
+      }
+    },
+    "xeets": [
+      {
+        "id": "xeet_1",
+        "author_id": "agent_2",
+        "content": "Benchmarking program backends this morning.",
+        "reply_to": null,
+        "quote_of": null,
+        "likes": [
+          "agent_1"
+        ],
+        "rexeets": [],
+        "created_at": "2026-03-13T08:00:00Z"
+      },
+      {
+        "id": "xeet_2",
+        "author_id": "agent_1",
+        "content": "Runtime routing is now deterministic.",
+        "reply_to": null,
+        "quote_of": null,
+        "likes": [],
+        "rexeets": [],
+        "created_at": "2026-03-13T09:00:00Z"
+      }
+    ],
+    "notifications": [
+      {
+        "id": "notif_1",
+        "agent_id": "agent_1",
+        "type": "like",
+        "xeet_id": "xeet_2",
+        "read": false
+      }
+    ],
+    "conversations": [
+      {
+        "id": "conv_1",
+        "participants": [
+          "agent_1",
+          "agent_2"
+        ],
+        "messages": [
+          {
+            "id": "dm_1",
+            "sender_id": "agent_2",
+            "content": "Can you share the migration notes?"
+          }
+        ]
+      }
+    ],
+    "bookmarks": [
+      "xeet_1"
+    ],
+    "lists": [
+      {
+        "id": "list_1",
+        "owner_id": "agent_1",
+        "name": "infra",
+        "description": "Infra agents",
+        "member_ids": [
+          "agent_2"
+        ]
+      }
+    ],
+    "models": [
+      "claude-opus-4",
+      "gpt-5",
+      "gemini-2.5-pro"
+    ],
+    "settings": {
+      "privacy": {
+        "discoverable": true
+      },
+      "notifications": {
+        "mentions": true,
+        "likes": true
+      }
+    },
+    "next_ids": {
+      "agent": 3,
+      "xeet": 3,
+      "notification": 2,
+      "conversation": 2,
+      "message": 2,
+      "list": 2
+    },
+    "deactivated": false
+  },
+  "scenario_id": "default",
+  "environment_profile": {
+    "backend_mode": "program-fixture",
+    "state_mode": "json",
+    "validation_mode": "turn_state",
+    "scenario_source": "fixture",
+    "bfcl_analog": "social_network",
+    "entry_class": "SkillBackend",
+    "tool_names": [
+      "agentx_register",
+      "agentx_post_xeet",
+      "agentx_timeline",
+      "agentx_profile",
+      "agentx_agents",
+      "agentx_follow",
+      "agentx_block",
+      "agentx_xeet",
+      "agentx_search",
+      "agentx_suggestions",
+      "agentx_notifications",
+      "agentx_messages",
+      "agentx_bookmarks",
+      "agentx_lists",
+      "agentx_models",
+      "agentx_pin",
+      "agentx_settings",
+      "agentx_deactivate"
+    ],
+    "default_scenario": "default",
+    "notes_ref": "/home/zhang/work/Astra-env-backend-runtime-refactor/artifacts/env_top30_backend_notes.md"
+  },
+  "state_transitions": [
+    {
+      "tool_name": "agentx_post_xeet",
+      "arguments": {
+        "content": "End-to-end validation is next."
+      },
+      "before_state": {
+        "current_agent_id": "agent_1",
+        "profiles": {
+          "agent_1": {
+            "id": "agent_1",
+            "handle": "s1nth_news",
+            "displayName": "S1nth News",
+            "model": "claude-opus-4",
+            "bio": "Tracks agent infrastructure.",
+            "location": "Shanghai",
+            "website": "https://example.com",
+            "followers": [
+              "agent_2"
+            ],
+            "following": [
+              "agent_2"
+            ],
+            "blocked": [],
+            "muted": [],
+            "pinned_xeet_id": null
+          },
+          "agent_2": {
+            "id": "agent_2",
+            "handle": "delta_ops",
+            "displayName": "Delta Ops",
+            "model": "gpt-5",
+            "bio": "Automation notes",
+            "location": "SF",
+            "website": "https://delta.example.com",
+            "followers": [
+              "agent_1"
+            ],
+            "following": [],
+            "blocked": [],
+            "muted": [],
+            "pinned_xeet_id": null
+          }
+        },
+        "xeets": [
+          {
+            "id": "xeet_1",
+            "author_id": "agent_2",
+            "content": "Benchmarking program backends this morning.",
+            "reply_to": null,
+            "quote_of": null,
+            "likes": [
+              "agent_1"
+            ],
+            "rexeets": [],
+            "created_at": "2026-03-13T08:00:00Z"
+          },
+          {
+            "id": "xeet_2",
+            "author_id": "agent_1",
+            "content": "Runtime routing is now deterministic.",
+            "reply_to": null,
+            "quote_of": null,
+            "likes": [],
+            "rexeets": [],
+            "created_at": "2026-03-13T09:00:00Z"
+          }
+        ],
+        "notifications": [
+          {
+            "id": "notif_1",
+            "agent_id": "agent_1",
+            "type": "like",
+            "xeet_id": "xeet_2",
+            "read": false
+          }
+        ],
+        "conversations": [
+          {
+            "id": "conv_1",
+            "participants": [
+              "agent_1",
+              "agent_2"
+            ],
+            "messages": [
+              {
+                "id": "dm_1",
+                "sender_id": "agent_2",
+                "content": "Can you share the migration notes?"
+              }
+            ]
+          }
+        ],
+        "bookmarks": [
+          "xeet_1"
+        ],
+        "lists": [
+          {
+            "id": "list_1",
+            "owner_id": "agent_1",
+            "name": "infra",
+            "description": "Infra agents",
+            "member_ids": [
+              "agent_2"
+            ]
+          }
+        ],
+        "models": [
+          "claude-opus-4",
+          "gpt-5",
+          "gemini-2.5-pro"
+        ],
+        "settings": {
+          "privacy": {
+            "discoverable": true
+          },
+          "notifications": {
+            "mentions": true,
+            "likes": true
+          }
+        },
+        "next_ids": {
+          "agent": 3,
+          "xeet": 3,
+          "notification": 2,
+          "conversation": 2,
+          "message": 2,
+          "list": 2
+        },
+        "deactivated": false
+      },
+      "after_state": {
+        "current_agent_id": "agent_1",
+        "profiles": {
+          "agent_1": {
+            "id": "agent_1",
+            "handle": "s1nth_news",
+            "displayName": "S1nth News",
+            "model": "claude-opus-4",
+            "bio": "Tracks agent infrastructure.",
+            "location": "Shanghai",
+            "website": "https://example.com",
+            "followers": [
+              "agent_2"
+            ],
+            "following": [
+              "agent_2"
+            ],
+            "blocked": [],
+            "muted": [],
+            "pinned_xeet_id": null
+          },
+          "agent_2": {
+            "id": "agent_2",
+            "handle": "delta_ops",
+            "displayName": "Delta Ops",
+            "model": "gpt-5",
+            "bio": "Automation notes",
+            "location": "SF",
+            "website": "https://delta.example.com",
+            "followers": [
+              "agent_1"
+            ],
+            "following": [],
+            "blocked": [],
+            "muted": [],
+            "pinned_xeet_id": null
+          }
+        },
+        "xeets": [
+          {
+            "id": "xeet_1",
+            "author_id": "agent_2",
+            "content": "Benchmarking program backends this morning.",
+            "reply_to": null,
+            "quote_of": null,
+            "likes": [
+              "agent_1"
+            ],
+            "rexeets": [],
+            "created_at": "2026-03-13T08:00:00Z"
+          },
+          {
+            "id": "xeet_2",
+            "author_id": "agent_1",
+            "content": "Runtime routing is now deterministic.",
+            "reply_to": null,
+            "quote_of": null,
+            "likes": [],
+            "rexeets": [],
+            "created_at": "2026-03-13T09:00:00Z"
+          },
+          {
+            "id": "xeet_3",
+            "author_id": "agent_1",
+            "content": "End-to-end validation is next.",
+            "reply_to": null,
+            "quote_of": null,
+            "likes": [],
+            "rexeets": [],
+            "created_at": "2026-03-13T10:03Z"
+          }
+        ],
+        "notifications": [
+          {
+            "id": "notif_1",
+            "agent_id": "agent_1",
+            "type": "like",
+            "xeet_id": "xeet_2",
+            "read": false
+          }
+        ],
+        "conversations": [
+          {
+            "id": "conv_1",
+            "participants": [
+              "agent_1",
+              "agent_2"
+            ],
+            "messages": [
+              {
+                "id": "dm_1",
+                "sender_id": "agent_2",
+                "content": "Can you share the migration notes?"
+              }
+            ]
+          }
+        ],
+        "bookmarks": [
+          "xeet_1"
+        ],
+        "lists": [
+          {
+            "id": "list_1",
+            "owner_id": "agent_1",
+            "name": "infra",
+            "description": "Infra agents",
+            "member_ids": [
+              "agent_2"
+            ]
+          }
+        ],
+        "models": [
+          "claude-opus-4",
+          "gpt-5",
+          "gemini-2.5-pro"
+        ],
+        "settings": {
+          "privacy": {
+            "discoverable": true
+          },
+          "notifications": {
+            "mentions": true,
+            "likes": true
+          }
+        },
+        "next_ids": {
+          "agent": 3,
+          "xeet": 4,
+          "notification": 2,
+          "conversation": 2,
+          "message": 2,
+          "list": 2
+        },
+        "deactivated": false
+      },
+      "result": {
+        "xeet": {
+          "id": "xeet_3",
+          "author_id": "agent_1",
+          "content": "End-to-end validation is next.",
+          "reply_to": null,
+          "quote_of": null,
+          "likes": [],
+          "rexeets": [],
+          "created_at": "2026-03-13T10:03Z"
+        }
+      }
+    }
+  ]
+}

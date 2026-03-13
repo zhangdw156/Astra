@@ -1,0 +1,907 @@
+{
+  "run_id": "2821_claudemem-sample-036",
+  "trajectory_id": "d6c7fa14-af08-48de-9e63-071378e7ff5f",
+  "blueprint_id": "68ec57f3-35e7-44a8-a780-b33328f5e5b9",
+  "skill_name": "2821_claudemem",
+  "persona_id": "2821_claudemem-smoke",
+  "tools": [
+    {
+      "name": "note",
+      "description": "Manage persistent knowledge notes (knowledge fragments that survive across conversations). Use this to save, search, retrieve, update, and organize important information like API specs, decisions, quirks, and preferences. For searching across both notes and sessions, use search instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "add",
+              "search",
+              "list",
+              "get",
+              "update",
+              "append",
+              "delete",
+              "categories",
+              "tags"
+            ],
+            "description": "Note operation: 'add' to create new note, 'search' to find notes, 'list' to list notes in category, 'get' to retrieve specific note, 'update' to modify note, 'append' to add content to existing note, 'delete' to remove note, 'categories' to list categories, 'tags' to list all tags"
+          },
+          "category": {
+            "type": "string",
+            "description": "Category name (required for add, optional for search and list)"
+          },
+          "title": {
+            "type": "string",
+            "description": "Note title (required for add and update)"
+          },
+          "content": {
+            "type": "string",
+            "description": "Note content (required for add and update)"
+          },
+          "tags": {
+            "type": "string",
+            "description": "Comma-separated tags (optional for add and update)"
+          },
+          "id": {
+            "type": "string",
+            "description": "Note ID (required for get, update, append, delete)"
+          },
+          "query": {
+            "type": "string",
+            "description": "Search query (required for search action)"
+          },
+          "in": {
+            "type": "string",
+            "description": "Category to search within (optional for search)"
+          },
+          "tag": {
+            "type": "string",
+            "description": "Tag to filter by (optional for search)"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      }
+    },
+    {
+      "name": "session",
+      "description": "Manage session summaries (conversation summaries that preserve context across sessions). Use this to save, list, search, and retrieve past conversation summaries. For searching across both notes and sessions, use search instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "save",
+              "list",
+              "search",
+              "get"
+            ],
+            "description": "Session operation: 'save' to create new session summary, 'list' to list sessions, 'search' to find sessions, 'get' to retrieve specific session"
+          },
+          "title": {
+            "type": "string",
+            "description": "Session title (required for save)"
+          },
+          "branch": {
+            "type": "string",
+            "description": "Branch name (optional for save, list, search)"
+          },
+          "project": {
+            "type": "string",
+            "description": "Project name (optional for save)"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (optional for save)"
+          },
+          "content": {
+            "type": "string",
+            "description": "Session content/markdown (required for save)"
+          },
+          "last": {
+            "type": "integer",
+            "description": "Number of recent sessions to return (optional for list)"
+          },
+          "date": {
+            "type": "string",
+            "description": "Filter by date: 'today', or specific date (optional for list)"
+          },
+          "date_range": {
+            "type": "string",
+            "description": "Date range: '7d', '30d', etc (optional for list)"
+          },
+          "query": {
+            "type": "string",
+            "description": "Search query (required for search action)"
+          },
+          "id": {
+            "type": "string",
+            "description": "Session ID (required for get)"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      }
+    },
+    {
+      "name": "search",
+      "description": "Unified search across both notes AND sessions. Use this to find any information stored in claudemem, whether it's knowledge fragments or past conversation summaries. For note-only or session-only operations, use note or session tools instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query text"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "note",
+              "session"
+            ],
+            "description": "Filter by type: 'note' for knowledge fragments, 'session' for conversation summaries (optional)"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 10,
+            "description": "Maximum results to return"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    {
+      "name": "stats",
+      "description": "Display statistics about claudemem storage including note count, session count, categories, tags, and storage usage. Use this to understand what information is currently stored in persistent memory.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "config",
+      "description": "Manage claudemem configuration settings. Use this to view, set, or delete configuration options like storage paths, auto-save preferences, or other settings.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "set",
+              "get",
+              "list",
+              "delete"
+            ],
+            "description": "Configuration action: 'set' to set a value, 'get' to get a value, 'list' to list all config, 'delete' to remove a config key"
+          },
+          "key": {
+            "type": "string",
+            "description": "Configuration key (required for set, get, delete)"
+          },
+          "value": {
+            "type": "string",
+            "description": "Configuration value (required for set)"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      }
+    },
+    {
+      "name": "export",
+      "description": "Export all claudemem data (notes and sessions) as a compressed backup archive. Use this for backup purposes or migrating data to another machine. For restoring from backup, use import instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "output_file": {
+            "type": "string",
+            "description": "Output file path for the backup archive (optional)"
+          }
+        }
+      }
+    },
+    {
+      "name": "import",
+      "description": "Import claudemem data from a backup archive. Use this to restore data from a previous export or migrate data from another machine. Automatically reindexes the data after import. For creating backups, use export instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "archive_file": {
+            "type": "string",
+            "description": "Path to the backup archive file to import"
+          }
+        },
+        "required": [
+          "archive_file"
+        ]
+      }
+    },
+    {
+      "name": "verify",
+      "description": "Verify database integrity by checking consistency between the SQLite FTS5 search index and the underlying Markdown files. Use this to detect any data corruption or mismatches. For fixing issues found, use repair instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "repair",
+      "description": "Repair claudemem database by fixing orphaned entries and rebuilding consistency between the SQLite FTS5 index and Markdown files. Use this after verify detects issues. For checking integrity without fixing, use verify instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": "Please help with: Save a session summary"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"session\": {\"id\": \"session_2\", \"title\": \"Fixture batch\", \"branch\": \"feat/test\", \"project\": \"/tmp/demo\", \"date\": \"2026-03-13\", \"content\": \"## Summary\\nMigrated more fixture-backed skills and verified them with pytest.\\n\\n## Next Steps\\n- [ ] Continue from saved context\"}}"
+    },
+    {
+      "role": "user",
+      "content": "Please help with: Search memory"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"results\": [{\"type\": \"session\", \"id\": \"session_2\", \"title\": \"Fixture batch\", \"branch\": \"feat/test\", \"project\": \"/tmp/demo\", \"date\": \"2026-03-13\", \"excerpt\": \"## Summary\\nMigrated more fixture-backed skills and verified them with pytest.\\n\\n## Next Steps\\n- [ ] Continue from saved c\"}]}"
+    }
+  ],
+  "structured_turns": [
+    {
+      "turn_index": 1,
+      "goal_index": 1,
+      "goal_text": "Save a session summary",
+      "user_message": "Please help with: Save a session summary",
+      "assistant_message": "{\"session\": {\"id\": \"session_2\", \"title\": \"Fixture batch\", \"branch\": \"feat/test\", \"project\": \"/tmp/demo\", \"date\": \"2026-03-13\", \"content\": \"## Summary\\nMigrated more fixture-backed skills and verified them with pytest.\\n\\n## Next Steps\\n- [ ] Continue from saved context\"}}",
+      "tool_calls": [
+        {
+          "name": "session",
+          "arguments": {
+            "action": "save",
+            "title": "Fixture batch",
+            "branch": "feat/test",
+            "project": "/tmp/demo"
+          },
+          "result": {
+            "session": {
+              "id": "session_2",
+              "title": "Fixture batch",
+              "branch": "feat/test",
+              "project": "/tmp/demo",
+              "date": "2026-03-13",
+              "content": "## Summary\nMigrated more fixture-backed skills and verified them with pytest.\n\n## Next Steps\n- [ ] Continue from saved context"
+            }
+          }
+        }
+      ],
+      "execution_time_ms": 0,
+      "validation": {
+        "tool_execution_succeeded": true
+      },
+      "before_state": {
+        "notes": [
+          {
+            "id": "note_1",
+            "category": "api-specs",
+            "title": "Planner environment fields",
+            "content": "Planner prompts now include environment_profile and scenario_summary placeholders.",
+            "tags": [
+              "planner",
+              "runtime"
+            ]
+          },
+          {
+            "id": "note_2",
+            "category": "decisions",
+            "title": "Runtime-first migration",
+            "content": "Refactor the runtime before migrating planner logic or individual skills.",
+            "tags": [
+              "migration",
+              "runtime"
+            ]
+          }
+        ],
+        "sessions": [
+          {
+            "id": "session_1",
+            "title": "Runtime split and first direct backends",
+            "branch": "feat/env-backend-runtime-refactor",
+            "project": "/home/zhang/work/Astra",
+            "content": "Implemented executable backend loading and migrated the first direct skills.",
+            "date": "2026-03-12"
+          }
+        ],
+        "config": {
+          "auto_wrap_up": "false",
+          "storage_root": "~/.claudemem"
+        },
+        "archives": [],
+        "index_ok": true,
+        "next_ids": {
+          "note": 3,
+          "session": 2,
+          "archive": 1
+        }
+      },
+      "after_state": {
+        "notes": [
+          {
+            "id": "note_1",
+            "category": "api-specs",
+            "title": "Planner environment fields",
+            "content": "Planner prompts now include environment_profile and scenario_summary placeholders.",
+            "tags": [
+              "planner",
+              "runtime"
+            ]
+          },
+          {
+            "id": "note_2",
+            "category": "decisions",
+            "title": "Runtime-first migration",
+            "content": "Refactor the runtime before migrating planner logic or individual skills.",
+            "tags": [
+              "migration",
+              "runtime"
+            ]
+          }
+        ],
+        "sessions": [
+          {
+            "id": "session_1",
+            "title": "Runtime split and first direct backends",
+            "branch": "feat/env-backend-runtime-refactor",
+            "project": "/home/zhang/work/Astra",
+            "content": "Implemented executable backend loading and migrated the first direct skills.",
+            "date": "2026-03-12"
+          },
+          {
+            "id": "session_2",
+            "title": "Fixture batch",
+            "branch": "feat/test",
+            "project": "/tmp/demo",
+            "content": "## Summary\nMigrated more fixture-backed skills and verified them with pytest.\n\n## Next Steps\n- [ ] Continue from saved context",
+            "date": "2026-03-13"
+          }
+        ],
+        "config": {
+          "auto_wrap_up": "false",
+          "storage_root": "~/.claudemem"
+        },
+        "archives": [],
+        "index_ok": true,
+        "next_ids": {
+          "note": 3,
+          "session": 3,
+          "archive": 1
+        }
+      }
+    },
+    {
+      "turn_index": 2,
+      "goal_index": 2,
+      "goal_text": "Search memory",
+      "user_message": "Please help with: Search memory",
+      "assistant_message": "{\"results\": [{\"type\": \"session\", \"id\": \"session_2\", \"title\": \"Fixture batch\", \"branch\": \"feat/test\", \"project\": \"/tmp/demo\", \"date\": \"2026-03-13\", \"excerpt\": \"## Summary\\nMigrated more fixture-backed skills and verified them with pytest.\\n\\n## Next Steps\\n- [ ] Continue from saved c\"}]}",
+      "tool_calls": [
+        {
+          "name": "search",
+          "arguments": {
+            "query": "fixture",
+            "limit": 5
+          },
+          "result": {
+            "results": [
+              {
+                "type": "session",
+                "id": "session_2",
+                "title": "Fixture batch",
+                "branch": "feat/test",
+                "project": "/tmp/demo",
+                "date": "2026-03-13",
+                "excerpt": "## Summary\nMigrated more fixture-backed skills and verified them with pytest.\n\n## Next Steps\n- [ ] Continue from saved c"
+              }
+            ]
+          }
+        }
+      ],
+      "execution_time_ms": 0,
+      "validation": {
+        "tool_execution_succeeded": true
+      },
+      "before_state": {
+        "notes": [
+          {
+            "id": "note_1",
+            "category": "api-specs",
+            "title": "Planner environment fields",
+            "content": "Planner prompts now include environment_profile and scenario_summary placeholders.",
+            "tags": [
+              "planner",
+              "runtime"
+            ]
+          },
+          {
+            "id": "note_2",
+            "category": "decisions",
+            "title": "Runtime-first migration",
+            "content": "Refactor the runtime before migrating planner logic or individual skills.",
+            "tags": [
+              "migration",
+              "runtime"
+            ]
+          }
+        ],
+        "sessions": [
+          {
+            "id": "session_1",
+            "title": "Runtime split and first direct backends",
+            "branch": "feat/env-backend-runtime-refactor",
+            "project": "/home/zhang/work/Astra",
+            "content": "Implemented executable backend loading and migrated the first direct skills.",
+            "date": "2026-03-12"
+          },
+          {
+            "id": "session_2",
+            "title": "Fixture batch",
+            "branch": "feat/test",
+            "project": "/tmp/demo",
+            "content": "## Summary\nMigrated more fixture-backed skills and verified them with pytest.\n\n## Next Steps\n- [ ] Continue from saved context",
+            "date": "2026-03-13"
+          }
+        ],
+        "config": {
+          "auto_wrap_up": "false",
+          "storage_root": "~/.claudemem"
+        },
+        "archives": [],
+        "index_ok": true,
+        "next_ids": {
+          "note": 3,
+          "session": 3,
+          "archive": 1
+        }
+      },
+      "after_state": {
+        "notes": [
+          {
+            "id": "note_1",
+            "category": "api-specs",
+            "title": "Planner environment fields",
+            "content": "Planner prompts now include environment_profile and scenario_summary placeholders.",
+            "tags": [
+              "planner",
+              "runtime"
+            ]
+          },
+          {
+            "id": "note_2",
+            "category": "decisions",
+            "title": "Runtime-first migration",
+            "content": "Refactor the runtime before migrating planner logic or individual skills.",
+            "tags": [
+              "migration",
+              "runtime"
+            ]
+          }
+        ],
+        "sessions": [
+          {
+            "id": "session_1",
+            "title": "Runtime split and first direct backends",
+            "branch": "feat/env-backend-runtime-refactor",
+            "project": "/home/zhang/work/Astra",
+            "content": "Implemented executable backend loading and migrated the first direct skills.",
+            "date": "2026-03-12"
+          },
+          {
+            "id": "session_2",
+            "title": "Fixture batch",
+            "branch": "feat/test",
+            "project": "/tmp/demo",
+            "content": "## Summary\nMigrated more fixture-backed skills and verified them with pytest.\n\n## Next Steps\n- [ ] Continue from saved context",
+            "date": "2026-03-13"
+          }
+        ],
+        "config": {
+          "auto_wrap_up": "false",
+          "storage_root": "~/.claudemem"
+        },
+        "archives": [],
+        "index_ok": true,
+        "next_ids": {
+          "note": 3,
+          "session": 3,
+          "archive": 1
+        }
+      }
+    }
+  ],
+  "validation": {
+    "ended_normally": true,
+    "turn_count": 2,
+    "state_transition_count": 2,
+    "final_state_diff_vs_expected": []
+  },
+  "final_tool_state": {
+    "notes": [
+      {
+        "id": "note_1",
+        "category": "api-specs",
+        "title": "Planner environment fields",
+        "content": "Planner prompts now include environment_profile and scenario_summary placeholders.",
+        "tags": [
+          "planner",
+          "runtime"
+        ]
+      },
+      {
+        "id": "note_2",
+        "category": "decisions",
+        "title": "Runtime-first migration",
+        "content": "Refactor the runtime before migrating planner logic or individual skills.",
+        "tags": [
+          "migration",
+          "runtime"
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "id": "session_1",
+        "title": "Runtime split and first direct backends",
+        "branch": "feat/env-backend-runtime-refactor",
+        "project": "/home/zhang/work/Astra",
+        "content": "Implemented executable backend loading and migrated the first direct skills.",
+        "date": "2026-03-12"
+      },
+      {
+        "id": "session_2",
+        "title": "Fixture batch",
+        "branch": "feat/test",
+        "project": "/tmp/demo",
+        "content": "## Summary\nMigrated more fixture-backed skills and verified them with pytest.\n\n## Next Steps\n- [ ] Continue from saved context",
+        "date": "2026-03-13"
+      }
+    ],
+    "config": {
+      "auto_wrap_up": "false",
+      "storage_root": "~/.claudemem"
+    },
+    "archives": [],
+    "index_ok": true,
+    "next_ids": {
+      "note": 3,
+      "session": 3,
+      "archive": 1
+    }
+  },
+  "initial_state": {
+    "notes": [
+      {
+        "id": "note_1",
+        "category": "api-specs",
+        "title": "Planner environment fields",
+        "content": "Planner prompts now include environment_profile and scenario_summary placeholders.",
+        "tags": [
+          "planner",
+          "runtime"
+        ]
+      },
+      {
+        "id": "note_2",
+        "category": "decisions",
+        "title": "Runtime-first migration",
+        "content": "Refactor the runtime before migrating planner logic or individual skills.",
+        "tags": [
+          "migration",
+          "runtime"
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "id": "session_1",
+        "title": "Runtime split and first direct backends",
+        "branch": "feat/env-backend-runtime-refactor",
+        "project": "/home/zhang/work/Astra",
+        "content": "Implemented executable backend loading and migrated the first direct skills.",
+        "date": "2026-03-12"
+      }
+    ],
+    "config": {
+      "auto_wrap_up": "false",
+      "storage_root": "~/.claudemem"
+    },
+    "archives": [],
+    "index_ok": true,
+    "next_ids": {
+      "note": 3,
+      "session": 2,
+      "archive": 1
+    }
+  },
+  "scenario_id": "default",
+  "environment_profile": {
+    "backend_mode": "hybrid",
+    "state_mode": "json",
+    "validation_mode": "turn_state",
+    "scenario_source": "fixture",
+    "bfcl_analog": "persistent_memory",
+    "entry_class": "SkillBackend",
+    "tool_names": [
+      "note",
+      "session",
+      "search",
+      "stats",
+      "config",
+      "export",
+      "import",
+      "verify",
+      "repair"
+    ],
+    "default_scenario": "default",
+    "notes_ref": "/home/zhang/work/Astra-env-backend-runtime-refactor/artifacts/env_top30_backend_notes.md",
+    "state_mutation_policy": "programmatic",
+    "generated_result_fields": [
+      "summary"
+    ],
+    "generated_text_policy": "templated-summary"
+  },
+  "state_transitions": [
+    {
+      "tool_name": "session",
+      "arguments": {
+        "action": "save",
+        "title": "Fixture batch",
+        "branch": "feat/test",
+        "project": "/tmp/demo"
+      },
+      "before_state": {
+        "notes": [
+          {
+            "id": "note_1",
+            "category": "api-specs",
+            "title": "Planner environment fields",
+            "content": "Planner prompts now include environment_profile and scenario_summary placeholders.",
+            "tags": [
+              "planner",
+              "runtime"
+            ]
+          },
+          {
+            "id": "note_2",
+            "category": "decisions",
+            "title": "Runtime-first migration",
+            "content": "Refactor the runtime before migrating planner logic or individual skills.",
+            "tags": [
+              "migration",
+              "runtime"
+            ]
+          }
+        ],
+        "sessions": [
+          {
+            "id": "session_1",
+            "title": "Runtime split and first direct backends",
+            "branch": "feat/env-backend-runtime-refactor",
+            "project": "/home/zhang/work/Astra",
+            "content": "Implemented executable backend loading and migrated the first direct skills.",
+            "date": "2026-03-12"
+          }
+        ],
+        "config": {
+          "auto_wrap_up": "false",
+          "storage_root": "~/.claudemem"
+        },
+        "archives": [],
+        "index_ok": true,
+        "next_ids": {
+          "note": 3,
+          "session": 2,
+          "archive": 1
+        }
+      },
+      "after_state": {
+        "notes": [
+          {
+            "id": "note_1",
+            "category": "api-specs",
+            "title": "Planner environment fields",
+            "content": "Planner prompts now include environment_profile and scenario_summary placeholders.",
+            "tags": [
+              "planner",
+              "runtime"
+            ]
+          },
+          {
+            "id": "note_2",
+            "category": "decisions",
+            "title": "Runtime-first migration",
+            "content": "Refactor the runtime before migrating planner logic or individual skills.",
+            "tags": [
+              "migration",
+              "runtime"
+            ]
+          }
+        ],
+        "sessions": [
+          {
+            "id": "session_1",
+            "title": "Runtime split and first direct backends",
+            "branch": "feat/env-backend-runtime-refactor",
+            "project": "/home/zhang/work/Astra",
+            "content": "Implemented executable backend loading and migrated the first direct skills.",
+            "date": "2026-03-12"
+          },
+          {
+            "id": "session_2",
+            "title": "Fixture batch",
+            "branch": "feat/test",
+            "project": "/tmp/demo",
+            "content": "## Summary\nMigrated more fixture-backed skills and verified them with pytest.\n\n## Next Steps\n- [ ] Continue from saved context",
+            "date": "2026-03-13"
+          }
+        ],
+        "config": {
+          "auto_wrap_up": "false",
+          "storage_root": "~/.claudemem"
+        },
+        "archives": [],
+        "index_ok": true,
+        "next_ids": {
+          "note": 3,
+          "session": 3,
+          "archive": 1
+        }
+      },
+      "result": {
+        "session": {
+          "id": "session_2",
+          "title": "Fixture batch",
+          "branch": "feat/test",
+          "project": "/tmp/demo",
+          "date": "2026-03-13",
+          "content": "## Summary\nMigrated more fixture-backed skills and verified them with pytest.\n\n## Next Steps\n- [ ] Continue from saved context"
+        }
+      }
+    },
+    {
+      "tool_name": "search",
+      "arguments": {
+        "query": "fixture",
+        "limit": 5
+      },
+      "before_state": {
+        "notes": [
+          {
+            "id": "note_1",
+            "category": "api-specs",
+            "title": "Planner environment fields",
+            "content": "Planner prompts now include environment_profile and scenario_summary placeholders.",
+            "tags": [
+              "planner",
+              "runtime"
+            ]
+          },
+          {
+            "id": "note_2",
+            "category": "decisions",
+            "title": "Runtime-first migration",
+            "content": "Refactor the runtime before migrating planner logic or individual skills.",
+            "tags": [
+              "migration",
+              "runtime"
+            ]
+          }
+        ],
+        "sessions": [
+          {
+            "id": "session_1",
+            "title": "Runtime split and first direct backends",
+            "branch": "feat/env-backend-runtime-refactor",
+            "project": "/home/zhang/work/Astra",
+            "content": "Implemented executable backend loading and migrated the first direct skills.",
+            "date": "2026-03-12"
+          },
+          {
+            "id": "session_2",
+            "title": "Fixture batch",
+            "branch": "feat/test",
+            "project": "/tmp/demo",
+            "content": "## Summary\nMigrated more fixture-backed skills and verified them with pytest.\n\n## Next Steps\n- [ ] Continue from saved context",
+            "date": "2026-03-13"
+          }
+        ],
+        "config": {
+          "auto_wrap_up": "false",
+          "storage_root": "~/.claudemem"
+        },
+        "archives": [],
+        "index_ok": true,
+        "next_ids": {
+          "note": 3,
+          "session": 3,
+          "archive": 1
+        }
+      },
+      "after_state": {
+        "notes": [
+          {
+            "id": "note_1",
+            "category": "api-specs",
+            "title": "Planner environment fields",
+            "content": "Planner prompts now include environment_profile and scenario_summary placeholders.",
+            "tags": [
+              "planner",
+              "runtime"
+            ]
+          },
+          {
+            "id": "note_2",
+            "category": "decisions",
+            "title": "Runtime-first migration",
+            "content": "Refactor the runtime before migrating planner logic or individual skills.",
+            "tags": [
+              "migration",
+              "runtime"
+            ]
+          }
+        ],
+        "sessions": [
+          {
+            "id": "session_1",
+            "title": "Runtime split and first direct backends",
+            "branch": "feat/env-backend-runtime-refactor",
+            "project": "/home/zhang/work/Astra",
+            "content": "Implemented executable backend loading and migrated the first direct skills.",
+            "date": "2026-03-12"
+          },
+          {
+            "id": "session_2",
+            "title": "Fixture batch",
+            "branch": "feat/test",
+            "project": "/tmp/demo",
+            "content": "## Summary\nMigrated more fixture-backed skills and verified them with pytest.\n\n## Next Steps\n- [ ] Continue from saved context",
+            "date": "2026-03-13"
+          }
+        ],
+        "config": {
+          "auto_wrap_up": "false",
+          "storage_root": "~/.claudemem"
+        },
+        "archives": [],
+        "index_ok": true,
+        "next_ids": {
+          "note": 3,
+          "session": 3,
+          "archive": 1
+        }
+      },
+      "result": {
+        "results": [
+          {
+            "type": "session",
+            "id": "session_2",
+            "title": "Fixture batch",
+            "branch": "feat/test",
+            "project": "/tmp/demo",
+            "date": "2026-03-13",
+            "excerpt": "## Summary\nMigrated more fixture-backed skills and verified them with pytest.\n\n## Next Steps\n- [ ] Continue from saved c"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,344 @@
+{
+  "run_id": "5403_knowledge-graph-sample-049",
+  "trajectory_id": "54fc381c-1342-409f-8aed-5b7b9993cc10",
+  "blueprint_id": "fc9cee61-9990-45d4-973d-2b8177b2c272",
+  "skill_name": "5403_knowledge-graph",
+  "persona_id": "5403_knowledge-graph-smoke",
+  "tools": [
+    {
+      "name": "add_fact",
+      "description": "Add a new atomic fact to a knowledge graph entity. Use this to record new information about a person, project, or concept. Facts are stored in items.json and auto-assigned incremental IDs (e.g., safa-001). For updating existing facts, use supersede_fact instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "entity": {
+            "type": "string",
+            "description": "Entity path in format 'kind/slug' (e.g., 'people/safa', 'projects/clawdbot')"
+          },
+          "category": {
+            "type": "string",
+            "description": "Fact category (e.g., 'status', 'project', 'preference')"
+          },
+          "fact": {
+            "type": "string",
+            "description": "The fact content to add"
+          },
+          "source": {
+            "type": "string",
+            "default": "conversation",
+            "description": "Source of the fact (e.g., 'conversation', 'manual', 'inference')"
+          }
+        },
+        "required": [
+          "entity",
+          "category",
+          "fact"
+        ]
+      }
+    },
+    {
+      "name": "supersede_fact",
+      "description": "Supersede an old fact by marking it as superseded and adding a new fact. Use this when information has changed and you want to maintain history rather than deleting facts. The old fact's status changes to 'superseded' and links to the new fact via supersededBy. For adding completely new facts without superseding, use add_fact instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "entity": {
+            "type": "string",
+            "description": "Entity path in format 'kind/slug' (e.g., 'people/safa')"
+          },
+          "old": {
+            "type": "string",
+            "description": "ID of the fact to supersede (e.g., 'safa-002')"
+          },
+          "category": {
+            "type": "string",
+            "description": "Category for the new fact"
+          },
+          "fact": {
+            "type": "string",
+            "description": "The new fact content"
+          }
+        },
+        "required": [
+          "entity",
+          "old",
+          "category",
+          "fact"
+        ]
+      }
+    },
+    {
+      "name": "summarize_entity",
+      "description": "Regenerate an entity summary markdown file (summary.md) from all active facts. Use this to create or refresh a human-readable overview of an entity based on its current active facts. The summary includes the entity name, update date, and bullet points of active facts sorted by timestamp.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "entity": {
+            "type": "string",
+            "description": "Entity path in format 'kind/slug' (e.g., 'people/safa', 'projects/clawdbot')"
+          }
+        },
+        "required": [
+          "entity"
+        ]
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": "Please help with: Add a fact"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"entity\": \"people/safa\", \"fact\": {\"id\": \"safa-001\", \"category\": \"status\", \"fact\": \"Working on backend migration\", \"source\": \"conversation\", \"status\": \"active\"}}"
+    },
+    {
+      "role": "user",
+      "content": "Please help with: Summarize the entity"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"entity\": \"people/safa\", \"summary\": \"- Working on backend migration\"}"
+    }
+  ],
+  "structured_turns": [
+    {
+      "turn_index": 1,
+      "goal_index": 1,
+      "goal_text": "Add a fact",
+      "user_message": "Please help with: Add a fact",
+      "assistant_message": "{\"entity\": \"people/safa\", \"fact\": {\"id\": \"safa-001\", \"category\": \"status\", \"fact\": \"Working on backend migration\", \"source\": \"conversation\", \"status\": \"active\"}}",
+      "tool_calls": [
+        {
+          "name": "add_fact",
+          "arguments": {
+            "entity": "people/safa",
+            "category": "status",
+            "fact": "Working on backend migration"
+          },
+          "result": {
+            "entity": "people/safa",
+            "fact": {
+              "id": "safa-001",
+              "category": "status",
+              "fact": "Working on backend migration",
+              "source": "conversation",
+              "status": "active"
+            }
+          }
+        }
+      ],
+      "execution_time_ms": 0,
+      "validation": {
+        "tool_execution_succeeded": true
+      },
+      "before_state": {
+        "entities": {},
+        "next_fact_id": 1
+      },
+      "after_state": {
+        "entities": {
+          "people/safa": {
+            "facts": [
+              {
+                "id": "safa-001",
+                "category": "status",
+                "fact": "Working on backend migration",
+                "source": "conversation",
+                "status": "active"
+              }
+            ],
+            "summary": ""
+          }
+        },
+        "next_fact_id": 2
+      }
+    },
+    {
+      "turn_index": 2,
+      "goal_index": 2,
+      "goal_text": "Summarize the entity",
+      "user_message": "Please help with: Summarize the entity",
+      "assistant_message": "{\"entity\": \"people/safa\", \"summary\": \"- Working on backend migration\"}",
+      "tool_calls": [
+        {
+          "name": "summarize_entity",
+          "arguments": {
+            "entity": "people/safa"
+          },
+          "result": {
+            "entity": "people/safa",
+            "summary": "- Working on backend migration"
+          }
+        }
+      ],
+      "execution_time_ms": 0,
+      "validation": {
+        "tool_execution_succeeded": true
+      },
+      "before_state": {
+        "entities": {
+          "people/safa": {
+            "facts": [
+              {
+                "id": "safa-001",
+                "category": "status",
+                "fact": "Working on backend migration",
+                "source": "conversation",
+                "status": "active"
+              }
+            ],
+            "summary": ""
+          }
+        },
+        "next_fact_id": 2
+      },
+      "after_state": {
+        "entities": {
+          "people/safa": {
+            "facts": [
+              {
+                "id": "safa-001",
+                "category": "status",
+                "fact": "Working on backend migration",
+                "source": "conversation",
+                "status": "active"
+              }
+            ],
+            "summary": "- Working on backend migration"
+          }
+        },
+        "next_fact_id": 2
+      }
+    }
+  ],
+  "validation": {
+    "ended_normally": true,
+    "turn_count": 2,
+    "state_transition_count": 2,
+    "final_state_diff_vs_expected": []
+  },
+  "final_tool_state": {
+    "entities": {
+      "people/safa": {
+        "facts": [
+          {
+            "id": "safa-001",
+            "category": "status",
+            "fact": "Working on backend migration",
+            "source": "conversation",
+            "status": "active"
+          }
+        ],
+        "summary": "- Working on backend migration"
+      }
+    },
+    "next_fact_id": 2
+  },
+  "initial_state": {
+    "entities": {},
+    "next_fact_id": 1
+  },
+  "scenario_id": "default",
+  "environment_profile": {
+    "backend_mode": "program-direct",
+    "state_mode": "json",
+    "validation_mode": "turn_state",
+    "scenario_source": "inline",
+    "bfcl_analog": "memory_kv",
+    "entry_class": "SkillBackend",
+    "tool_names": [
+      "add_fact",
+      "supersede_fact",
+      "summarize_entity"
+    ],
+    "default_scenario": "default",
+    "notes_ref": "/home/zhang/work/Astra-env-backend-runtime-refactor/artifacts/env_top30_backend_notes.md"
+  },
+  "state_transitions": [
+    {
+      "tool_name": "add_fact",
+      "arguments": {
+        "entity": "people/safa",
+        "category": "status",
+        "fact": "Working on backend migration"
+      },
+      "before_state": {
+        "entities": {},
+        "next_fact_id": 1
+      },
+      "after_state": {
+        "entities": {
+          "people/safa": {
+            "facts": [
+              {
+                "id": "safa-001",
+                "category": "status",
+                "fact": "Working on backend migration",
+                "source": "conversation",
+                "status": "active"
+              }
+            ],
+            "summary": ""
+          }
+        },
+        "next_fact_id": 2
+      },
+      "result": {
+        "entity": "people/safa",
+        "fact": {
+          "id": "safa-001",
+          "category": "status",
+          "fact": "Working on backend migration",
+          "source": "conversation",
+          "status": "active"
+        }
+      }
+    },
+    {
+      "tool_name": "summarize_entity",
+      "arguments": {
+        "entity": "people/safa"
+      },
+      "before_state": {
+        "entities": {
+          "people/safa": {
+            "facts": [
+              {
+                "id": "safa-001",
+                "category": "status",
+                "fact": "Working on backend migration",
+                "source": "conversation",
+                "status": "active"
+              }
+            ],
+            "summary": ""
+          }
+        },
+        "next_fact_id": 2
+      },
+      "after_state": {
+        "entities": {
+          "people/safa": {
+            "facts": [
+              {
+                "id": "safa-001",
+                "category": "status",
+                "fact": "Working on backend migration",
+                "source": "conversation",
+                "status": "active"
+              }
+            ],
+            "summary": "- Working on backend migration"
+          }
+        },
+        "next_fact_id": 2
+      },
+      "result": {
+        "entity": "people/safa",
+        "summary": "- Working on backend migration"
+      }
+    }
+  ]
+}
