@@ -65,7 +65,7 @@ The JSON object must follow this schema:
 
 ## Field Definitions
 
-`goals`
+### `goals`
 
 An ordered array of user goals, one per logical conversational step.
 
@@ -95,7 +95,7 @@ So goals should describe **intent**, not literal utterances.
 
 ---
 
-`possible_tool_calls`
+### `possible_tool_calls`
 
 An array of arrays. Each inner array lists the tool names that may be used to achieve the corresponding goal.
 
@@ -110,7 +110,7 @@ Use only tools that are realistically relevant to the corresponding goal.
 
 ---
 
-`initial_state`
+### `initial_state`
 
 A JSON object or `null` describing the minimal relevant state before any tool calls occur.
 
@@ -129,7 +129,7 @@ Avoid:
 
 ---
 
-`expected_final_state`
+### `expected_final_state`
 
 A JSON object or `null` describing the minimal expected state after the user has successfully completed all goals.
 
@@ -148,12 +148,12 @@ Good example:
 
 ```json
 {
-  "markets": [
-    {"platform": "polymarket", "topic": "bitcoin"},
-    {"platform": "kalshi", "topic": "bitcoin"}
+  "items": [
+    {"id": "item_a", "category": "candidate"},
+    {"id": "item_b", "category": "candidate"}
   ],
   "comparisons": [
-    {"topic": "bitcoin", "has_cross_platform_comparison": true}
+    {"left_id": "item_a", "right_id": "item_b", "completed": true}
   ]
 }
 ```
@@ -162,9 +162,9 @@ Bad example:
 
 ```json
 {
-  "markets": [
-    {"platform": "polymarket", "topic": "bitcoin", "odds": "62%"},
-    {"platform": "kalshi", "topic": "bitcoin", "odds": "57%"}
+  "items": [
+    {"id": "item_a", "category": "candidate", "score": 92.3},
+    {"id": "item_b", "category": "candidate", "score": 87.1}
   ]
 }
 ```
@@ -173,7 +173,7 @@ The bad example invents concrete results instead of describing the expected stru
 
 ---
 
-`user_agent_config`
+### `user_agent_config`
 
 An object describing how the User Agent should behave.
 
@@ -193,7 +193,7 @@ Examples:
 
 ---
 
-`end_condition`
+### `end_condition`
 
 A short description of when the task is considered complete.
 
@@ -286,6 +286,8 @@ Avoid:
 - bloated tool lists
 - goals that are too broad or too trivial
 
+---
+
 ## Validation Checklist
 
 Before producing the final answer, ensure:
@@ -304,50 +306,52 @@ Before producing the final answer, ensure:
 
 ## Example Blueprint (Illustrative Structure Only)
 
-This example is only to illustrate the structure. Adapt all content to the actual `SKILL.md`, `tools.jsonl`, and persona provided.
+This example is only to illustrate structure. Adapt all content to the actual `SKILL.md`, `tools.jsonl`, and persona provided.
 
 ```json
 {
   "goals": [
-    "Explore relevant Bitcoin-related prediction markets across the supported platforms.",
-    "Compare the available market coverage and identify where the same topic appears on multiple platforms."
+    "Find a small set of relevant candidate items that match the user's request.",
+    "Compare the most relevant options and highlight the most useful differences."
   ],
   "possible_tool_calls": [
-    ["polymarket_search", "kalshi_search"],
-    ["compare_markets"]
+    ["search_items"],
+    ["compare_items"]
   ],
   "initial_state": {
-    "markets": [],
+    "items": [],
     "comparisons": []
   },
   "expected_final_state": {
-    "markets": [
-      {"platform": "polymarket", "topic": "bitcoin"},
-      {"platform": "kalshi", "topic": "bitcoin"}
+    "items": [
+      {"id": "item_a", "category": "candidate"},
+      {"id": "item_b", "category": "candidate"}
     ],
     "comparisons": [
-      {"topic": "bitcoin", "has_cross_platform_comparison": true}
+      {"left_id": "item_a", "right_id": "item_b", "completed": true}
     ]
   },
   "user_agent_config": {
-    "role": "policy analyst",
-    "personality": "Analytical and concise. Prefers evidence-backed summaries and direct comparisons.",
-    "knowledge_boundary": "Understands the topic domain but does not know tool names or internal APIs."
+    "role": "researcher",
+    "personality": "Organized and pragmatic. Prefers direct comparisons and concise summaries.",
+    "knowledge_boundary": "Understands the task domain but does not know tool names or internal APIs."
   },
-  "end_condition": "The user has completed all goals and received a satisfactory comparison of the relevant markets."
+  "end_condition": "The user has completed all goals and received a satisfactory comparison of the relevant options."
 }
 ```
 
+---
+
 ## Usage
 
-The three placeholders contain raw text content, not file paths.
+The three placeholders contain **raw text content**, not file paths.
 
 To use this prompt:
 
-- Read the relevant `SKILL.md`
-- Read the relevant `tools.jsonl`
-- Read one persona record
-- Inject those contents into the three placeholders
-- Send the fully rendered prompt to the model
+1. Read the relevant `SKILL.md`
+2. Read the relevant `tools.jsonl`
+3. Read one persona record
+4. Inject those contents into the three placeholders
+5. Send the fully rendered prompt to the model
 
 Return only the blueprint JSON object.
