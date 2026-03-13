@@ -65,6 +65,31 @@ class EvalAgentValidator:
         parts = re.split(r"[.!?。！？]+", text.strip())
         return len([part for part in parts if part.strip()])
 
+    @staticmethod
+    def split_sentences(text: str) -> list[str]:
+        """
+        粗略切分句子并尽量保留原始句末标点。
+        """
+        matches = re.findall(r"[^.!?。！？]+(?:[.!?。！？]+|$)", text.strip())
+        return [item.strip() for item in matches if item.strip()]
+
+    @classmethod
+    def normalize(cls, data: dict) -> dict:
+        """
+        对模型输出做轻量归一化，避免微小格式偏差直接导致样本失败。
+        当前仅处理过长的 reason：保留前 8 句。
+        """
+        if not isinstance(data, dict):
+            return data
+
+        normalized = dict(data)
+        reason = normalized.get("reason")
+        if isinstance(reason, str):
+            sentences = cls.split_sentences(reason)
+            if len(sentences) > 8:
+                normalized["reason"] = " ".join(sentences[:8]).strip()
+        return normalized
+
     @classmethod
     def validate(cls, data: dict) -> list[str]:
         """

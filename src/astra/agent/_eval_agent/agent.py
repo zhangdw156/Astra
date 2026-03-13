@@ -54,6 +54,7 @@ class EvalAgent:
 
         raw_response = self.call_model(prompt)
         parsed = EvalAgentValidator.extract_json_from_response(raw_response)
+        parsed = EvalAgentValidator.normalize(parsed)
 
         validation_errors = EvalAgentValidator.validate(parsed)
         if validation_errors:
