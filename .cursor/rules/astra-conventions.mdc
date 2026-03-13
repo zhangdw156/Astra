@@ -14,8 +14,6 @@ alwaysApply: true
 ## YAML 与配置（必须用 Hydra）
 
 - 所有涉及 **YAML 配置** 的入口必须走 **Hydra 框架**：**使用 `@hydra.main()` 装饰入口函数**，由 Hydra 负责加载配置（config_path / config_name），业务逻辑只接收 `DictConfig`。
-- 不在业务代码里用 `yaml.safe_load` 等直接作为配置入口；子 YAML 文件内容可用 `OmegaConf.load()` 读取，但**脚本/CLI 的入口必须用 `@hydra.main()`**。
-- Hydra 用到的 YAML 放在**项目根目录的 `configs/`**（不在 `src/astra` 内）。若脚本以「接受一个文件路径」为主接口（如 `astra.scripts.update_gitmodules <repos.yaml>`），则 configs 内存放真正可执行的配置文件（发布前会确认）；其他需 Hydra 的入口仍用 `@hydra.main(...)`。
 
 ## 注释语言
 
@@ -29,19 +27,17 @@ alwaysApply: true
 ## src/astra 作为包使用
 
 - **`src/astra` 是供外部调用的 package**，主要在 **`exps/`** 等入口被使用。
-- **`src/astra` 内不放置 Hydra 配置目录**：所有 Hydra 用到的 YAML 放在**项目根目录的 `configs/`**，由入口通过 `config_path` 指向该目录。这样 astra 包只含代码与 schema，配置与使用方式由调用方（exps、根目录脚本）决定。
 
 ## 包内引用 (src/astra)
 
-- `src/astra/` 下的代码应优先使用包内工具与公共模块，例如：
-  - **日志与输出**：使用 `astra.utils.logging`（如 `setup_logging`）、`astra.utils.ui`（如 `welcome_dashboard`、`print_trace`）。
+- **优先使用相对引用**：  
+  `src/astra/` 下的模块彼此引用时，尽量使用 `from .foo import Bar`、`from ..agent import PlannerAgent` 这类相对导入，便于在包内部重构/移动模块。
+
+- **对外只暴露一到两级目录，更深层实现放在下划线包中**：  
+  推荐模式参考 `astra.agent`、`astra.utils`：
+  - 顶层 API：通过 `astra.agent`、`astra.utils` 等一级/二级包对外暴露公共类与函数（例如 `from astra.agent import PlannerAgent`、`from astra.utils import setup_logging`）。
+  - 内部实现：放在 `_xxx` 子包或内部模块中（如 `astra.agent._planner_agent`），由顶层 `__init__.py` 统一导出，不建议外部直接依赖 `_xxx` 包路径。
+
+- **配置与公共工具模块集中管理**：  
+  - **日志与输出**：统一通过 `astra.utils` 暴露的 API 使用（如 `setup_logging`、`welcome_dashboard`、`print_trace`），内部实现细节放在 `src/astra/utils/` 内部模块中。  
   - **配置**：通过 Hydra 与项目根目录 `configs/` 获取配置，不散落硬编码。
-  - 若后续引入 schema（如 Skill），再使用 `astra.schemas` 等子模块。
-- 保持 `src/astra` 为一致入口，通过 `astra.xxx` 引用子模块，便于维护与测试。
-
-## 修改 src/astra 时同步检查
-
-- **每次修改 `src/astra/` 内文件时**，需检查：
-  1. **examples/** 中是否存在该模块或脚本的**使用示例**；若有，修改后是否需更新示例（配置、命令、注释）。
-  2. **docs/** 中是否存在该模块或脚本的**对应文档**；若有，修改后是否需更新文档（行为说明、参数、示例路径）。
-- 若新增了对外使用的脚本或模块，应在 `examples/` 中补充使用示例、在 `docs/` 中补充或更新对应文档，并在文档中指明示例所在路径。
