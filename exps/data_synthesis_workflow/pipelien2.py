@@ -13,15 +13,15 @@ pipeline2.py
 
 典型用法：
 uv run exps/data_synthesis_workflow/pipeline2.py \
-  --skills-root /path/to/skills_demo \
-  --example-skill-dir /path/to/examples/2896_prediction-trader \
-  --prompt-path /path/to/prompts/skill_agent.md
+  --skills-root skills_demo \
+  --example-skill-dir examples/2896_prediction-trader \
+  --prompt-path src/astra/prompts/skill_agent.md
 
 可选：
 uv run exps/data_synthesis_workflow/pipeline2.py \
-  --skills-root /path/to/skills_demo \
-  --example-skill-dir /path/to/examples/2896_prediction-trader \
-  --prompt-path /path/to/prompts/skill_agent.md \
+  --skills-root skills_demo \
+  --example-skill-dir examples/2896_prediction-trader \
+  --prompt-path src/astra/prompts/skill_agent.md \
   --skip-existing \
   --limit 20 \
   --verbose
