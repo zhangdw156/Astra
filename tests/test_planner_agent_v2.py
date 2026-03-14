@@ -164,3 +164,43 @@ def test_planner_agent_v2_sanitizes_overly_specific_expected_final_state() -> No
     assert message_state["did"] == "15551234567"
     assert message_state["dst"] == "15557654321"
     assert message_state["message"] == {"nonempty": True}
+
+
+def test_planner_agent_v2_normalizes_non_empty_array_sentinel() -> None:
+    root = Path(__file__).resolve().parents[1]
+    skill_dir = root / "artifacts" / "env_top30_skills" / "1534_voipms-sms"
+    persona_path = root / "persona" / "persona_5K.jsonl"
+    persona_text = persona_path.read_text(encoding="utf-8").splitlines()[0].strip()
+
+    executor = FakeOpenCodeExecutor(
+        [
+            json.dumps(
+                {
+                    "goals": ["Check recent messages", "Send a reply"],
+                    "possible_tool_calls": [["get_sms", "list_dids"], ["send_sms", "list_dids"]],
+                    "initial_state": {"messages": [], "next_id": 3},
+                    "expected_final_state": {
+                        "messages": "non_empty_array",
+                        "next_id": 4,
+                    },
+                    "state_checkpoints": [],
+                    "user_agent_config": {
+                        "role": "designer",
+                        "personality": "brief",
+                        "knowledge_boundary": "does not know tool internals",
+                    },
+                    "end_condition": "The user has replied to the SMS.",
+                }
+            )
+        ]
+    )
+    agent = PlannerAgentV2(
+        PlannerAgentV2Config(
+            prompt_path=root / "src" / "astra" / "prompts" / "planner_agent_v2.md"
+        ),
+        executor=executor,
+    )
+
+    result = agent.generate(skill_dir=skill_dir, persona_text=persona_text)
+
+    assert result.blueprint["expected_final_state"]["messages"] == [{}]
