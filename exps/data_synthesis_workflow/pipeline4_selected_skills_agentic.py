@@ -37,6 +37,7 @@ from typing import Any
 
 from astra.agent import EvalAgent, EvalAgentConfig
 from astra.agent import PlannerAgent, PlannerAgentConfig
+from astra.agent import PlannerAgentV2, PlannerAgentV2Config
 from astra.agent import ToolAgentConfig
 from astra.agent import UserAgentConfig
 from astra.simulation import (
@@ -132,16 +133,24 @@ def build_agents_and_pipeline(
     *,
     output_root: Path,
     planner_prompt_path: Path,
+    planner_kind: str,
     user_prompt_path: Path,
     tool_prompt_path: Path,
     eval_prompt_path: Path,
     port: int,
 ) -> SynthesisPipeline:
-    planner_agent = PlannerAgent(
-        PlannerAgentConfig(
-            prompt_path=planner_prompt_path,
+    if planner_kind == "v2":
+        planner_agent = PlannerAgentV2(
+            PlannerAgentV2Config(
+                prompt_path=planner_prompt_path,
+            )
         )
-    )
+    else:
+        planner_agent = PlannerAgent(
+            PlannerAgentConfig(
+                prompt_path=planner_prompt_path,
+            )
+        )
 
     simulation_runner = SimulationRunner(
         config=SimulationRunnerConfig(
@@ -229,6 +238,7 @@ def run_one_skill(
     user_prompt_path: Path,
     tool_prompt_path: Path,
     eval_prompt_path: Path,
+    planner_kind: str,
     port: int,
 ) -> tuple[str, int, int]:
     skill_dir = resolve_skill_dir(record, skills_root)
@@ -240,6 +250,7 @@ def run_one_skill(
     pipeline = build_agents_and_pipeline(
         output_root=skill_output_root,
         planner_prompt_path=planner_prompt_path,
+        planner_kind=planner_kind,
         user_prompt_path=user_prompt_path,
         tool_prompt_path=tool_prompt_path,
         eval_prompt_path=eval_prompt_path,
@@ -506,6 +517,11 @@ def main() -> int:
     parser.add_argument("--count-per-skill", type=int, default=20)
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--planner-prompt-path", type=Path, required=True)
+    parser.add_argument(
+        "--planner-kind",
+        choices=("v1", "v2"),
+        default="v1",
+    )
     parser.add_argument("--user-prompt-path", type=Path, required=True)
     parser.add_argument("--tool-prompt-path", type=Path, required=True)
     parser.add_argument("--eval-prompt-path", type=Path, required=True)
@@ -548,6 +564,7 @@ def main() -> int:
     print(f"Count per skill:      {args.count_per_skill}")
     print(f"Output root:          {output_root}")
     print(f"Planner prompt:       {planner_prompt_path}")
+    print(f"Planner kind:         {args.planner_kind}")
     print(f"User prompt:          {user_prompt_path}")
     print(f"Tool prompt:          {tool_prompt_path}")
     print(f"Eval prompt:          {eval_prompt_path}")
@@ -573,6 +590,7 @@ def main() -> int:
                     count_per_skill=args.count_per_skill,
                     output_root=output_root,
                     planner_prompt_path=planner_prompt_path,
+                    planner_kind=args.planner_kind,
                     user_prompt_path=user_prompt_path,
                     tool_prompt_path=tool_prompt_path,
                     eval_prompt_path=eval_prompt_path,

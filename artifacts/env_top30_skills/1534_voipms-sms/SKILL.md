@@ -9,6 +9,12 @@ Use this skill to send and retrieve SMS messages through the VoIP.ms API.
 
 ## Available Scripts
 
+### `list_dids`
+
+List the VoIP.ms numbers available on the account and identify the default DID for outbound SMS.
+
+Use this before sending if you need to confirm which of your numbers can send messages.
+
 ### `scripts/send_sms.py`
 
 Send an SMS from one of your VoIP.ms DIDs to a destination number.
@@ -17,6 +23,10 @@ Required arguments:
 - `--did`: source VoIP.ms number
 - `--dst`: destination phone number
 - `--message`: SMS message text
+
+Notes:
+- Always send from one of your owned VoIP.ms DIDs.
+- If you are replying to an inbound message, send to the contact's number, not back to your own DID.
 
 Example:
 

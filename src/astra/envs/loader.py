@@ -113,12 +113,45 @@ def build_scenario_summary(scenario: dict[str, Any]) -> dict[str, Any]:
     summary: dict[str, Any] = {}
     for key, value in scenario.items():
         if isinstance(value, list):
-            summary[key] = {"kind": "list", "size": len(value)}
+            item_summary: dict[str, Any] = {"kind": "list", "size": len(value)}
+            if value and all(isinstance(item, (str, int, float, bool)) for item in value):
+                item_summary["sample_values"] = value[:3]
+            elif value and all(isinstance(item, dict) for item in value):
+                item_summary["sample_items"] = [
+                    _truncate_dict(item)
+                    for item in value[:2]
+                ]
+            summary[key] = item_summary
         elif isinstance(value, dict):
-            summary[key] = {"kind": "dict", "keys": sorted(value.keys())[:10]}
+            summary[key] = {
+                "kind": "dict",
+                "keys": sorted(value.keys())[:10],
+                "sample": _truncate_dict(value),
+            }
         else:
-            summary[key] = {"kind": type(value).__name__}
+            summary[key] = {"kind": type(value).__name__, "value": value}
     return summary
+
+
+def _truncate_dict(value: dict[str, Any], *, limit: int = 6) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key in sorted(value.keys())[:limit]:
+        item = value[key]
+        if isinstance(item, (str, int, float, bool)) or item is None:
+            result[key] = item
+        elif isinstance(item, list):
+            result[key] = {
+                "kind": "list",
+                "size": len(item),
+            }
+        elif isinstance(item, dict):
+            result[key] = {
+                "kind": "dict",
+                "keys": sorted(item.keys())[:6],
+            }
+        else:
+            result[key] = {"kind": type(item).__name__}
+    return result
 
 
 def _load_module_from_path(*, module_name: str, file_path: Path) -> ModuleType:

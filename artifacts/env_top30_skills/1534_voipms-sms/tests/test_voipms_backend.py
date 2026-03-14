@@ -10,6 +10,10 @@ def test_voipms_backend_send_and_filter_messages() -> None:
     loaded = load_backend_from_skill_dir(skill_dir)
     assert loaded is not None
 
+    dids = loaded.backend.call("list_dids", {})
+    assert dids["primary_did"] == "15551234567"
+    assert dids["owned_dids"] == ["15551234567", "15559876543"]
+
     sent = loaded.backend.call(
         "send_sms",
         {"did": "15551234567", "dst": "15553334444", "message": "Confirmed for noon."},
@@ -35,3 +39,36 @@ def test_voipms_backend_rejects_unknown_did() -> None:
         assert "Unknown DID" in str(exc)
     else:
         raise AssertionError("Expected ValueError for unknown DID")
+
+
+def test_voipms_backend_normalizes_phone_numbers() -> None:
+    skill_dir = Path(__file__).resolve().parents[1]
+    loaded = load_backend_from_skill_dir(skill_dir)
+    assert loaded is not None
+
+    sent = loaded.backend.call(
+        "send_sms",
+        {
+            "did": "(555) 123-4567",
+            "dst": "+1 (555) 333-4444",
+            "message": "Normalized format.",
+        },
+    )
+    assert sent["message"]["did"] == "15551234567"
+    assert sent["message"]["dst"] == "15553334444"
+
+
+def test_voipms_backend_rejects_self_send() -> None:
+    skill_dir = Path(__file__).resolve().parents[1]
+    loaded = load_backend_from_skill_dir(skill_dir)
+    assert loaded is not None
+
+    try:
+        loaded.backend.call(
+            "send_sms",
+            {"did": "15551234567", "dst": "15551234567", "message": "Hello"},
+        )
+    except ValueError as exc:
+        assert "same as the source DID" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for self-send")
