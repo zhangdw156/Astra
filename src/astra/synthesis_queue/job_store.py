@@ -282,6 +282,36 @@ class SQLiteQueueStore:
         ).fetchone()
         return int(row["cnt"]) if row is not None else 0
 
+    def recover_active_leases(self) -> None:
+        now = utc_now_text()
+        with self._transaction() as cur:
+            cur.execute(
+                """
+                UPDATE jobs
+                SET status = 'pending',
+                    leased_by = NULL,
+                    lease_expires_at = NULL,
+                    updated_at = ?
+                WHERE status = 'leased'
+                """,
+                (now,),
+            )
+            cur.execute(
+                """
+                UPDATE resource_lanes
+                SET owner_id = NULL,
+                    lease_expires_at = NULL,
+                    updated_at = ?
+                WHERE owner_id IS NOT NULL
+                """,
+                (now,),
+            )
+            cur.execute(
+                """
+                DELETE FROM simulation_skill_leases
+                """
+            )
+
     def claim_lane(self, *, lane_name: str, owner_id: str, ttl_sec: int) -> bool:
         now = utc_now_text()
         expires_at = utc_after_text(seconds=ttl_sec)

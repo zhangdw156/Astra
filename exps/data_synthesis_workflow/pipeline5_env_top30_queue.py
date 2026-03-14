@@ -412,6 +412,7 @@ def main() -> int:
 
     store = SQLiteQueueStore(queue_db)
     store.initialize()
+    store.recover_active_leases()
     coordinator = SynthesisQueueCoordinator(store=store, output_root=output_root)
     stage_config = build_stage_config(args)
 
@@ -444,7 +445,7 @@ def main() -> int:
             stage_config=stage_config,
             worker_config=SimulationWorkerConfig(
                 worker_id=f"sim-worker-{worker_index}",
-                port=args.base_port + worker_index,
+                port=args.base_port + (worker_index * 100),
             ),
         )
         workers.append(worker)

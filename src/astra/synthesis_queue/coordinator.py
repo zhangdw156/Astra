@@ -8,6 +8,7 @@ from ..simulation import LocalMCPRuntime
 from ..utils import logger
 from .config import OpencodeDispatcherConfig, QueueStageConfig, SimulationWorkerConfig
 from .job_store import SQLiteQueueStore
+from ..simulation import SimulationRunner
 from .stages import EvalStageRunner, PlannerStageRunner, QueueStageFactory, SimulationStageRunner
 from .types import JobRecord, SampleArtifacts, StageName
 
@@ -180,15 +181,19 @@ class SimulationWorker:
         errors = self.config.validate_basic()
         if errors:
             raise ValueError("; ".join(errors))
-        self.runner = self.factory.build_simulation_runner(port=self.config.port)
         self.stage_runner = SimulationStageRunner(store=store, factory=self.factory)
         self._current_skill_key: str | None = None
-        self._runtime: LocalMCPRuntime | None = None
+        self._runtime_cache: dict[str, LocalMCPRuntime] = {}
+        self._runner_cache: dict[str, SimulationRunner] = {}
+        self._skill_ports: dict[str, int] = {}
+        self._next_port_offset = 0
 
     def close(self) -> None:
-        if self._runtime is not None:
-            self._runtime.stop()
-            self._runtime = None
+        for runtime in self._runtime_cache.values():
+            runtime.stop()
+        self._runtime_cache.clear()
+        self._runner_cache.clear()
+        self._skill_ports.clear()
         if self._current_skill_key is not None:
             self.store.release_skill_lease(
                 skill_key=self._current_skill_key,
@@ -211,10 +216,11 @@ class SimulationWorker:
             self._release_current_skill()
 
         for skill_key in self.store.list_candidate_simulation_skills():
+            port = self._port_for_skill(skill_key)
             if not self.store.claim_skill_lease(
                 skill_key=skill_key,
                 owner_worker_id=self.config.worker_id,
-                port=self.config.port,
+                port=port,
                 ttl_sec=self.config.skill_lease_ttl_sec,
             ):
                 continue
@@ -241,7 +247,7 @@ class SimulationWorker:
         if not self.store.claim_skill_lease(
             skill_key=self._current_skill_key,
             owner_worker_id=self.config.worker_id,
-            port=self.config.port,
+            port=self._port_for_skill(self._current_skill_key),
             ttl_sec=self.config.skill_lease_ttl_sec,
         ):
             self._release_current_skill()
@@ -257,12 +263,15 @@ class SimulationWorker:
         payload = job.payload
         skill_dir = Path(str(payload["skill_dir"])).resolve()
         tools_path = Path(str(payload["tools_path"])).resolve()
-        runtime = self._ensure_runtime(skill_dir=skill_dir, tools_path=tools_path)
 
         try:
+            simulation_runner, runtime = self._ensure_runtime(
+                skill_dir=skill_dir,
+                tools_path=tools_path,
+            )
             self.stage_runner.run(
                 job,
-                simulation_runner=self.runner,
+                simulation_runner=simulation_runner,
                 runtime=runtime,
             )
         except Exception as exc:
@@ -273,31 +282,42 @@ class SimulationWorker:
                 job.job_id,
             )
 
-    def _ensure_runtime(self, *, skill_dir: Path, tools_path: Path) -> LocalMCPRuntime:
+    def _ensure_runtime(
+        self,
+        *,
+        skill_dir: Path,
+        tools_path: Path,
+    ) -> tuple[SimulationRunner, LocalMCPRuntime]:
         skill_key = str(skill_dir)
-        if self._runtime is not None and self._current_skill_key == skill_key:
-            return self._runtime
-
-        if self._runtime is not None:
-            self._runtime.stop()
-            self._runtime = None
+        runtime = self._runtime_cache.get(skill_key)
+        runner = self._runner_cache.get(skill_key)
+        if runtime is not None and runner is not None:
+            return runner, runtime
 
         # TODO: 如果后续要支持更高并发，需要把 skill backend/runtime 改造成真正的会话隔离模型，
         # 这样同一个 skill 才能安全地并行运行多条轨迹，而不是继续依赖单 worker 独占一个 runtime。
-        runtime = self.runner.build_runtime(skill_dir=skill_dir, tools_path=tools_path)
+        port = self._port_for_skill(skill_key)
+        runner = self.factory.build_simulation_runner(port=port)
+        runtime = runner.build_runtime(skill_dir=skill_dir, tools_path=tools_path)
         runtime.start()
-        self._runtime = runtime
-        self._current_skill_key = skill_key
-        return runtime
+        self._runtime_cache[skill_key] = runtime
+        self._runner_cache[skill_key] = runner
+        return runner, runtime
 
     def _release_current_skill(self) -> None:
         if self._current_skill_key is None:
             return
-        if self._runtime is not None:
-            self._runtime.stop()
-            self._runtime = None
         self.store.release_skill_lease(
             skill_key=self._current_skill_key,
             owner_worker_id=self.config.worker_id,
         )
         self._current_skill_key = None
+
+    def _port_for_skill(self, skill_key: str) -> int:
+        existing = self._skill_ports.get(skill_key)
+        if existing is not None:
+            return existing
+        port = self.config.port + self._next_port_offset
+        self._next_port_offset += 1
+        self._skill_ports[skill_key] = port
+        return port
