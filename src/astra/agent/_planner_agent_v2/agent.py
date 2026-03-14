@@ -335,6 +335,13 @@ class PlannerAgentV2:
             return [self._sanitize_state_value(item, parent_key=parent_key) for item in value]
 
         if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"non_empty_array", "nonempty_array", "non-empty-array"}:
+                return [{}]
+            if lowered in {"non_empty_object", "nonempty_object", "non-empty-object"}:
+                return {}
+            if lowered in {"non_empty_string", "nonempty_string", "non-empty-string"}:
+                return {"nonempty": True}
             if parent_key in {"did", "dst", "to", "from", "direction", "status", "primary_did"}:
                 return value
             if len(value) > 32 or " " in value:
