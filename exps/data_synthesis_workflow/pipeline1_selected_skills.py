@@ -123,6 +123,7 @@ def build_agents_and_pipeline(
     output_root: Path,
     planner_prompt_path: Path,
     user_prompt_path: Path,
+    assistant_prompt_path: Path,
     tool_prompt_path: Path,
     eval_prompt_path: Path,
     port: int,
@@ -139,6 +140,7 @@ def build_agents_and_pipeline(
             early_task_end_policy="fallback",
             validate_tool_calls=True,
             assistant_state_key="simulation",
+            assistant_system_prompt_path=assistant_prompt_path,
             assistant_verbose=False,
             assistant_enable_mcp_patch=True,
             assistant_enable_json_patch=True,
@@ -198,6 +200,7 @@ def run_one_skill(
     output_root: Path,
     planner_prompt_path: Path,
     user_prompt_path: Path,
+    assistant_prompt_path: Path,
     tool_prompt_path: Path,
     eval_prompt_path: Path,
     port: int,
@@ -223,6 +226,7 @@ def run_one_skill(
         output_root=skill_output_root,
         planner_prompt_path=planner_prompt_path,
         user_prompt_path=user_prompt_path,
+        assistant_prompt_path=assistant_prompt_path,
         tool_prompt_path=tool_prompt_path,
         eval_prompt_path=eval_prompt_path,
         port=port,
@@ -299,6 +303,12 @@ def main() -> int:
         help="tool agent prompt 路径",
     )
     parser.add_argument(
+        "--assistant-prompt-path",
+        type=Path,
+        default=Path("src/astra/prompts/assistant_agent.md"),
+        help="assistant agent system prompt 路径",
+    )
+    parser.add_argument(
         "--eval-prompt-path",
         type=Path,
         required=True,
@@ -347,6 +357,7 @@ def main() -> int:
     output_root = args.output_root.resolve()
     planner_prompt_path = args.planner_prompt_path.resolve()
     user_prompt_path = args.user_prompt_path.resolve()
+    assistant_prompt_path = args.assistant_prompt_path.resolve()
     tool_prompt_path = args.tool_prompt_path.resolve()
     eval_prompt_path = args.eval_prompt_path.resolve()
 
@@ -370,6 +381,7 @@ def main() -> int:
     print(f"Output root:          {output_root}")
     print(f"Planner prompt:       {planner_prompt_path}")
     print(f"User prompt:          {user_prompt_path}")
+    print(f"Assistant prompt:     {assistant_prompt_path}")
     print(f"Tool prompt:          {tool_prompt_path}")
     print(f"Eval prompt:          {eval_prompt_path}")
     print(f"Max workers:          {args.max_workers}")
@@ -394,6 +406,7 @@ def main() -> int:
                     output_root=output_root,
                     planner_prompt_path=planner_prompt_path,
                     user_prompt_path=user_prompt_path,
+                    assistant_prompt_path=assistant_prompt_path,
                     tool_prompt_path=tool_prompt_path,
                     eval_prompt_path=eval_prompt_path,
                     port=port,

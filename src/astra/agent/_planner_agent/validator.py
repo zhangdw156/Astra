@@ -14,14 +14,13 @@ class BlueprintValidator:
     """
 
     REQUIRED_FIELDS = [
-        "goals",
-        "possible_tool_calls",
         "initial_state",
         "user_agent_config",
         "end_condition",
     ]
 
     ALLOWED_FIELDS = {
+        "steps",
         "goals",
         "possible_tool_calls",
         "initial_state",
@@ -31,6 +30,127 @@ class BlueprintValidator:
     }
 
     USER_AGENT_CONFIG_KEYS = ("role", "personality", "knowledge_boundary")
+
+    @staticmethod
+    def _decode_first_json_object(text: str) -> dict:
+        decoder = json.JSONDecoder()
+        for match in re.finditer(r"\{", text):
+            try:
+                parsed, _ = decoder.raw_decode(text[match.start() :])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+        raise json.JSONDecodeError("No JSON object found", text, 0)
+
+    @staticmethod
+    def _normalize_tool_groups(
+        tool_groups: object,
+        *,
+        allowed_tool_names: set[str] | None = None,
+    ) -> list[list[str]] | None:
+        if not isinstance(tool_groups, list):
+            return None
+
+        normalized_groups: list[list[str]] = []
+        for inner in tool_groups:
+            if not isinstance(inner, list):
+                continue
+
+            tools: list[str] = []
+            for name in inner:
+                if not isinstance(name, str):
+                    continue
+                stripped = name.strip()
+                if not stripped:
+                    continue
+                if allowed_tool_names is not None and stripped not in allowed_tool_names:
+                    continue
+                if stripped not in tools:
+                    tools.append(stripped)
+            normalized_groups.append(tools)
+
+        return normalized_groups
+
+    @classmethod
+    def normalize(
+        cls,
+        data: dict,
+        allowed_tool_names: set[str] | None = None,
+    ) -> dict:
+        """
+        对 blueprint 做保守归一化，尽量修复常见的轻微结构偏差。
+
+        当前规则：
+        1. 新 schema `steps` 与旧 schema `goals`/`possible_tool_calls` 互相补齐
+        2. `goal` / `goals` 只保留非空字符串
+        3. `possible_tool_calls` 只保留数组项，去掉空/非法工具名，并按 goals 长度截断或补齐
+        4. `user_agent_config` 缺失时保留原值，由 validate 继续报错
+        """
+        normalized = dict(data)
+
+        steps = normalized.get("steps")
+        normalized_steps: list[dict] | None = None
+        if isinstance(steps, list):
+            normalized_steps = []
+            for step in steps:
+                if not isinstance(step, dict):
+                    continue
+
+                goal = step.get("goal")
+                if not isinstance(goal, str) or not goal.strip():
+                    continue
+
+                tool_groups = cls._normalize_tool_groups(
+                    [step.get("possible_tool_calls", [])],
+                    allowed_tool_names=allowed_tool_names,
+                )
+                tools = tool_groups[0] if tool_groups else []
+                normalized_steps.append(
+                    {
+                        "goal": goal.strip(),
+                        "possible_tool_calls": tools,
+                    }
+                )
+
+        if normalized_steps is None:
+            goals = normalized.get("goals")
+            normalized_goals: list[str] = []
+            if isinstance(goals, list):
+                normalized_goals = [
+                    item.strip()
+                    for item in goals
+                    if isinstance(item, str) and item.strip()
+                ]
+
+            normalized_ptc = cls._normalize_tool_groups(
+                normalized.get("possible_tool_calls"),
+                allowed_tool_names=allowed_tool_names,
+            )
+            if normalized_ptc is None:
+                normalized_ptc = []
+
+            goal_count = len(normalized_goals)
+            if goal_count > 0:
+                normalized_ptc = normalized_ptc[:goal_count]
+                while len(normalized_ptc) < goal_count:
+                    normalized_ptc.append([])
+
+            normalized_steps = [
+                {
+                    "goal": goal,
+                    "possible_tool_calls": normalized_ptc[i] if i < len(normalized_ptc) else [],
+                }
+                for i, goal in enumerate(normalized_goals)
+            ]
+
+        normalized["steps"] = normalized_steps
+        normalized["goals"] = [step["goal"] for step in normalized_steps]
+        normalized["possible_tool_calls"] = [
+            step["possible_tool_calls"] for step in normalized_steps
+        ]
+
+        return normalized
 
     @staticmethod
     def extract_json_from_response(text: str) -> dict:
@@ -45,16 +165,13 @@ class BlueprintValidator:
         """
         text = text.strip()
 
+        text = re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE)
+
         fenced = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
         if fenced:
-            return json.loads(fenced.group(1).strip())
+            return BlueprintValidator._decode_first_json_object(fenced.group(1).strip())
 
-        start = text.find("{")
-        end = text.rfind("}")
-        if start != -1 and end != -1 and end > start:
-            return json.loads(text[start : end + 1])
-
-        return json.loads(text)
+        return BlueprintValidator._decode_first_json_object(text)
 
     @staticmethod
     def get_tool_names_from_jsonl(tools_path: Path) -> set[str]:
@@ -103,6 +220,38 @@ class BlueprintValidator:
         for key in ("initial_state", "expected_final_state"):
             if key in data and data[key] is not None and not isinstance(data[key], dict):
                 errors.append(f"{key} 必须为 JSON 对象或 null")
+
+        steps = data.get("steps")
+        if steps is None:
+            errors.append("缺少必填字段: steps")
+        elif not isinstance(steps, list):
+            errors.append("steps 必须为数组")
+        elif len(steps) == 0:
+            errors.append("steps 不能为空，应至少包含一个步骤")
+        else:
+            for i, step in enumerate(steps):
+                if not isinstance(step, dict):
+                    errors.append(f"steps[{i}] 必须为对象")
+                    continue
+
+                goal = step.get("goal")
+                if not isinstance(goal, str) or not goal.strip():
+                    errors.append(f"steps[{i}].goal 必须为非空字符串")
+
+                tool_calls = step.get("possible_tool_calls")
+                if not isinstance(tool_calls, list):
+                    errors.append(f"steps[{i}].possible_tool_calls 必须为数组")
+                else:
+                    for j, name in enumerate(tool_calls):
+                        if not isinstance(name, str) or not name.strip():
+                            errors.append(
+                                f"steps[{i}].possible_tool_calls[{j}] 必须为非空字符串"
+                            )
+                        elif allowed_tool_names is not None and name not in allowed_tool_names:
+                            errors.append(
+                                f"steps[{i}].possible_tool_calls 中含非法工具名: {name!r}，"
+                                "应在 tools.jsonl 的 name 列表中"
+                            )
 
         if "goals" in data:
             goals = data["goals"]

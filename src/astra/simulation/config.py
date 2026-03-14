@@ -69,6 +69,7 @@ class SimulationRunnerConfig:
     early_task_end_policy: str = "fallback"
     validate_tool_calls: bool = True
     assistant_state_key: str = "simulation"
+    assistant_system_prompt_path: Path | None = None
     assistant_verbose: bool = False
     assistant_enable_mcp_patch: bool = True
     assistant_enable_json_patch: bool = True
@@ -88,6 +89,11 @@ class SimulationRunnerConfig:
 
         if not self.assistant_state_key.strip():
             errors.append("assistant_state_key 不能为空")
+
+        if self.assistant_system_prompt_path is not None and not isinstance(
+            self.assistant_system_prompt_path, Path
+        ):
+            errors.append("assistant_system_prompt_path 必须为 Path 或 None")
 
         errors.extend(self.runtime.validate_basic())
         return errors

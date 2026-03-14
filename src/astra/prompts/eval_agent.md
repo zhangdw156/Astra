@@ -52,6 +52,7 @@ Check whether the assistant:
 
 - uses tools appropriately
 - stays grounded in tool outputs
+- uses tools for the key reasoning steps when the task clearly calls for them
 - avoids contradictions and fabricated details
 - handles failures honestly
 - makes visible progress on the task
@@ -61,6 +62,8 @@ Penalize:
 
 - invented facts
 - contradictions with tool results
+- key conclusions that are not directly supported by visible tool outputs when tool use was expected
+- silent acceptance of inconsistent tool outputs across turns
 - weak grounding
 - empty or malformed tool usage that materially damages the sample
 
@@ -98,6 +101,7 @@ Check whether:
 - the trajectory actually reflects the blueprint goals
 - the requested actions align with the available tools
 - the task matches the skill and tool environment
+- the key blueprint actions are actually pursued with semantically matching tool calls
 
 Penalize:
 
@@ -108,6 +112,7 @@ Penalize:
 
 When comparing blueprint tool names with trajectory tool calls, focus on semantic equivalence rather than exact string identity.
 Ignore harmless runtime-introduced prefixes, namespaces, or wrappers in tool names if the underlying tool function is clearly the same.
+Do not treat a manually written assistant explanation as equivalent to a missing key tool call unless the task truly did not require a tool for that step.
 
 ---
 
@@ -177,6 +182,38 @@ All four fields must be present.
 
 Start from `5.0` and subtract for issues. Clamp final score to `[0.0, 5.0]`.
 
+Before assigning a score, explicitly check these four dimensions:
+
+- `task_success`: were the blueprint goals actually completed?
+- `tool_grounding`: are the assistant's important claims directly supported by visible tool outputs?
+- `cross_turn_consistency`: do tool outputs and assistant statements remain mutually consistent across turns?
+- `runtime_cleanliness`: are there visible parse errors, malformed tool results, invalid arguments, or other execution abnormalities?
+
+Samples that read fluently but fail grounding, consistency, or runtime cleanliness should not receive top scores.
+
+### Requirements For A 5.0 Score
+
+Only give `score = 5.0` when all of the following are true:
+
+- the blueprint is coherent and the trajectory meaningfully completes its goals
+- the user is natural and does not sound like an evaluator, script, or tool operator
+- all important assistant conclusions are directly supported by visible tool outputs or clearly visible conversation evidence
+- there are no meaningful contradictions across tool outputs, assistant summaries, or later follow-ups
+- there are no visible parse errors, malformed tool results, invalid tool arguments, or other runtime issues that affect trust in the trajectory
+- if the blueprint clearly implies a key tool should be used, the trajectory actually uses that tool or a semantically equivalent one
+
+If any of these conditions fail, do not give `5.0`.
+
+### Hard Score Ceilings
+
+Apply these ceilings even if the conversation otherwise looks good:
+
+- If a key reasoning step should have used a tool but the assistant mostly solved it from memory or manual explanation, `score` must be at most `4.5`.
+- If there is a visible parse error, malformed tool output, invalid JSON/tool-call argument, or similar runtime abnormality, `score` must be at most `4.5`.
+- If tool outputs conflict with each other or with the assistant's summary and the assistant does not acknowledge the inconsistency, `score` must be at most `3.5`.
+- If the assistant adds unsupported facts, numbers, or interpretations beyond visible evidence, `hallucination_risk` cannot be `none`.
+- If the blueprint's key tool actions are not actually pursued in the trajectory, `task_completion_score` should be materially reduced.
+
 ### Small deductions
 
 Examples:
@@ -227,6 +264,7 @@ User or planner problems should primarily lower `score` and `task_completion_sco
 
 Do not treat superficial tool-name differences as hallucination or planner mismatch.
 Penalize only if the assistant uses a materially different tool, fails to pursue the intended action, or makes claims not supported by visible evidence.
+Visible runtime noise that weakens trust should still lower `score` even when tool names are semantically equivalent.
 
 ---
 
@@ -240,5 +278,7 @@ A strong sample should have:
 - a believable synthetic user
 - a grounded and useful assistant
 - a trajectory that reflects the intended task
+- consistent evidence across turns
+- clean, trustworthy tool execution traces
 
 Output only the JSON object.

@@ -4,6 +4,7 @@ import json
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from openai import OpenAI
 
@@ -62,21 +63,37 @@ class PlannerAgent:
             persona_content=persona_text,
         )
 
-        raw_response = self.call_model(prompt)
-        parsed = BlueprintValidator.extract_json_from_response(raw_response)
-
         allowed_tool_names = BlueprintValidator.get_tool_names_from_jsonl(
             context.tools_jsonl_path
         )
-        validation_errors = BlueprintValidator.validate(
-            parsed,
+        raw_response = self.call_model(prompt)
+        normalized_input, validation_errors = self.parse_and_validate_blueprint(
+            raw_response,
             allowed_tool_names=allowed_tool_names,
         )
         if validation_errors:
-            raise ValueError("蓝图格式校验失败: " + "; ".join(validation_errors))
+            logger.warning(
+                "Planner blueprint invalid, attempting repair: {}",
+                "; ".join(validation_errors),
+            )
+            repair_prompt = self.build_repair_prompt(
+                raw_response=raw_response,
+                validation_errors=validation_errors,
+                allowed_tool_names=allowed_tool_names,
+            )
+            repaired_raw_response = self.call_model(repair_prompt)
+            repaired_input, repair_errors = self.parse_and_validate_blueprint(
+                repaired_raw_response,
+                allowed_tool_names=allowed_tool_names,
+            )
+            if repair_errors:
+                raise ValueError("蓝图格式校验失败: " + "; ".join(repair_errors))
+
+            raw_response = repaired_raw_response
+            normalized_input = repaired_input
 
         enriched = self.inject_program_fields(
-            parsed,
+            normalized_input,
             skill_dir=context.skill_dir,
             persona_text=persona_text,
         )
@@ -147,6 +164,62 @@ class PlannerAgent:
         raw = response.choices[0].message.content or ""
         logger.debug("Planner raw response length: {} chars", len(raw))
         return raw
+
+    def parse_and_validate_blueprint(
+        self,
+        raw_response: str,
+        *,
+        allowed_tool_names: set[str],
+    ) -> tuple[dict[str, Any], list[str]]:
+        try:
+            parsed = BlueprintValidator.extract_json_from_response(raw_response)
+        except json.JSONDecodeError as exc:
+            return {}, [f"未能从模型回复中提取 JSON: {exc.msg}"]
+
+        normalized_input = BlueprintValidator.normalize(
+            parsed,
+            allowed_tool_names=allowed_tool_names,
+        )
+        validation_errors = BlueprintValidator.validate(
+            normalized_input,
+            allowed_tool_names=allowed_tool_names,
+        )
+        return normalized_input, validation_errors
+
+    def build_repair_prompt(
+        self,
+        *,
+        raw_response: str,
+        validation_errors: list[str],
+        allowed_tool_names: set[str],
+    ) -> str:
+        valid_tools_block = "\n".join(
+            f"- {name}" for name in sorted(allowed_tool_names)
+        )
+        errors_block = "\n".join(f"- {item}" for item in validation_errors)
+
+        return f"""You are repairing an invalid task blueprint JSON.
+
+Return exactly one corrected JSON object and nothing else.
+
+Valid tool names from tools.jsonl:
+{valid_tools_block}
+
+Observed validation errors:
+{errors_block}
+
+Invalid model output to repair:
+{raw_response}
+
+Repair rules:
+- Preserve the original skill intent and persona alignment as much as possible.
+- Use the `steps` schema, where each item contains exactly one `goal` and that goal's `possible_tool_calls`.
+- Keep `goals` and `possible_tool_calls` aligned with `steps`.
+- Use only valid tool names from the list above.
+- If the invalid output mentions unsupported tool-like names, replace them by redesigning the step around the valid tools instead of inventing aliases.
+- If multiple tools contribute to one user-facing goal, keep them in the same step instead of creating extra steps.
+- Keep the blueprint concise and structurally valid.
+"""
 
     def inject_program_fields(
         self,

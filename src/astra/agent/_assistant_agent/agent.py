@@ -51,7 +51,7 @@ class AssistantAgent:
 
         self._agent = Assistant(
             llm=llm_cfg,
-            system_message="",
+            system_message=self.config.system_message.strip(),
             function_list=[mcp_cfg],
         )
 
@@ -254,47 +254,105 @@ class AssistantAgent:
         """
         try:
             import json as _json
+            import re as _re
             from qwen_agent.tools import mcp_manager
 
             original_create = mcp_manager.MCPManager.create_tool_class
 
             def normalize_tool_params(params) -> dict:
+                def unwrap_mapping(candidate):
+                    if not isinstance(candidate, dict):
+                        return None
+
+                    arguments = candidate.get("arguments")
+                    if isinstance(arguments, dict):
+                        return arguments
+                    if isinstance(arguments, str):
+                        nested = parse_text_to_dict(arguments)
+                        if nested is not None:
+                            return nested
+                    return candidate
+
+                def parse_text_to_dict(text: str) -> dict | None:
+                    value = (text or "").strip()
+                    if not value:
+                        return {}
+
+                    candidates = [value]
+
+                    fenced = _re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", value)
+                    if fenced:
+                        candidates.insert(0, fenced.group(1).strip())
+
+                    args_idx = value.find('"arguments"')
+                    if args_idx >= 0:
+                        candidates.append(value[args_idx:])
+
+                    brace_starts = [m.start() for m in _re.finditer(r"\{", value)]
+                    for start in brace_starts:
+                        candidates.append(value[start:])
+
+                    seen: set[str] = set()
+                    decoder = _json.JSONDecoder()
+                    for candidate in candidates:
+                        candidate = candidate.strip()
+                        if not candidate or candidate in seen:
+                            continue
+                        seen.add(candidate)
+
+                        for attempt in (
+                            candidate,
+                            candidate.rstrip(","),
+                            candidate + "}",
+                            candidate.rstrip(",") + "}",
+                        ):
+                            try:
+                                parsed, _ = decoder.raw_decode(attempt)
+                            except _json.JSONDecodeError:
+                                pass
+                            else:
+                                normalized = unwrap_mapping(parsed)
+                                if normalized is not None:
+                                    return normalized
+
+                            try:
+                                import json5
+
+                                parsed = json5.loads(attempt)
+                            except Exception:
+                                continue
+                            normalized = unwrap_mapping(parsed)
+                            if normalized is not None:
+                                return normalized
+
+                    # Last resort: recover simple JSON-style key/value pairs from fragments.
+                    recovered: dict[str, object] = {}
+                    string_pairs = _re.findall(r'"([A-Za-z_][A-Za-z0-9_]*)"\s*:\s*"([^"]*)"', value)
+                    number_pairs = _re.findall(r'"([A-Za-z_][A-Za-z0-9_]*)"\s*:\s*(-?\d+(?:\.\d+)?)', value)
+                    bool_pairs = _re.findall(r'"([A-Za-z_][A-Za-z0-9_]*)"\s*:\s*(true|false|null)', value, flags=_re.IGNORECASE)
+
+                    for key, raw in string_pairs:
+                        recovered[key] = raw
+                    for key, raw in number_pairs:
+                        recovered.setdefault(key, float(raw) if "." in raw else int(raw))
+                    for key, raw in bool_pairs:
+                        lowered = raw.lower()
+                        recovered.setdefault(
+                            key,
+                            True if lowered == "true" else False if lowered == "false" else None,
+                        )
+
+                    return recovered or None
+
                 if params is None:
                     return {}
                 if isinstance(params, dict):
-                    return params
+                    normalized = unwrap_mapping(params)
+                    return normalized or {}
 
                 value = params if isinstance(params, str) else str(params)
-                value = (value or "").strip()
-                if not value:
-                    return {}
-
-                try:
-                    parsed = _json.loads(value)
-                    if isinstance(parsed, dict):
-                        return parsed
-                except _json.JSONDecodeError:
-                    pass
-
-                try:
-                    import json5
-
-                    parsed = json5.loads(value)
-                    if isinstance(parsed, dict):
-                        return parsed
-                except Exception:
-                    pass
-
-                for candidate in [value + "}", value.rstrip(",") + "}"]:
-                    if len(candidate) <= 600:
-                        try:
-                            parsed = _json.loads(candidate)
-                            if isinstance(parsed, dict):
-                                return parsed
-                        except _json.JSONDecodeError:
-                            pass
-
-                return {}
+                normalized = parse_text_to_dict(value)
+                return normalized or {}
 
             def patched_create_tool_class(
                 manager_self,

@@ -9,7 +9,7 @@ Your job is to produce a **task blueprint** that:
 1. Matches the given user **persona** (background, expertise, interests, communication style)
 2. Exercises the **skill** described in `SKILL.md`
 3. Uses only the tools defined in `tools.jsonl`
-4. Defines an ordered set of **user goals** and the corresponding **possible_tool_calls** for each goal
+4. Defines an ordered set of **steps**, where each step contains one **user goal** and the corresponding **possible_tool_calls** for that goal
 
 You are designing a **blueprint**, not a dialogue transcript.
 
@@ -48,8 +48,16 @@ The JSON object must follow this schema:
 
 ```json
 {
-  "goals": ["<goal 1>", "<goal 2>", "..."],
-  "possible_tool_calls": [["<tool_name>", "..."], ["<tool_name>", "..."]],
+  "steps": [
+    {
+      "goal": "<goal 1>",
+      "possible_tool_calls": ["<tool_name>", "..."]
+    },
+    {
+      "goal": "<goal 2>",
+      "possible_tool_calls": ["<tool_name>", "..."]
+    }
+  ],
   "initial_state": {},
   "expected_final_state": {},
   "user_agent_config": {
@@ -61,22 +69,30 @@ The JSON object must follow this schema:
 }
 ```
 
+`tools.jsonl` is the only source of truth for tool names.
+
+- If `SKILL.md`, README text, examples, or prose mention a capability name that does not exactly appear in `tools.jsonl`, do not use that name.
+- Do not invent alias names, convenience names, or inferred tool names.
+- If a capability described in `SKILL.md` is not backed by a concrete tool in `tools.jsonl`, design the task around the tools that do exist.
+
 ---
 
 ## Field Definitions
 
-### `goals`
+### `steps`
 
-An ordered array of user goals, one per logical conversational step.
+An ordered array of step objects. Each step represents one logical conversational step from the user's perspective.
 
 Requirements:
 
 - Must be a non-empty array
 - Typically 2–6 items
-- Each goal must be a non-empty string
-- Each goal should represent **one coherent user intention or conversational step**
-- A goal should **not** be a full end-to-end workflow
-- A goal should **not** be a trivial micro-action
+- Each step must contain:
+  - `goal`: a non-empty string
+  - `possible_tool_calls`: an array of tool names
+- Each `goal` should represent **one coherent user intention or conversational step**
+- A `goal` should **not** be a full end-to-end workflow
+- A `goal` should **not** be a trivial micro-action
 
 Good goal characteristics:
 
@@ -95,18 +111,25 @@ So goals should describe **intent**, not literal utterances.
 
 ---
 
-### `possible_tool_calls`
+### `steps[].possible_tool_calls`
 
-An array of arrays. Each inner array lists the tool names that may be used to achieve the corresponding goal.
+An array of tool names for the corresponding `steps[].goal`.
 
 Requirements:
 
-- Length must exactly equal the length of `goals`
 - Every tool name must exactly match a `name` field from `tools.jsonl`
-- Each inner array should contain only the **minimal plausible set of tools** for that goal
+- Each step should contain only the **minimal plausible set of tools** for that goal
 - Do not include speculative, redundant, or loosely related tools
+- Do not create extra steps to represent substeps, optional branches, or individual tools
+- If one goal may use multiple tools, put those tool names together in the same step
 
 Use only tools that are realistically relevant to the corresponding goal.
+
+Important generation rule:
+
+- Write one `goal`, then immediately write that same step's `possible_tool_calls`
+- Do not first list all goals and then separately expand tools as a workflow
+- The step structure must reflect **user-intent order**, not **internal tool execution order**
 
 ---
 
@@ -293,9 +316,11 @@ Avoid:
 Before producing the final answer, ensure:
 
 - The output is exactly one JSON object
-- `goals` is a non-empty array of non-empty strings
-- `possible_tool_calls` is an array of arrays
-- `possible_tool_calls` has the same length as `goals`
+- `steps` is a non-empty array
+- Every `steps[i].goal` is a non-empty string
+- Every `steps[i].possible_tool_calls` is an array
+- Every `steps[i].possible_tool_calls[j]` exactly matches a valid tool from `tools.jsonl`
+- Never add extra steps just to represent internal substeps or individual tools
 - Every tool name exactly matches a valid tool from `tools.jsonl`
 - `initial_state` is a JSON object or `null`
 - `expected_final_state` is a JSON object or `null`
@@ -310,13 +335,15 @@ This example is only to illustrate structure. Adapt all content to the actual `S
 
 ```json
 {
-  "goals": [
-    "Find a small set of relevant candidate items that match the user's request.",
-    "Compare the most relevant options and highlight the most useful differences."
-  ],
-  "possible_tool_calls": [
-    ["search_items"],
-    ["compare_items"]
+  "steps": [
+    {
+      "goal": "Find a small set of relevant candidate items that match the user's request.",
+      "possible_tool_calls": ["search_items"]
+    },
+    {
+      "goal": "Compare the most relevant options and highlight the most useful differences.",
+      "possible_tool_calls": ["compare_items"]
+    }
   ],
   "initial_state": {
     "items": [],

@@ -137,6 +137,25 @@ class ToolAgent:
     # Prompt / LLM / Parsing
     # -------------------------------------------------------------------------
 
+    @staticmethod
+    def _extract_first_json_object(text: str) -> dict[str, Any]:
+        cleaned = re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE).strip()
+
+        fenced = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned, flags=re.IGNORECASE)
+        if fenced:
+            cleaned = fenced.group(1).strip()
+
+        decoder = json.JSONDecoder()
+        for match in re.finditer(r"\{", cleaned):
+            try:
+                parsed, _ = decoder.raw_decode(cleaned[match.start() :])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+
+        raise json.JSONDecodeError("No JSON object found", cleaned, 0)
+
     def build_prompt(
         self,
         *,
@@ -212,25 +231,13 @@ class ToolAgent:
 
         response_str: str
         try:
-            parsed = json.loads(raw_response)
+            parsed = self._extract_first_json_object(raw_response)
             response_str = json.dumps(parsed, ensure_ascii=False)
         except json.JSONDecodeError:
-            start = raw_response.find("{")
-            end = raw_response.rfind("}") + 1
-            if start != -1 and end > start:
-                try:
-                    parsed = json.loads(raw_response[start:end])
-                    response_str = json.dumps(parsed, ensure_ascii=False)
-                except json.JSONDecodeError:
-                    response_str = json.dumps(
-                        {"raw": raw_response[:2000], "parse_error": True},
-                        ensure_ascii=False,
-                    )
-            else:
-                response_str = json.dumps(
-                    {"raw": raw_response[:2000], "parse_error": True},
-                    ensure_ascii=False,
-                )
+            response_str = json.dumps(
+                {"raw": raw_response[:2000], "parse_error": True},
+                ensure_ascii=False,
+            )
 
         state_match = re.search(
             r"<STATE>\s*([\s\S]*?)\s*</STATE>",
@@ -243,7 +250,7 @@ class ToolAgent:
 
         raw_state = state_match.group(1).strip()
         try:
-            parsed = json.loads(raw_state or "{}")
+            parsed = self._extract_first_json_object(raw_state or "{}")
             if isinstance(parsed, dict):
                 return response_str, parsed
         except json.JSONDecodeError:

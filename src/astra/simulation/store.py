@@ -71,6 +71,19 @@ class ArtifactStore:
         with self.manifest_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(to_jsonable(record), ensure_ascii=False) + "\n")
 
+    def load_manifest_records(self) -> list[dict[str, Any]]:
+        if not self.manifest_path.exists():
+            return []
+
+        records: list[dict[str, Any]] = []
+        with self.manifest_path.open(encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                records.append(json.loads(line))
+        return records
+
     def write_summary(self, summary: Any) -> Path:
         self._write_json(self.summary_path, summary)
         return self.summary_path

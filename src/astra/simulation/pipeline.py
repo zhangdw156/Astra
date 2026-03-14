@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from pathlib import Path
 from typing import Iterable
 
@@ -113,6 +112,33 @@ class SynthesisPipeline:
 
         tools_path = self.resolve_tools_path(skill_dir=skill_dir, tools_path=tools_path)
         store = ArtifactStore(self.config.output_root)
+        existing_records = store.load_manifest_records()
+        latest_record_by_index: dict[int, dict] = {}
+
+        for record in existing_records:
+            try:
+                sample_index = int(record.get("sample_index"))
+            except (TypeError, ValueError):
+                continue
+            latest_record_by_index[sample_index] = record
+
+        completed_indices: set[int] = set()
+        for sample_index, record in latest_record_by_index.items():
+            error = str(record.get("error", "")).strip()
+            if not error:
+                completed_indices.add(sample_index)
+
+        status_by_index: dict[int, SynthesisSampleResult] = {}
+        for sample_index, record in latest_record_by_index.items():
+            status_by_index[sample_index] = SynthesisSampleResult(
+                sample_index=sample_index,
+                run_id=str(record.get("run_id", f"sample_{sample_index:06d}")),
+                blueprint=None,
+                trajectory=None,
+                evaluation=None,
+                accepted=bool(record.get("accepted")),
+                error=str(record.get("error", "")),
+            )
 
         runtime: LocalMCPRuntime | None = None
         if self.config.reuse_runtime:
@@ -120,13 +146,11 @@ class SynthesisPipeline:
             runtime.start()
 
         samples: list[SynthesisSampleResult] = []
-        succeeded_count = 0
-        failed_count = 0
-        accepted_count = 0
-        rejected_count = 0
 
         try:
             for sample_index, persona_text in enumerate(persona_texts):
+                if sample_index in completed_indices:
+                    continue
                 try:
                     result = self.run_sample(
                         skill_dir=skill_dir,
@@ -136,12 +160,7 @@ class SynthesisPipeline:
                         runtime=runtime,
                     )
                     samples.append(result)
-                    succeeded_count += 1
-
-                    if result.accepted:
-                        accepted_count += 1
-                    else:
-                        rejected_count += 1
+                    status_by_index[sample_index] = result
 
                     self.persist_sample(store=store, result=result)
 
@@ -151,7 +170,6 @@ class SynthesisPipeline:
                         )
 
                 except Exception as exc:
-                    failed_count += 1
                     failure_result = SynthesisSampleResult(
                         sample_index=sample_index,
                         run_id=f"sample_{sample_index:06d}",
@@ -162,6 +180,7 @@ class SynthesisPipeline:
                         error=str(exc),
                     )
                     samples.append(failure_result)
+                    status_by_index[sample_index] = failure_result
 
                     logger.error(
                         "Sample {} failed: {}",
@@ -177,8 +196,25 @@ class SynthesisPipeline:
                     if self.config.fail_fast:
                         raise
 
+            succeeded_count = sum(
+                1 for result in status_by_index.values() if not result.error.strip()
+            )
+            failed_count = sum(
+                1 for result in status_by_index.values() if result.error.strip()
+            )
+            accepted_count = sum(
+                1
+                for result in status_by_index.values()
+                if not result.error.strip() and result.accepted
+            )
+            rejected_count = sum(
+                1
+                for result in status_by_index.values()
+                if not result.error.strip() and not result.accepted
+            )
+
             batch_result = BatchSynthesisResult(
-                total_count=len(samples),
+                total_count=len(status_by_index),
                 succeeded_count=succeeded_count,
                 failed_count=failed_count,
                 accepted_count=accepted_count,

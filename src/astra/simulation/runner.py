@@ -207,13 +207,24 @@ class SimulationRunner:
         - 每条样本运行前由 runtime.reset_state(...) 清空该 state 分区
         - 避免在 batch 中重复 create() 导致 qwen-agent patch 层层嵌套
         """
-        signature = (runtime.url, runtime.tool_name_signature)
+        prompt_signature = (
+            str(self.config.assistant_system_prompt_path.resolve())
+            if self.config.assistant_system_prompt_path is not None
+            else ""
+        )
+        signature = (runtime.url, runtime.tool_name_signature, prompt_signature)
 
         if self._assistant_agent is not None and self._assistant_signature == signature:
             return self._assistant_agent
 
+        system_message = ""
+        prompt_path = self.config.assistant_system_prompt_path
+        if prompt_path is not None:
+            system_message = prompt_path.read_text(encoding="utf-8").strip()
+
         assistant_config = AssistantAgentConfig(
             mcp_url=runtime.url,
+            system_message=system_message,
             verbose=self.config.assistant_verbose,
             enable_mcp_patch=self.config.assistant_enable_mcp_patch,
             enable_json_patch=self.config.assistant_enable_json_patch,

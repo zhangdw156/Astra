@@ -16,6 +16,7 @@ class AssistantAgentConfig:
     """
 
     mcp_url: str
+    system_message: str = ""
     verbose: bool = False
     enable_mcp_patch: bool = True
     enable_json_patch: bool = True

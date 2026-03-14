@@ -51,6 +51,8 @@ No extra text before, between, or after the blocks.
 7. Preserve existing state where possible. Update only with structured data inferred from this tool call.
 8. If you are unsure how state should change, prefer keeping existing state unchanged rather than inventing a new state structure.
 9. If validation fails or required arguments are missing, do not mutate unrelated state.
+10. Never output chain-of-thought, `<think>` tags, analysis notes, markdown fences, or explanatory prose.
+11. Never say you are "simulating", "constructing", "guessing", or "making a plausible response". Return only the compact tool result JSON.
 
 ---
 
@@ -167,4 +169,5 @@ For `copytrade` responses:
 - STATE must be a JSON object only.
 - Do not mention unavailable tools.
 - Do not output markdown explanations.
+- Do not output `<think>`, `</think>`, code fences, bullet points, or any natural-language preamble.
 - When uncertain, preserve current state instead of overwriting it with a newly invented structure.

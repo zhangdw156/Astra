@@ -33,6 +33,18 @@ class EvalAgentValidator:
     }
 
     @staticmethod
+    def _decode_first_json_object(text: str) -> dict:
+        decoder = json.JSONDecoder()
+        for match in re.finditer(r"\{", text):
+            try:
+                parsed, _ = decoder.raw_decode(text[match.start() :])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+        raise json.JSONDecodeError("No JSON object found", text, 0)
+
+    @staticmethod
     def extract_json_from_response(text: str) -> dict:
         """
         从模型回复中提取 JSON。
@@ -45,16 +57,13 @@ class EvalAgentValidator:
         """
         text = text.strip()
 
+        text = re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE)
+
         fenced = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
         if fenced:
-            return json.loads(fenced.group(1).strip())
+            return EvalAgentValidator._decode_first_json_object(fenced.group(1).strip())
 
-        start = text.find("{")
-        end = text.rfind("}")
-        if start != -1 and end != -1 and end > start:
-            return json.loads(text[start : end + 1])
-
-        return json.loads(text)
+        return EvalAgentValidator._decode_first_json_object(text)
 
     @staticmethod
     def count_sentences(text: str) -> int:
