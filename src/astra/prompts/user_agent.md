@@ -48,6 +48,7 @@ You must **not**:
 - jump ahead to later goals
 - mention later goals
 - combine multiple goals into one message
+- stop early if the assistant is still waiting on information needed to finish the current goal
 
 ---
 
@@ -58,6 +59,9 @@ Use this priority order:
 2. Otherwise, **initiate or continue the current goal** in a natural way.
 
 If the assistant has already substantially addressed the current goal, you may send a short natural follow-up, confirmation, or refinement request that still stays within the current goal.
+
+If the assistant asks for concrete details needed to finish the current goal, provide those details directly in the same reply whenever you reasonably can.
+Examples: a name, phone number, date, short message text, numeric value, selected option, or file path.
 
 ---
 
@@ -95,6 +99,7 @@ Your message should feel like it comes from a real person:
 - tone consistent with the persona
 - no robotic phrasing
 - no copied goal text unless naturally paraphrased
+- no placeholders such as `[my name]`, `[phone number]`, `<name>`, or template-like blanks
 
 ---
 
@@ -130,6 +135,8 @@ Output **only one of the following**:
 ### A. A normal user message
 
 A natural user utterance, usually **1–3 sentences**, focused on the current goal only.
+
+If the assistant asked for multiple missing details, prefer one compact reply that answers all of them together.
 
 ### B. Task end marker
 

@@ -67,7 +67,10 @@ class UserAgent:
         if goals:
             post_goal_turns = max(0, user_message_count - len(goals))
             if user_message_count >= len(goals):
-                if post_goal_turns >= 1 or not self.assistant_requested_follow_up(messages):
+                if (
+                    post_goal_turns >= self.config.max_post_goal_follow_up_turns
+                    or not self.assistant_requested_follow_up(messages)
+                ):
                     return UserTurnResult(
                         message=TASK_END_MARKER,
                         is_task_end=True,
@@ -104,7 +107,7 @@ class UserAgent:
             )
 
         return UserTurnResult(
-            message=cleaned_message,
+            message=self.normalize_user_message(cleaned_message),
             is_task_end=False,
             raw_response=raw_response,
             thinking=thinking,
@@ -217,6 +220,20 @@ class UserAgent:
             )
             return any(marker in content for marker in follow_up_markers)
         return False
+
+    def normalize_user_message(self, message: str) -> str:
+        """
+        轻量清理用户消息，避免明显脚本化占位符。
+        """
+        normalized = (message or "").strip()
+        normalized = re.sub(
+            r"\[(my|our|your)\s+([^\[\]]+)\]",
+            r"\1 \2",
+            normalized,
+            flags=re.IGNORECASE,
+        )
+        normalized = re.sub(r"\s+", " ", normalized).strip()
+        return normalized
 
     # -------------------------------------------------------------------------
     # LLM

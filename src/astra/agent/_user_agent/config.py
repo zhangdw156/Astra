@@ -18,6 +18,7 @@ class UserAgentConfig:
     prompt_path: Path
     model_temperature: float = 0.5
     verbose: bool = False
+    max_post_goal_follow_up_turns: int = 3
 
     def normalized(self) -> "UserAgentConfig":
         """
@@ -27,6 +28,7 @@ class UserAgentConfig:
             prompt_path=self.prompt_path.resolve(),
             model_temperature=self.model_temperature,
             verbose=self.verbose,
+            max_post_goal_follow_up_turns=self.max_post_goal_follow_up_turns,
         )
 
     def validate_basic(self) -> list[str]:
@@ -38,6 +40,11 @@ class UserAgentConfig:
         if not (0.0 <= self.model_temperature <= 2.0):
             errors.append(
                 f"model_temperature 必须在 [0.0, 2.0] 范围内: {self.model_temperature}"
+            )
+        if self.max_post_goal_follow_up_turns < 0:
+            errors.append(
+                "max_post_goal_follow_up_turns 不能小于 0: "
+                f"{self.max_post_goal_follow_up_turns}"
             )
 
         return errors
