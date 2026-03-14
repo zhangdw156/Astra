@@ -111,10 +111,16 @@ Requirements:
 
 - Length must exactly equal the length of `goals`
 - Every tool name must exactly match a `name` field from `tools.jsonl`
-- Each inner array should contain only the **minimal plausible set of tools** for that goal
+- Each inner array should contain the **smallest realistic multi-tool set** for that goal
 - Do not include speculative, redundant, or loosely related tools
 
 Use only tools that are realistically relevant to the corresponding goal.
+
+Important:
+
+- For multi-tool skills, prefer goals that usually require **2-3 tools working together**
+- Avoid degenerate plans where every goal maps to only one tool unless the skill truly has only one meaningful tool
+- Prefer goals that combine discovery + inspection, lookup + action, or action + verification
 
 ---
 

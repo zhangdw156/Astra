@@ -45,3 +45,18 @@ def test_validate_program_skill_dir_rejects_incomplete_skill(tmp_path: Path) -> 
         assert "backend.py" in str(exc)
     else:
         raise AssertionError("expected FileNotFoundError")
+
+
+def test_build_agents_and_pipeline_uses_shorter_max_turn_budget(tmp_path: Path) -> None:
+    module = load_module()
+    root = Path(__file__).resolve().parents[1]
+    pipeline = module.build_agents_and_pipeline(
+        output_root=tmp_path,
+        planner_prompt_path=root / "src" / "astra" / "prompts" / "planner_agent.md",
+        user_prompt_path=root / "src" / "astra" / "prompts" / "user_agent.md",
+        tool_prompt_path=root / "src" / "astra" / "prompts" / "tool_agent.md",
+        eval_prompt_path=root / "src" / "astra" / "prompts" / "eval_agent.md",
+        port=18000,
+    )
+
+    assert pipeline.simulation_runner.config.max_turns == 12

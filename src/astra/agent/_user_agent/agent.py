@@ -64,6 +64,17 @@ class UserAgent:
         if user_message_count is None:
             user_message_count = self.count_user_messages(messages)
 
+        if goals:
+            post_goal_turns = max(0, user_message_count - len(goals))
+            if user_message_count >= len(goals):
+                if post_goal_turns >= 1 or not self.assistant_requested_follow_up(messages):
+                    return UserTurnResult(
+                        message=TASK_END_MARKER,
+                        is_task_end=True,
+                        raw_response=TASK_END_MARKER,
+                        thinking="",
+                    )
+
         current_goal_index = min(user_message_count + 1, len(goals)) if goals else 1
         conversation_history = self.format_conversation_history(messages)
 
@@ -79,10 +90,15 @@ class UserAgent:
         raw_response = self.call_model(prompt)
         cleaned_message, thinking = self.strip_think(raw_response)
 
-        if cleaned_message.strip() == TASK_END_MARKER:
+        task_end_result = self.parse_task_end_marker(
+            message=cleaned_message,
+            goals=goals,
+            user_message_count=user_message_count,
+        )
+        if task_end_result is not None:
             return UserTurnResult(
-                message=TASK_END_MARKER,
-                is_task_end=True,
+                message=task_end_result["message"],
+                is_task_end=task_end_result["is_task_end"],
                 raw_response=raw_response,
                 thinking=thinking,
             )
@@ -144,6 +160,63 @@ class UserAgent:
             return clean, thinking
 
         return text.strip(), ""
+
+    def parse_task_end_marker(
+        self,
+        *,
+        message: str,
+        goals: list[Any],
+        user_message_count: int,
+    ) -> dict[str, Any] | None:
+        """
+        识别 UserAgent 输出中的 [TASK_END]。
+
+        兼容两种情况：
+        - 纯 marker：直接结束
+        - 混在自然语言中：若 goals 已经全部推进过，则按结束处理，避免多跑一轮
+        """
+        normalized = (message or "").strip()
+        if not normalized or TASK_END_MARKER not in normalized:
+            return None
+
+        if normalized == TASK_END_MARKER:
+            return {"message": TASK_END_MARKER, "is_task_end": True}
+
+        before, _, after = normalized.partition(TASK_END_MARKER)
+        visible_text = f"{before.strip()} {after.strip()}".strip()
+        if user_message_count >= len(goals):
+            logger.info("UserAgent embedded [TASK_END] in prose; treating it as task end")
+            return {"message": TASK_END_MARKER, "is_task_end": True}
+
+        return {"message": visible_text or normalized, "is_task_end": False}
+
+    def assistant_requested_follow_up(self, messages: list[dict[str, Any]]) -> bool:
+        """
+        判断上一条 assistant 消息是否明确在索要补充信息。
+        """
+        for message in reversed(messages):
+            if message.get("role") != "assistant":
+                continue
+            content = (message.get("content") or "").strip().lower()
+            if not content:
+                return False
+            if "?" in content:
+                return True
+            follow_up_markers = (
+                "could you",
+                "can you",
+                "please provide",
+                "please share",
+                "let me know",
+                "which one",
+                "what file",
+                "what path",
+                "what value",
+                "do you want",
+                "would you like",
+            )
+            return any(marker in content for marker in follow_up_markers)
+        return False
 
     # -------------------------------------------------------------------------
     # LLM

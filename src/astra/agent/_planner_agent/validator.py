@@ -24,6 +24,10 @@ class BlueprintValidator:
     ]
 
     ALLOWED_FIELDS = {
+        "blueprint_id",
+        "skill_name",
+        "persona_id",
+        "created_at",
         "goals",
         "possible_tool_calls",
         "scenario_id",
@@ -38,7 +42,61 @@ class BlueprintValidator:
     USER_AGENT_CONFIG_KEYS = ("role", "personality", "knowledge_boundary")
 
     @staticmethod
-    def extract_json_from_response(text: str) -> dict:
+    def _load_first_json_object(text: str) -> dict:
+        """
+        从文本中解析第一个 JSON 对象，允许后面跟额外解释文字。
+        """
+        decoder = json.JSONDecoder()
+        stripped = text.lstrip()
+        obj, _ = decoder.raw_decode(stripped)
+        if not isinstance(obj, dict):
+            raise ValueError("blueprint 必须是 JSON 对象")
+        return obj
+
+    @staticmethod
+    def _collect_json_object_candidates(text: str) -> list[dict]:
+        """
+        扫描文本中的所有 JSON 对象候选，避免错误选中前置的小对象。
+        """
+        decoder = json.JSONDecoder()
+        candidates: list[dict] = []
+        seen: set[tuple[str, ...]] = set()
+
+        start = 0
+        while True:
+            start = text.find("{", start)
+            if start == -1:
+                break
+
+            try:
+                obj, _ = decoder.raw_decode(text[start:])
+            except json.JSONDecodeError:
+                start += 1
+                continue
+
+            if isinstance(obj, dict):
+                key = tuple(sorted(obj.keys()))
+                if key not in seen:
+                    candidates.append(obj)
+                    seen.add(key)
+
+            start += 1
+
+        return candidates
+
+    @classmethod
+    def _select_best_candidate(cls, candidates: list[dict]) -> dict:
+        if not candidates:
+            raise ValueError("未找到可解析的 blueprint JSON 对象")
+
+        def sort_key(candidate: dict) -> tuple[int, int]:
+            required_count = sum(1 for field in cls.REQUIRED_FIELDS if field in candidate)
+            return (required_count, len(json.dumps(candidate, ensure_ascii=False)))
+
+        return max(candidates, key=sort_key)
+
+    @classmethod
+    def extract_json_from_response(cls, text: str) -> dict:
         """
         从模型回复中提取 JSON。
 
@@ -49,17 +107,22 @@ class BlueprintValidator:
         4. 直接就是 JSON
         """
         text = text.strip()
+        candidates: list[dict] = []
 
-        fenced = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
-        if fenced:
-            return json.loads(fenced.group(1).strip())
+        fenced_blocks = re.findall(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
+        for block in fenced_blocks:
+            candidates.extend(cls._collect_json_object_candidates(block.strip()))
 
         start = text.find("{")
         end = text.rfind("}")
         if start != -1 and end != -1 and end > start:
-            return json.loads(text[start : end + 1])
+            candidates.extend(cls._collect_json_object_candidates(text[start : end + 1]))
 
-        return json.loads(text)
+        candidates.extend(cls._collect_json_object_candidates(text))
+        if candidates:
+            return cls._select_best_candidate(candidates)
+
+        return cls._load_first_json_object(text)
 
     @staticmethod
     def get_tool_names_from_jsonl(tools_path: Path) -> set[str]:
@@ -191,6 +254,8 @@ class BlueprintValidator:
                 for i, item in enumerate(goals):
                     if not isinstance(item, str) or not item.strip():
                         errors.append(f"goals[{i}] 必须为非空字符串")
+                if allowed_tool_names is not None and len(allowed_tool_names) > 1 and len(goals) < 2:
+                    errors.append("多工具技能的 goals 应至少包含两个目标")
 
         if "possible_tool_calls" in data:
             ptc = data["possible_tool_calls"]
@@ -216,6 +281,10 @@ class BlueprintValidator:
                                 f"possible_tool_calls[{i}] 中含非法工具名: {name!r}，"
                                 "应在 tools.jsonl 的 name 列表中"
                             )
+                    if allowed_tool_names is not None and len(allowed_tool_names) > 1 and len(inner) < 2:
+                        errors.append(
+                            f"多工具技能的 possible_tool_calls[{i}] 应至少包含两个工具"
+                        )
 
         if "user_agent_config" in data:
             user_agent_config = data["user_agent_config"]

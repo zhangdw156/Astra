@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import threading
 import time
 from pathlib import Path
@@ -175,6 +176,21 @@ class LocalMCPRuntime:
                 kwargs=kwargs,
                 default_state_key=self.state_key,
             )
+            missing_names = self.registry.find_missing_required_arguments(
+                arguments=runtime_kwargs,
+                required_names=required_names,
+            )
+            if missing_names:
+                return json.dumps(
+                    {
+                        "error": {
+                            "type": "validation_error",
+                            "message": f"Missing required arguments: {', '.join(missing_names)}",
+                            "missing": missing_names,
+                        }
+                    },
+                    ensure_ascii=False,
+                )
             execution = self.executor.execute_tool(
                 tool_name=name,
                 arguments=runtime_kwargs,
@@ -197,6 +213,7 @@ class LocalMCPRuntime:
             handler=_handler,
             tool_params=tool_params,
             required_names=required_names,
+            strict_required=False,
         )
         return _handler
 

@@ -131,41 +131,80 @@ class SynthesisPipeline:
 
         try:
             for sample_index, persona_text in enumerate(persona_texts):
+                partial_result = SynthesisSampleResult(
+                    sample_index=sample_index,
+                    run_id=f"sample_{sample_index:06d}",
+                    blueprint=None,
+                    trajectory=None,
+                    evaluation=None,
+                    accepted=False,
+                    error="",
+                )
                 try:
-                    result = self.run_sample(
+                    blueprint_bundle = self.planner_agent.generate(
                         skill_dir=skill_dir,
                         persona_text=persona_text,
-                        sample_index=sample_index,
+                    )
+                    partial_result.blueprint = blueprint_bundle.blueprint
+                    if self.config.save_blueprint:
+                        store.write_blueprint(
+                            partial_result.sample_index,
+                            partial_result.blueprint,
+                        )
+
+                    trajectory = self.simulation_runner.run(
+                        blueprint=partial_result.blueprint,
+                        skill_dir=skill_dir,
                         tools_path=tools_path,
+                        run_id=partial_result.run_id,
                         runtime=runtime,
                     )
-                    samples.append(result)
+                    partial_result.trajectory = trajectory
+                    if self.config.save_trajectory:
+                        store.write_trajectory(
+                            partial_result.sample_index,
+                            partial_result.trajectory,
+                        )
+
+                    if self.config.evaluate_after_run:
+                        if self.eval_agent is None:
+                            raise RuntimeError(
+                                "配置要求 evaluate_after_run=True，但未提供 EvalAgent"
+                            )
+
+                        evaluation_bundle = self.eval_agent.evaluate(
+                            trajectory=to_jsonable(partial_result.trajectory),
+                            blueprint=partial_result.blueprint,
+                        )
+                        partial_result.evaluation = evaluation_bundle.result
+                        if self.config.save_evaluation:
+                            store.write_evaluation(
+                                partial_result.sample_index,
+                                partial_result.evaluation,
+                            )
+
+                    partial_result.accepted = self.decide_acceptance(
+                        partial_result.evaluation
+                    )
+
+                    samples.append(partial_result)
                     succeeded_count += 1
 
-                    if result.accepted:
+                    if partial_result.accepted:
                         accepted_count += 1
                     else:
                         rejected_count += 1
 
-                    self.persist_sample(store=store, result=result)
-
                     if self.config.save_manifest:
                         store.append_manifest_record(
-                            self.build_manifest_record(result=result)
+                            self.build_manifest_record(result=partial_result)
                         )
 
                 except Exception as exc:
                     failed_count += 1
-                    failure_result = SynthesisSampleResult(
-                        sample_index=sample_index,
-                        run_id=f"sample_{sample_index:06d}",
-                        blueprint=None,
-                        trajectory=None,
-                        evaluation=None,
-                        accepted=False,
-                        error=str(exc),
-                    )
-                    samples.append(failure_result)
+                    partial_result.error = str(exc)
+                    partial_result.accepted = False
+                    samples.append(partial_result)
 
                     logger.error(
                         "Sample {} failed: {}",
@@ -175,7 +214,7 @@ class SynthesisPipeline:
 
                     if self.config.save_manifest:
                         store.append_manifest_record(
-                            self.build_manifest_record(result=failure_result)
+                            self.build_manifest_record(result=partial_result)
                         )
 
                     if self.config.fail_fast:

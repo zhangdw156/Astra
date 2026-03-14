@@ -142,7 +142,7 @@ def build_agents_and_pipeline(
 
     simulation_runner = SimulationRunner(
         config=SimulationRunnerConfig(
-            max_turns=20,
+            max_turns=12,
             early_task_end_policy="fallback",
             validate_tool_calls=True,
             assistant_state_key="simulation",

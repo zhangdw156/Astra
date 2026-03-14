@@ -155,6 +155,48 @@ def test_runtime_routes_to_program_executor_and_records_transition(tmp_path: Pat
     assert runtime.state_transitions[0].after_state == {"counter": 7}
 
 
+def test_runtime_returns_validation_error_for_missing_required_arguments(tmp_path: Path) -> None:
+    skill_dir = make_fake_skill_dir(tmp_path)
+    prompt_path = make_prompt_file(tmp_path)
+    runtime = LocalMCPRuntime(
+        config=MCPRuntimeConfig(port=18999),
+        tool_agent_config=ToolAgentConfig(prompt_path=prompt_path),
+        skill_dir=skill_dir,
+        tools_path=skill_dir / "tools.jsonl",
+        state_key="simulation",
+    )
+
+    runtime.reset_state()
+    handler = runtime.make_tool_handler(runtime.tools[0])
+    result = json.loads(handler())
+
+    assert result["error"]["type"] == "validation_error"
+    assert result["error"]["missing"] == ["amount"]
+    assert runtime.get_state() == {"counter": 2}
+    assert runtime.state_transitions == []
+
+
+def test_runtime_returns_validation_error_for_none_required_argument(tmp_path: Path) -> None:
+    skill_dir = make_fake_skill_dir(tmp_path)
+    prompt_path = make_prompt_file(tmp_path)
+    runtime = LocalMCPRuntime(
+        config=MCPRuntimeConfig(port=18999),
+        tool_agent_config=ToolAgentConfig(prompt_path=prompt_path),
+        skill_dir=skill_dir,
+        tools_path=skill_dir / "tools.jsonl",
+        state_key="simulation",
+    )
+
+    runtime.reset_state()
+    handler = runtime.make_tool_handler(runtime.tools[0])
+    result = json.loads(handler(amount=None))
+
+    assert result["error"]["type"] == "validation_error"
+    assert result["error"]["missing"] == ["amount"]
+    assert runtime.get_state() == {"counter": 2}
+    assert runtime.state_transitions == []
+
+
 def test_blueprint_validator_accepts_v2_fields() -> None:
     data = {
         "goals": ["increment counter"],

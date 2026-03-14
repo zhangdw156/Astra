@@ -70,6 +70,7 @@ class ToolRegistry:
         tool_params: dict[str, Any],
         required_names: set[str],
         allow_state_key: bool = True,
+        strict_required: bool = True,
     ) -> None:
         parameters: list[inspect.Parameter] = []
         annotations: dict[str, Any] = {}
@@ -83,22 +84,25 @@ class ToolRegistry:
             schema_type = info.get("type", "string") if isinstance(info, dict) else "string"
             pytype = self.schema_type_to_pytype(schema_type)
 
-            if name in required_names:
+            if name in required_names and strict_required:
                 default = inspect.Parameter.empty
+                annotation = pytype
             elif isinstance(info, dict) and "default" in info:
                 default = info.get("default")
+                annotation = pytype
             else:
                 default = None
+                annotation = pytype | None
 
             parameters.append(
                 inspect.Parameter(
                     name=name,
                     kind=inspect.Parameter.KEYWORD_ONLY,
                     default=default,
-                    annotation=pytype,
+                    annotation=annotation,
                 )
             )
-            annotations[name] = pytype
+            annotations[name] = annotation
 
         if allow_state_key and "__state_key" not in tool_params:
             parameters.append(
@@ -116,6 +120,25 @@ class ToolRegistry:
             return_annotation=str,
         )
         handler.__annotations__ = {**annotations, "return": str}
+
+    def find_missing_required_arguments(
+        self,
+        *,
+        arguments: dict[str, Any],
+        required_names: set[str],
+    ) -> list[str]:
+        missing: list[str] = []
+        for name in required_names:
+            if name not in arguments:
+                missing.append(name)
+                continue
+            value = arguments[name]
+            if value is None:
+                missing.append(name)
+                continue
+            if isinstance(value, str) and not value.strip():
+                missing.append(name)
+        return missing
 
     def schema_type_to_pytype(self, schema_type: Any) -> Any:
         if schema_type == "integer":
