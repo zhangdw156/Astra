@@ -30,6 +30,7 @@ import json
 import random
 import socket
 import sys
+from dataclasses import asdict, is_dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
@@ -45,6 +46,8 @@ from astra.simulation import (
     SynthesisPipeline,
     SynthesisPipelineConfig,
 )
+from astra.simulation.store import ArtifactStore
+from astra.simulation.types import BatchSynthesisResult, SynthesisSampleResult
 
 
 def load_selected_skills(path: Path) -> list[dict[str, Any]]:
@@ -243,20 +246,254 @@ def run_one_skill(
         port=port,
     )
 
-    if count_per_skill <= len(persona_lines):
-        selected_personas = persona_lines[:count_per_skill]
-    else:
-        selected_personas = list(persona_lines)
-        extra = count_per_skill - len(persona_lines)
-        if extra > 0:
-            selected_personas.extend(random.choices(persona_lines, k=extra))
-
-    batch_result = pipeline.run_batch(
+    selected_personas = select_personas(
+        persona_lines=persona_lines,
+        count_per_skill=count_per_skill,
+    )
+    batch_result = run_batch_with_resume(
+        pipeline=pipeline,
         skill_dir=skill_dir,
-        persona_texts=selected_personas,
         tools_path=tools_path,
+        persona_texts=selected_personas,
     )
     return skill_name, batch_result.succeeded_count, batch_result.failed_count
+
+
+def select_personas(*, persona_lines: list[str], count_per_skill: int) -> list[str]:
+    if count_per_skill <= len(persona_lines):
+        return persona_lines[:count_per_skill]
+
+    selected_personas = list(persona_lines)
+    extra = count_per_skill - len(persona_lines)
+    if extra > 0:
+        selected_personas.extend(random.choices(persona_lines, k=extra))
+    return selected_personas
+
+
+def sample_is_complete(*, output_root: Path, sample_index: int) -> bool:
+    sample_dir = output_root / str(sample_index)
+    required_files = ("blueprint.json", "trajectory.json", "evaluation.json")
+    return all((sample_dir / name).exists() for name in required_files)
+
+
+def find_completed_sample_indices(*, output_root: Path, total_count: int) -> set[int]:
+    completed: set[int] = set()
+    for sample_index in range(total_count):
+        if sample_is_complete(output_root=output_root, sample_index=sample_index):
+            completed.add(sample_index)
+    return completed
+
+
+def load_manifest_records(*, output_root: Path) -> dict[int, dict[str, Any]]:
+    manifest_path = output_root / "manifest.jsonl"
+    if not manifest_path.exists():
+        return {}
+
+    records: dict[int, dict[str, Any]] = {}
+    with manifest_path.open(encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            obj = json.loads(line)
+            if not isinstance(obj, dict):
+                continue
+            sample_index = obj.get("sample_index")
+            if isinstance(sample_index, int):
+                records[sample_index] = obj
+    return records
+
+
+def overwrite_manifest_records(
+    *,
+    store: ArtifactStore,
+    records_by_index: dict[int, dict[str, Any]],
+) -> None:
+    lines = [
+        json.dumps(records_by_index[sample_index], ensure_ascii=False)
+        for sample_index in sorted(records_by_index)
+    ]
+    payload = ("\n".join(lines) + "\n") if lines else ""
+    store.manifest_path.write_text(payload, encoding="utf-8")
+
+
+def summarize_manifest_records(
+    *,
+    total_requested: int,
+    records_by_index: dict[int, dict[str, Any]],
+) -> dict[str, Any]:
+    records = list(records_by_index.values())
+    succeeded_count = sum(1 for record in records if not record.get("error"))
+    failed_count = sum(1 for record in records if record.get("error"))
+    accepted_count = sum(1 for record in records if record.get("accepted"))
+    rejected_count = sum(
+        1 for record in records if not record.get("accepted") and not record.get("error")
+    )
+    return {
+        "total_count": total_requested,
+        "completed_count": len(records_by_index),
+        "remaining_count": max(total_requested - len(records_by_index), 0),
+        "succeeded_count": succeeded_count,
+        "failed_count": failed_count,
+        "accepted_count": accepted_count,
+        "rejected_count": rejected_count,
+        "samples": records,
+    }
+
+
+def _normalize_record(record: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(record)
+    normalized.setdefault("error", "")
+    normalized.setdefault("accepted", False)
+    return normalized
+
+
+def _load_completed_records(
+    *,
+    pipeline: SynthesisPipeline,
+    store: ArtifactStore,
+    total_count: int,
+) -> dict[int, dict[str, Any]]:
+    existing_records = load_manifest_records(output_root=store.output_root)
+    completed = find_completed_sample_indices(
+        output_root=store.output_root,
+        total_count=total_count,
+    )
+    records_by_index: dict[int, dict[str, Any]] = {}
+    for sample_index in completed:
+        record = existing_records.get(sample_index)
+        if record is not None:
+            records_by_index[sample_index] = _normalize_record(record)
+            continue
+
+        sample_dir = store.output_root / str(sample_index)
+        blueprint = json.loads((sample_dir / "blueprint.json").read_text(encoding="utf-8"))
+        trajectory = json.loads((sample_dir / "trajectory.json").read_text(encoding="utf-8"))
+        evaluation = json.loads((sample_dir / "evaluation.json").read_text(encoding="utf-8"))
+        accepted = pipeline.decide_acceptance(_dict_to_eval_like(evaluation))
+        records_by_index[sample_index] = {
+            "sample_index": sample_index,
+            "run_id": f"sample_{sample_index:06d}",
+            "accepted": accepted,
+            "error": "",
+            "blueprint_id": blueprint.get("blueprint_id", ""),
+            "trajectory_id": trajectory.get("trajectory_id", ""),
+            "score": evaluation.get("score"),
+            "hallucination_risk": evaluation.get("hallucination_risk"),
+            "task_completion_score": evaluation.get("task_completion_score"),
+        }
+    return records_by_index
+
+
+class _EvalLike:
+    def __init__(self, payload: dict[str, Any]):
+        self.score = payload.get("score")
+        self.hallucination_risk = payload.get("hallucination_risk")
+
+
+def _dict_to_eval_like(payload: dict[str, Any]) -> _EvalLike:
+    return _EvalLike(payload)
+
+
+def _jsonable(obj: Any) -> Any:
+    if is_dataclass(obj):
+        return _jsonable(asdict(obj))
+    if isinstance(obj, Path):
+        return str(obj)
+    if isinstance(obj, dict):
+        return {str(key): _jsonable(value) for key, value in obj.items()}
+    if isinstance(obj, list):
+        return [_jsonable(item) for item in obj]
+    if isinstance(obj, tuple):
+        return [_jsonable(item) for item in obj]
+    return obj
+
+
+def run_batch_with_resume(
+    *,
+    pipeline: SynthesisPipeline,
+    skill_dir: Path,
+    tools_path: Path,
+    persona_texts: list[str],
+) -> BatchSynthesisResult:
+    output_root = pipeline.config.output_root
+    store = ArtifactStore(output_root)
+    total_count = len(persona_texts)
+    records_by_index = _load_completed_records(
+        pipeline=pipeline,
+        store=store,
+        total_count=total_count,
+    )
+    pending_indices = [
+        sample_index
+        for sample_index in range(total_count)
+        if sample_index not in records_by_index
+    ]
+
+    runtime = None
+    if pipeline.config.reuse_runtime and pending_indices:
+        runtime = pipeline.simulation_runner.build_runtime(
+            skill_dir=skill_dir,
+            tools_path=tools_path,
+        )
+        runtime.start()
+
+    try:
+        for sample_index in pending_indices:
+            persona_text = persona_texts[sample_index]
+            partial_result = SynthesisSampleResult(
+                sample_index=sample_index,
+                run_id=f"sample_{sample_index:06d}",
+                blueprint=None,
+                trajectory=None,
+                evaluation=None,
+                accepted=False,
+                error="",
+            )
+            try:
+                result = pipeline.run_sample(
+                    skill_dir=skill_dir,
+                    persona_text=persona_text,
+                    sample_index=sample_index,
+                    tools_path=tools_path,
+                    run_id=partial_result.run_id,
+                    runtime=runtime,
+                )
+                partial_result = result
+                pipeline.persist_sample(store=store, result=partial_result)
+            except Exception as exc:
+                partial_result.error = str(exc)
+
+            records_by_index[sample_index] = _normalize_record(
+                pipeline.build_manifest_record(result=partial_result)
+            )
+            overwrite_manifest_records(store=store, records_by_index=records_by_index)
+    finally:
+        if runtime is not None:
+            runtime.stop()
+
+    summary = summarize_manifest_records(
+        total_requested=total_count,
+        records_by_index=records_by_index,
+    )
+    store.write_summary(summary)
+
+    return BatchSynthesisResult(
+        total_count=summary["total_count"],
+        succeeded_count=summary["succeeded_count"],
+        failed_count=summary["failed_count"],
+        accepted_count=summary["accepted_count"],
+        rejected_count=summary["rejected_count"],
+        samples=[
+            SynthesisSampleResult(
+                sample_index=record["sample_index"],
+                run_id=str(record.get("run_id", f"sample_{record['sample_index']:06d}")),
+                accepted=bool(record.get("accepted", False)),
+                error=str(record.get("error", "")),
+            )
+            for record in sorted(records_by_index.values(), key=lambda item: item["sample_index"])
+        ],
+    )
 
 
 def main() -> int:
