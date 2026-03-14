@@ -1,0 +1,650 @@
+{
+  "run_id": "sample_000040",
+  "trajectory_id": "0db54bcb-2c57-4918-ad29-4459134791b6",
+  "blueprint_id": "363940aa-a2a6-49b9-80dc-3064b01e4579",
+  "skill_name": "1104_mem0-1-0-0",
+  "persona_id": "2c697740-2f9c-4d8c-9fa7-4b2c8f2721a5",
+  "tools": [
+    {
+      "name": "search_memories",
+      "description": "Searches semantically across stored memories using Mem0. Use this to retrieve relevant context about user preferences, patterns, and past interactions before responding. This is for retrieval only - use add_memory to store new memories, and list_memories to see all memories.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query text to find relevant memories"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 3,
+            "description": "Maximum number of memories to return"
+          },
+          "user": {
+            "type": "string",
+            "description": "User ID to search memories for (defaults to configured user)"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    {
+      "name": "add_memory",
+      "description": "Adds new memories to Mem0 storage. Use this when user explicitly asks to remember something or to store conversation context for future retrieval. Supports two forms: simple text memory or conversation messages (auto-extracts memories via LLM). For searching stored memories, use search_memories instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Simple text memory to store (use instead of messages)"
+          },
+          "messages": {
+            "type": "array",
+            "description": "Array of conversation messages to extract memories from (use instead of text)"
+          },
+          "user": {
+            "type": "string",
+            "description": "User ID to store memory for (defaults to configured user)"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "list_memories",
+      "description": "Lists all stored memories for a user with IDs and creation dates. Use this to see what memories are currently stored. For searching specific memories, use search_memories instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "description": "User ID to list memories for (defaults to configured user)"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "delete_memory",
+      "description": "Deletes memories from Mem0 storage. Use this to remove specific memories or all memories for a user. Supports two modes: delete a specific memory by ID, or delete all memories for a user.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "memory_id": {
+            "type": "string",
+            "description": "ID of specific memory to delete (use instead of all flag)"
+          },
+          "all": {
+            "type": "boolean",
+            "default": false,
+            "description": "Delete all memories for the user (use instead of memory_id)"
+          },
+          "user": {
+            "type": "string",
+            "description": "User ID to delete memories for (required when using all flag)"
+          }
+        },
+        "required": []
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hey, I've been exploring trails around Boone and I think I saved some of my favorites and preferences earlier. Can you help me find what I've saved so far? I want to make sure I have everything organized before my next hiking trip."
+    },
+    {
+      "role": "assistant",
+      "content": "I'd be happy to help you find what you've saved! Let me check your stored memories for trail favorites and preferences around Boone."
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "function_call": {
+        "name": "skill-tools-search_memories",
+        "arguments": "{\"limit\": 10, \"query\": \"trails Boone favorites hiking preferences saved\"}"
+      }
+    },
+    {
+      "role": "function",
+      "content": "{\"results\": []}",
+      "name": "skill-tools-search_memories"
+    },
+    {
+      "role": "assistant",
+      "content": "Let me check all your stored memories to see what's there:"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "function_call": {
+        "name": "skill-tools-list_memories",
+        "arguments": "{}"
+      }
+    },
+    {
+      "role": "function",
+      "content": "{\"memories\": []}",
+      "name": "skill-tools-list_memories"
+    },
+    {
+      "role": "assistant",
+      "content": "It looks like you don't have any saved memories yet! Both my search for trail-related content and a full listing of your memories came up empty.\n\nThis could mean:\n- You may have been thinking of a different session or account, or\n- You haven't saved your trail favorites and preferences yet\n\nWould you like me to help you start saving your Boone trail favorites and preferences? I can store information about trails you've explored, difficulty levels you prefer, distance preferences, and any other hiking details you'd like to remember for your next trip!"
+    },
+    {
+      "role": "user",
+      "content": "Yes, that would be great! I actually just discovered a new trail last weekend that I want to save. It's called the Elk Knob Summit Trail - it's about 2.2 miles one way with some pretty steep switchbacks, but the views at the top are incredible. I'd love to store this so I remember it for my next trip. Can you help me save this trail information?"
+    },
+    {
+      "role": "assistant",
+      "content": ""
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "function_call": {
+        "name": "skill-tools-add_memory",
+        "arguments": "{\"text\": \"Favorite trail: Elk Knob Summit Trail near Boone. Distance: 2.2 miles one way. Features: steep switchbacks, incredible views at the summit. User wants to remember this for future hiking trips.\"}"
+      }
+    },
+    {
+      "role": "function",
+      "content": "{\"memory\": {\"id\": \"m2\", \"user\": \"None\", \"text\": \"Favorite trail: Elk Knob Summit Trail near Boone. Distance: 2.2 miles one way. Features: steep switchbacks, incredible views at the summit. User wants to remember this for future hiking trips.\"}}",
+      "name": "skill-tools-add_memory"
+    },
+    {
+      "role": "assistant",
+      "content": "Done! I've saved your trail information. Here's what's now stored:\n\n**Elk Knob Summit Trail** (near Boone)\n- **Distance:** 2.2 miles one way\n- **Features:** Steep switchbacks, incredible summit views\n\nYour first trail favorite is now saved! Let me know if you'd like to add more trails, or if you want to save any preferences like difficulty level, favorite times to hike, or anything else for your Boone hiking adventures."
+    },
+    {
+      "role": "user",
+      "content": "That worked perfectly, thanks! Now I'd like to review all the trail memories I've saved so far. I want to see everything together so I can organize my favorites and figure out which trails I want to prioritize for my next few hiking trips. Can you show me what I have stored?"
+    },
+    {
+      "role": "assistant",
+      "content": ""
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "function_call": {
+        "name": "skill-tools-list_memories",
+        "arguments": "{}"
+      }
+    },
+    {
+      "role": "function",
+      "content": "{\"memories\": [{\"id\": \"m2\", \"user\": \"None\", \"text\": \"Favorite trail: Elk Knob Summit Trail near Boone. Distance: 2.2 miles one way. Features: steep switchbacks, incredible views at the summit. User wants to remember this for future hiking trips.\"}]}",
+      "name": "skill-tools-list_memories"
+    },
+    {
+      "role": "assistant",
+      "content": "Here's everything you have saved so far:\n\n---\n\n**1. Elk Knob Summit Trail** (near Boone)\n- **Distance:** 2.2 miles one way\n- **Features:** Steep switchbacks, incredible summit views\n\n---\n\nThat's your only saved trail at the moment since you just added it! If you want to organize your favorites and plan your next trips, you could:\n\n- **Add more trails** you've explored around Boone\n- **Save preferences** like difficulty level, favorite terrain, or best seasons to hike\n- **Add notes** about which trails are highest priority for your next adventure\n\nWould you like to add more trail information or preferences?"
+    },
+    {
+      "role": "user",
+      "content": "I just reviewed what I have saved, and it's just that one trail I just added. I don't think there's anything outdated or incorrect in my saved memories right now - the Elk Knob trail info is accurate since I just added it. But I wanted to make sure I knew how to remove things if I ever needed to clean up old information. Is there anything else I should check, or does my trail memory look good for now?"
+    },
+    {
+      "role": "assistant",
+      "content": "Your trail memory looks good for now! The Elk Knob Summit Trail info is saved and accurate.\n\nHere's how deletion works if you ever need to clean up old information in the future:\n\n**To delete a specific memory:**\n- You'd need the memory ID (like \"m2\" for your Elk Knob trail)\n- I can delete individual memories using that ID\n\n**To delete all memories:**\n- I can clear everything at once if you want a fresh start\n\nFor example, if you completed a trail and no longer wanted to track it, or if information became outdated, just let me know the memory ID and I can remove it.\n\nFor now, you're all set! Would you like to add any other trails or preferences (like difficulty level, favorite trail features, or ideal hiking conditions) to build out your Boone trail collection?"
+    }
+  ],
+  "structured_turns": [
+    {
+      "turn_index": 1,
+      "goal_index": 1,
+      "goal_text": "Find previously saved trail preferences and favorite parks in Boone",
+      "user_message": "Hey, I've been exploring trails around Boone and I think I saved some of my favorites and preferences earlier. Can you help me find what I've saved so far? I want to make sure I have everything organized before my next hiking trip.",
+      "assistant_message": "It looks like you don't have any saved memories yet! Both my search for trail-related content and a full listing of your memories came up empty.\n\nThis could mean:\n- You may have been thinking of a different session or account, or\n- You haven't saved your trail favorites and preferences yet\n\nWould you like me to help you start saving your Boone trail favorites and preferences? I can store information about trails you've explored, difficulty levels you prefer, distance preferences, and any other hiking details you'd like to remember for your next trip!",
+      "tool_calls": [
+        {
+          "name": "skill-tools-search_memories",
+          "arguments": "{\"limit\": 10, \"query\": \"trails Boone favorites hiking preferences saved\"}",
+          "result": "{\"results\": []}"
+        },
+        {
+          "name": "skill-tools-list_memories",
+          "arguments": "{}",
+          "result": "{\"memories\": []}"
+        }
+      ],
+      "execution_time_ms": 33927,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "search_memories",
+          "add_memory",
+          "list_memories"
+        ],
+        "actual_tool_names": [
+          "skill-tools-search_memories",
+          "skill-tools-list_memories"
+        ],
+        "normalized_tool_names": [
+          "search_memories",
+          "list_memories"
+        ],
+        "unexpected_tool_names": [],
+        "tool_calls_within_blueprint": true
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      }
+    },
+    {
+      "turn_index": 2,
+      "goal_index": 2,
+      "goal_text": "Store information about a newly discovered trail",
+      "user_message": "Yes, that would be great! I actually just discovered a new trail last weekend that I want to save. It's called the Elk Knob Summit Trail - it's about 2.2 miles one way with some pretty steep switchbacks, but the views at the top are incredible. I'd love to store this so I remember it for my next trip. Can you help me save this trail information?",
+      "assistant_message": "Done! I've saved your trail information. Here's what's now stored:\n\n**Elk Knob Summit Trail** (near Boone)\n- **Distance:** 2.2 miles one way\n- **Features:** Steep switchbacks, incredible summit views\n\nYour first trail favorite is now saved! Let me know if you'd like to add more trails, or if you want to save any preferences like difficulty level, favorite times to hike, or anything else for your Boone hiking adventures.",
+      "tool_calls": [
+        {
+          "name": "skill-tools-add_memory",
+          "arguments": "{\"text\": \"Favorite trail: Elk Knob Summit Trail near Boone. Distance: 2.2 miles one way. Features: steep switchbacks, incredible views at the summit. User wants to remember this for future hiking trips.\"}",
+          "result": "{\"memory\": {\"id\": \"m2\", \"user\": \"None\", \"text\": \"Favorite trail: Elk Knob Summit Trail near Boone. Distance: 2.2 miles one way. Features: steep switchbacks, incredible views at the summit. User wants to remember this for future hiking trips.\"}}"
+        }
+      ],
+      "execution_time_ms": 61876,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "add_memory",
+          "search_memories",
+          "list_memories"
+        ],
+        "actual_tool_names": [
+          "skill-tools-add_memory"
+        ],
+        "normalized_tool_names": [
+          "add_memory"
+        ],
+        "unexpected_tool_names": [],
+        "tool_calls_within_blueprint": true
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "None",
+            "text": "Favorite trail: Elk Knob Summit Trail near Boone. Distance: 2.2 miles one way. Features: steep switchbacks, incredible views at the summit. User wants to remember this for future hiking trips."
+          }
+        ],
+        "next_id": 3
+      }
+    },
+    {
+      "turn_index": 3,
+      "goal_index": 3,
+      "goal_text": "Review all saved trail memories to organize favorite locations",
+      "user_message": "That worked perfectly, thanks! Now I'd like to review all the trail memories I've saved so far. I want to see everything together so I can organize my favorites and figure out which trails I want to prioritize for my next few hiking trips. Can you show me what I have stored?",
+      "assistant_message": "Here's everything you have saved so far:\n\n---\n\n**1. Elk Knob Summit Trail** (near Boone)\n- **Distance:** 2.2 miles one way\n- **Features:** Steep switchbacks, incredible summit views\n\n---\n\nThat's your only saved trail at the moment since you just added it! If you want to organize your favorites and plan your next trips, you could:\n\n- **Add more trails** you've explored around Boone\n- **Save preferences** like difficulty level, favorite terrain, or best seasons to hike\n- **Add notes** about which trails are highest priority for your next adventure\n\nWould you like to add more trail information or preferences?",
+      "tool_calls": [
+        {
+          "name": "skill-tools-list_memories",
+          "arguments": "{}",
+          "result": "{\"memories\": [{\"id\": \"m2\", \"user\": \"None\", \"text\": \"Favorite trail: Elk Knob Summit Trail near Boone. Distance: 2.2 miles one way. Features: steep switchbacks, incredible views at the summit. User wants to remember this for future hiking trips.\"}]}"
+        }
+      ],
+      "execution_time_ms": 47374,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "list_memories",
+          "add_memory",
+          "delete_memory"
+        ],
+        "actual_tool_names": [
+          "skill-tools-list_memories"
+        ],
+        "normalized_tool_names": [
+          "list_memories"
+        ],
+        "unexpected_tool_names": [],
+        "tool_calls_within_blueprint": true
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "None",
+            "text": "Favorite trail: Elk Knob Summit Trail near Boone. Distance: 2.2 miles one way. Features: steep switchbacks, incredible views at the summit. User wants to remember this for future hiking trips."
+          }
+        ],
+        "next_id": 3
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "None",
+            "text": "Favorite trail: Elk Knob Summit Trail near Boone. Distance: 2.2 miles one way. Features: steep switchbacks, incredible views at the summit. User wants to remember this for future hiking trips."
+          }
+        ],
+        "next_id": 3
+      }
+    },
+    {
+      "turn_index": 4,
+      "goal_index": 4,
+      "goal_text": "Remove outdated or incorrect trail information",
+      "user_message": "I just reviewed what I have saved, and it's just that one trail I just added. I don't think there's anything outdated or incorrect in my saved memories right now - the Elk Knob trail info is accurate since I just added it. But I wanted to make sure I knew how to remove things if I ever needed to clean up old information. Is there anything else I should check, or does my trail memory look good for now?",
+      "assistant_message": "Your trail memory looks good for now! The Elk Knob Summit Trail info is saved and accurate.\n\nHere's how deletion works if you ever need to clean up old information in the future:\n\n**To delete a specific memory:**\n- You'd need the memory ID (like \"m2\" for your Elk Knob trail)\n- I can delete individual memories using that ID\n\n**To delete all memories:**\n- I can clear everything at once if you want a fresh start\n\nFor example, if you completed a trail and no longer wanted to track it, or if information became outdated, just let me know the memory ID and I can remove it.\n\nFor now, you're all set! Would you like to add any other trails or preferences (like difficulty level, favorite trail features, or ideal hiking conditions) to build out your Boone trail collection?",
+      "tool_calls": [],
+      "execution_time_ms": 38915,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "delete_memory",
+          "list_memories",
+          "search_memories"
+        ],
+        "actual_tool_names": [],
+        "normalized_tool_names": [],
+        "unexpected_tool_names": [],
+        "tool_calls_within_blueprint": true
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "None",
+            "text": "Favorite trail: Elk Knob Summit Trail near Boone. Distance: 2.2 miles one way. Features: steep switchbacks, incredible views at the summit. User wants to remember this for future hiking trips."
+          }
+        ],
+        "next_id": 3
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "None",
+            "text": "Favorite trail: Elk Knob Summit Trail near Boone. Distance: 2.2 miles one way. Features: steep switchbacks, incredible views at the summit. User wants to remember this for future hiking trips."
+          }
+        ],
+        "next_id": 3
+      }
+    }
+  ],
+  "validation": {
+    "ended_normally": true,
+    "hit_max_turns": false,
+    "num_goals": 4,
+    "user_turn_count": 4,
+    "all_goals_received_user_turn": true,
+    "tool_call_validation_passed": true,
+    "final_assistant_message_nonempty": true,
+    "final_tool_state_nonempty": true,
+    "final_state_diffs": [],
+    "final_state_match": true,
+    "state_checkpoints": []
+  },
+  "final_tool_state": {
+    "default_user": "demo",
+    "memories": [
+      {
+        "id": "m1",
+        "user": "demo",
+        "text": "User prefers concise updates"
+      },
+      {
+        "id": "m2",
+        "user": "None",
+        "text": "Favorite trail: Elk Knob Summit Trail near Boone. Distance: 2.2 miles one way. Features: steep switchbacks, incredible views at the summit. User wants to remember this for future hiking trips."
+      }
+    ],
+    "next_id": 3
+  },
+  "initial_state": {
+    "default_user": "demo",
+    "memories": [
+      {
+        "id": "m1",
+        "user": "demo",
+        "text": "User prefers concise updates"
+      }
+    ],
+    "next_id": 2
+  },
+  "scenario_id": "default",
+  "environment_profile": {
+    "backend_mode": "hybrid",
+    "state_mode": "json",
+    "validation_mode": "turn_state",
+    "scenario_source": "inline",
+    "bfcl_analog": "memory_vector",
+    "entry_class": "SkillBackend",
+    "tool_names": [
+      "search_memories",
+      "add_memory",
+      "list_memories",
+      "delete_memory"
+    ],
+    "default_scenario": "default",
+    "notes_ref": "/home/zhang/work/Astra-env-backend-runtime-refactor/artifacts/env_top30_backend_notes.md",
+    "state_mutation_policy": "programmatic",
+    "generated_result_fields": [],
+    "generated_text_policy": "derived-text"
+  },
+  "state_transitions": [
+    {
+      "tool_name": "search_memories",
+      "arguments": {
+        "query": "trails Boone favorites hiking preferences saved",
+        "limit": 10,
+        "user": null
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "result": {
+        "results": []
+      }
+    },
+    {
+      "tool_name": "list_memories",
+      "arguments": {
+        "user": null
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "result": {
+        "memories": []
+      }
+    },
+    {
+      "tool_name": "add_memory",
+      "arguments": {
+        "text": "Favorite trail: Elk Knob Summit Trail near Boone. Distance: 2.2 miles one way. Features: steep switchbacks, incredible views at the summit. User wants to remember this for future hiking trips.",
+        "messages": null,
+        "user": null
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "None",
+            "text": "Favorite trail: Elk Knob Summit Trail near Boone. Distance: 2.2 miles one way. Features: steep switchbacks, incredible views at the summit. User wants to remember this for future hiking trips."
+          }
+        ],
+        "next_id": 3
+      },
+      "result": {
+        "memory": {
+          "id": "m2",
+          "user": "None",
+          "text": "Favorite trail: Elk Knob Summit Trail near Boone. Distance: 2.2 miles one way. Features: steep switchbacks, incredible views at the summit. User wants to remember this for future hiking trips."
+        }
+      }
+    },
+    {
+      "tool_name": "list_memories",
+      "arguments": {
+        "user": null
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "None",
+            "text": "Favorite trail: Elk Knob Summit Trail near Boone. Distance: 2.2 miles one way. Features: steep switchbacks, incredible views at the summit. User wants to remember this for future hiking trips."
+          }
+        ],
+        "next_id": 3
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "None",
+            "text": "Favorite trail: Elk Knob Summit Trail near Boone. Distance: 2.2 miles one way. Features: steep switchbacks, incredible views at the summit. User wants to remember this for future hiking trips."
+          }
+        ],
+        "next_id": 3
+      },
+      "result": {
+        "memories": [
+          {
+            "id": "m2",
+            "user": "None",
+            "text": "Favorite trail: Elk Knob Summit Trail near Boone. Distance: 2.2 miles one way. Features: steep switchbacks, incredible views at the summit. User wants to remember this for future hiking trips."
+          }
+        ]
+      }
+    }
+  ]
+}

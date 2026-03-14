@@ -1,0 +1,682 @@
+{
+  "run_id": "sample_000036",
+  "trajectory_id": "c12f92b4-944c-486d-a86e-9721beb4df2d",
+  "blueprint_id": "9f69f52a-2485-4c06-b50a-5cdcc699b155",
+  "skill_name": "1104_mem0-1-0-0",
+  "persona_id": "52d2dcef-8969-4b44-859a-53e7deff0c5b",
+  "tools": [
+    {
+      "name": "search_memories",
+      "description": "Searches semantically across stored memories using Mem0. Use this to retrieve relevant context about user preferences, patterns, and past interactions before responding. This is for retrieval only - use add_memory to store new memories, and list_memories to see all memories.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query text to find relevant memories"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 3,
+            "description": "Maximum number of memories to return"
+          },
+          "user": {
+            "type": "string",
+            "description": "User ID to search memories for (defaults to configured user)"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    {
+      "name": "add_memory",
+      "description": "Adds new memories to Mem0 storage. Use this when user explicitly asks to remember something or to store conversation context for future retrieval. Supports two forms: simple text memory or conversation messages (auto-extracts memories via LLM). For searching stored memories, use search_memories instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Simple text memory to store (use instead of messages)"
+          },
+          "messages": {
+            "type": "array",
+            "description": "Array of conversation messages to extract memories from (use instead of text)"
+          },
+          "user": {
+            "type": "string",
+            "description": "User ID to store memory for (defaults to configured user)"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "list_memories",
+      "description": "Lists all stored memories for a user with IDs and creation dates. Use this to see what memories are currently stored. For searching specific memories, use search_memories instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "description": "User ID to list memories for (defaults to configured user)"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "delete_memory",
+      "description": "Deletes memories from Mem0 storage. Use this to remove specific memories or all memories for a user. Supports two modes: delete a specific memory by ID, or delete all memories for a user.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "memory_id": {
+            "type": "string",
+            "description": "ID of specific memory to delete (use instead of all flag)"
+          },
+          "all": {
+            "type": "boolean",
+            "default": false,
+            "description": "Delete all memories for the user (use instead of memory_id)"
+          },
+          "user": {
+            "type": "string",
+            "description": "User ID to delete memories for (required when using all flag)"
+          }
+        },
+        "required": []
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": "Can you show me what memories you've stored about me so far?"
+    },
+    {
+      "role": "assistant",
+      "content": ""
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "function_call": {
+        "name": "skill-tools-list_memories",
+        "arguments": "{\"user\": \"default\"}"
+      }
+    },
+    {
+      "role": "function",
+      "content": "{\"memories\": []}",
+      "name": "skill-tools-list_memories"
+    },
+    {
+      "role": "assistant",
+      "content": "I don't have any memories stored about you yet. The memory storage is currently empty.\n\nIf you'd like me to remember something—your preferences, goals, or any details about yourself—just let me know and I can save it for future reference."
+    },
+    {
+      "role": "user",
+      "content": "Sure, I'd like to store some career preferences. I prefer working in collaborative environments where I can bounce ideas off others, but I also need quiet focus time for deep work. I'm currently interested in tech roles that blend analytical problem-solving with creative thinking—something like product management or UX strategy appeals to me. I work best when I have clear goals but some flexibility in how I achieve them."
+    },
+    {
+      "role": "assistant",
+      "content": ""
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "function_call": {
+        "name": "skill-tools-add_memory",
+        "arguments": "{\"text\": \"Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them.\", \"user\": \"default\"}"
+      }
+    },
+    {
+      "role": "function",
+      "content": "{\"memory\": {\"id\": \"m2\", \"user\": \"default\", \"text\": \"Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them.\"}}",
+      "name": "skill-tools-add_memory"
+    },
+    {
+      "role": "assistant",
+      "content": "Got it! I've stored your career preferences:\n\n- **Work style:** You enjoy collaborative environments for brainstorming but need quiet focus time for deep work\n- **Role interests:** Tech roles that blend analytical problem-solving with creative thinking—specifically product management or UX strategy\n- **Optimal conditions:** Clear goals with flexibility in how you achieve them\n\nLet me know if you'd like me to remember anything else or if you'd like to search for these details later."
+    },
+    {
+      "role": "user",
+      "content": "Can you find that information you just stored about my career preferences?"
+    },
+    {
+      "role": "assistant",
+      "content": ""
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "function_call": {
+        "name": "skill-tools-search_memories",
+        "arguments": "{\"query\": \"career preferences work style collaboration deep work product management UX strategy\", \"user\": \"default\"}"
+      }
+    },
+    {
+      "role": "function",
+      "content": "{\"results\": [{\"id\": \"m2\", \"user\": \"default\", \"text\": \"Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them.\"}]}",
+      "name": "skill-tools-search_memories"
+    },
+    {
+      "role": "assistant",
+      "content": "Found it! Here's what I retrieved about your career preferences:\n\n- **Work style:** Prefers collaborative environments for brainstorming, but also needs quiet focus time for deep work\n- **Interested roles:** Tech positions blending analytical problem-solving with creative thinking—product management or UX strategy\n- **Work style:** Clear goals with flexibility in how to achieve them\n\nIs there anything else you'd like me to store or search for?"
+    },
+    {
+      "role": "user",
+      "content": "Looking at what we have now, is there anything in my memories that's outdated or no longer relevant that I should clean up?"
+    },
+    {
+      "role": "assistant",
+      "content": ""
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "function_call": {
+        "name": "skill-tools-list_memories",
+        "arguments": "{\"user\": \"default\"}"
+      }
+    },
+    {
+      "role": "function",
+      "content": "{\"memories\": [{\"id\": \"m2\", \"user\": \"default\", \"text\": \"Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them.\"}]}",
+      "name": "skill-tools-list_memories"
+    },
+    {
+      "role": "assistant",
+      "content": "You only have one memory stored (m2), which is the career preferences we just added. It's all current and relevant since you just shared it with me.\n\nNothing to clean up at this point. If your preferences change over time—like if you explore different roles or your work style evolves—just let me know and I can update the memory."
+    }
+  ],
+  "structured_turns": [
+    {
+      "turn_index": 1,
+      "goal_index": 1,
+      "goal_text": "Check what memories are currently stored about the user",
+      "user_message": "Can you show me what memories you've stored about me so far?",
+      "assistant_message": "I don't have any memories stored about you yet. The memory storage is currently empty.\n\nIf you'd like me to remember something—your preferences, goals, or any details about yourself—just let me know and I can save it for future reference.",
+      "tool_calls": [
+        {
+          "name": "skill-tools-list_memories",
+          "arguments": "{\"user\": \"default\"}",
+          "result": "{\"memories\": []}"
+        }
+      ],
+      "execution_time_ms": 7813,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "list_memories",
+          "add_memory",
+          "search_memories"
+        ],
+        "actual_tool_names": [
+          "skill-tools-list_memories"
+        ],
+        "normalized_tool_names": [
+          "list_memories"
+        ],
+        "unexpected_tool_names": [],
+        "tool_calls_within_blueprint": true
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      }
+    },
+    {
+      "turn_index": 2,
+      "goal_index": 2,
+      "goal_text": "Store important information about career preferences and work style",
+      "user_message": "Sure, I'd like to store some career preferences. I prefer working in collaborative environments where I can bounce ideas off others, but I also need quiet focus time for deep work. I'm currently interested in tech roles that blend analytical problem-solving with creative thinking—something like product management or UX strategy appeals to me. I work best when I have clear goals but some flexibility in how I achieve them.",
+      "assistant_message": "Got it! I've stored your career preferences:\n\n- **Work style:** You enjoy collaborative environments for brainstorming but need quiet focus time for deep work\n- **Role interests:** Tech roles that blend analytical problem-solving with creative thinking—specifically product management or UX strategy\n- **Optimal conditions:** Clear goals with flexibility in how you achieve them\n\nLet me know if you'd like me to remember anything else or if you'd like to search for these details later.",
+      "tool_calls": [
+        {
+          "name": "skill-tools-add_memory",
+          "arguments": "{\"text\": \"Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them.\", \"user\": \"default\"}",
+          "result": "{\"memory\": {\"id\": \"m2\", \"user\": \"default\", \"text\": \"Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them.\"}}"
+        }
+      ],
+      "execution_time_ms": 49292,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "add_memory",
+          "list_memories",
+          "search_memories"
+        ],
+        "actual_tool_names": [
+          "skill-tools-add_memory"
+        ],
+        "normalized_tool_names": [
+          "add_memory"
+        ],
+        "unexpected_tool_names": [],
+        "tool_calls_within_blueprint": true
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "default",
+            "text": "Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them."
+          }
+        ],
+        "next_id": 3
+      }
+    },
+    {
+      "turn_index": 3,
+      "goal_index": 3,
+      "goal_text": "Verify stored memories can be retrieved through search",
+      "user_message": "Can you find that information you just stored about my career preferences?",
+      "assistant_message": "Found it! Here's what I retrieved about your career preferences:\n\n- **Work style:** Prefers collaborative environments for brainstorming, but also needs quiet focus time for deep work\n- **Interested roles:** Tech positions blending analytical problem-solving with creative thinking—product management or UX strategy\n- **Work style:** Clear goals with flexibility in how to achieve them\n\nIs there anything else you'd like me to store or search for?",
+      "tool_calls": [
+        {
+          "name": "skill-tools-search_memories",
+          "arguments": "{\"query\": \"career preferences work style collaboration deep work product management UX strategy\", \"user\": \"default\"}",
+          "result": "{\"results\": [{\"id\": \"m2\", \"user\": \"default\", \"text\": \"Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them.\"}]}"
+        }
+      ],
+      "execution_time_ms": 115216,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "search_memories",
+          "add_memory",
+          "delete_memory"
+        ],
+        "actual_tool_names": [
+          "skill-tools-search_memories"
+        ],
+        "normalized_tool_names": [
+          "search_memories"
+        ],
+        "unexpected_tool_names": [],
+        "tool_calls_within_blueprint": true
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "default",
+            "text": "Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them."
+          }
+        ],
+        "next_id": 3
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "default",
+            "text": "Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them."
+          }
+        ],
+        "next_id": 3
+      }
+    },
+    {
+      "turn_index": 4,
+      "goal_index": 4,
+      "goal_text": "Clean up outdated or irrelevant memories",
+      "user_message": "Looking at what we have now, is there anything in my memories that's outdated or no longer relevant that I should clean up?",
+      "assistant_message": "You only have one memory stored (m2), which is the career preferences we just added. It's all current and relevant since you just shared it with me.\n\nNothing to clean up at this point. If your preferences change over time—like if you explore different roles or your work style evolves—just let me know and I can update the memory.",
+      "tool_calls": [
+        {
+          "name": "skill-tools-list_memories",
+          "arguments": "{\"user\": \"default\"}",
+          "result": "{\"memories\": [{\"id\": \"m2\", \"user\": \"default\", \"text\": \"Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them.\"}]}"
+        }
+      ],
+      "execution_time_ms": 121144,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "delete_memory",
+          "search_memories",
+          "list_memories"
+        ],
+        "actual_tool_names": [
+          "skill-tools-list_memories"
+        ],
+        "normalized_tool_names": [
+          "list_memories"
+        ],
+        "unexpected_tool_names": [],
+        "tool_calls_within_blueprint": true
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "default",
+            "text": "Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them."
+          }
+        ],
+        "next_id": 3
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "default",
+            "text": "Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them."
+          }
+        ],
+        "next_id": 3
+      }
+    }
+  ],
+  "validation": {
+    "ended_normally": true,
+    "hit_max_turns": false,
+    "num_goals": 4,
+    "user_turn_count": 4,
+    "all_goals_received_user_turn": true,
+    "tool_call_validation_passed": true,
+    "final_assistant_message_nonempty": true,
+    "final_tool_state_nonempty": true,
+    "final_state_diffs": [
+      {
+        "path": "$.memories[0].id",
+        "kind": "value_mismatch",
+        "expected": "1",
+        "actual": "m1"
+      },
+      {
+        "path": "$.next_id",
+        "kind": "value_mismatch",
+        "expected": 2,
+        "actual": 3
+      }
+    ],
+    "final_state_match": false,
+    "state_checkpoints": []
+  },
+  "final_tool_state": {
+    "default_user": "demo",
+    "memories": [
+      {
+        "id": "m1",
+        "user": "demo",
+        "text": "User prefers concise updates"
+      },
+      {
+        "id": "m2",
+        "user": "default",
+        "text": "Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them."
+      }
+    ],
+    "next_id": 3
+  },
+  "initial_state": {
+    "default_user": "demo",
+    "memories": [
+      {
+        "id": "m1",
+        "user": "demo",
+        "text": "User prefers concise updates"
+      }
+    ],
+    "next_id": 2
+  },
+  "scenario_id": "default",
+  "environment_profile": {
+    "backend_mode": "hybrid",
+    "state_mode": "json",
+    "validation_mode": "turn_state",
+    "scenario_source": "inline",
+    "bfcl_analog": "memory_vector",
+    "entry_class": "SkillBackend",
+    "tool_names": [
+      "search_memories",
+      "add_memory",
+      "list_memories",
+      "delete_memory"
+    ],
+    "default_scenario": "default",
+    "notes_ref": "/home/zhang/work/Astra-env-backend-runtime-refactor/artifacts/env_top30_backend_notes.md",
+    "state_mutation_policy": "programmatic",
+    "generated_result_fields": [],
+    "generated_text_policy": "derived-text"
+  },
+  "state_transitions": [
+    {
+      "tool_name": "list_memories",
+      "arguments": {
+        "user": "default"
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "result": {
+        "memories": []
+      }
+    },
+    {
+      "tool_name": "add_memory",
+      "arguments": {
+        "text": "Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them.",
+        "messages": null,
+        "user": "default"
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "default",
+            "text": "Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them."
+          }
+        ],
+        "next_id": 3
+      },
+      "result": {
+        "memory": {
+          "id": "m2",
+          "user": "default",
+          "text": "Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them."
+        }
+      }
+    },
+    {
+      "tool_name": "search_memories",
+      "arguments": {
+        "query": "career preferences work style collaboration deep work product management UX strategy",
+        "limit": 3,
+        "user": "default"
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "default",
+            "text": "Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them."
+          }
+        ],
+        "next_id": 3
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "default",
+            "text": "Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them."
+          }
+        ],
+        "next_id": 3
+      },
+      "result": {
+        "results": [
+          {
+            "id": "m2",
+            "user": "default",
+            "text": "Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them."
+          }
+        ]
+      }
+    },
+    {
+      "tool_name": "list_memories",
+      "arguments": {
+        "user": "default"
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "default",
+            "text": "Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them."
+          }
+        ],
+        "next_id": 3
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "default",
+            "text": "Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them."
+          }
+        ],
+        "next_id": 3
+      },
+      "result": {
+        "memories": [
+          {
+            "id": "m2",
+            "user": "default",
+            "text": "Career preferences: Prefers collaborative environments for brainstorming but also needs quiet focus time for deep work. Interested in tech roles that blend analytical problem-solving with creative thinking, such as product management or UX strategy. Works best with clear goals but flexibility in how to achieve them."
+          }
+        ]
+      }
+    }
+  ]
+}

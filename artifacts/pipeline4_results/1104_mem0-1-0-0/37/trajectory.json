@@ -1,0 +1,711 @@
+{
+  "run_id": "sample_000037",
+  "trajectory_id": "e9602dbd-678f-4cc4-9492-e1e96f1c7e9e",
+  "blueprint_id": "09325746-e785-45d6-a0da-310f232c511c",
+  "skill_name": "1104_mem0-1-0-0",
+  "persona_id": "673c3b5e-bc10-41d3-944e-35a8d3c7fa88",
+  "tools": [
+    {
+      "name": "search_memories",
+      "description": "Searches semantically across stored memories using Mem0. Use this to retrieve relevant context about user preferences, patterns, and past interactions before responding. This is for retrieval only - use add_memory to store new memories, and list_memories to see all memories.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query text to find relevant memories"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 3,
+            "description": "Maximum number of memories to return"
+          },
+          "user": {
+            "type": "string",
+            "description": "User ID to search memories for (defaults to configured user)"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    {
+      "name": "add_memory",
+      "description": "Adds new memories to Mem0 storage. Use this when user explicitly asks to remember something or to store conversation context for future retrieval. Supports two forms: simple text memory or conversation messages (auto-extracts memories via LLM). For searching stored memories, use search_memories instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Simple text memory to store (use instead of messages)"
+          },
+          "messages": {
+            "type": "array",
+            "description": "Array of conversation messages to extract memories from (use instead of text)"
+          },
+          "user": {
+            "type": "string",
+            "description": "User ID to store memory for (defaults to configured user)"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "list_memories",
+      "description": "Lists all stored memories for a user with IDs and creation dates. Use this to see what memories are currently stored. For searching specific memories, use search_memories instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "description": "User ID to list memories for (defaults to configured user)"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "delete_memory",
+      "description": "Deletes memories from Mem0 storage. Use this to remove specific memories or all memories for a user. Supports two modes: delete a specific memory by ID, or delete all memories for a user.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "memory_id": {
+            "type": "string",
+            "description": "ID of specific memory to delete (use instead of all flag)"
+          },
+          "all": {
+            "type": "boolean",
+            "default": false,
+            "description": "Delete all memories for the user (use instead of memory_id)"
+          },
+          "user": {
+            "type": "string",
+            "description": "User ID to delete memories for (required when using all flag)"
+          }
+        },
+        "required": []
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hey, I'm curious about something. Can you show me what film preferences and patterns you've already stored in my memory? I want to see what you remember about my tastes before we continue our conversation."
+    },
+    {
+      "role": "assistant",
+      "content": "I'll check your stored memories to see what film preferences and patterns I've saved for you."
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "function_call": {
+        "name": "skill-tools-list_memories",
+        "arguments": "{\"user\": \"default\"}"
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "function_call": {
+        "name": "skill-tools-search_memories",
+        "arguments": "{\"limit\": 5, \"query\": \"film preferences movie tastes genres\", \"user\": \"default\"}"
+      }
+    },
+    {
+      "role": "function",
+      "content": "{\"memories\": []}",
+      "name": "skill-tools-list_memories"
+    },
+    {
+      "role": "function",
+      "content": "{\"results\": []}",
+      "name": "skill-tools-search_memories"
+    },
+    {
+      "role": "assistant",
+      "content": "The results show that there are currently **no film preferences or patterns stored** in your memory. Both the list of all memories and a specific search for film/movie-related memories came back empty.\n\nThis means we haven't yet discussed your movie tastes, or you haven't asked me to remember any specific preferences yet.\n\nIf you'd like, we can start building up your film profile now. What are some of your favorite genres, movies, or directors? I can remember these for future conversations if you'd like!"
+    },
+    {
+      "role": "user",
+      "content": "Could you search for any film preferences or recommendations related to sci-fi? I'd like to see if anything about that genre is stored in my memory."
+    },
+    {
+      "role": "assistant",
+      "content": ""
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "function_call": {
+        "name": "skill-tools-search_memories",
+        "arguments": "{\"limit\": 5, \"query\": \"sci-fi science fiction movies preferences recommendations\", \"user\": \"default\"}"
+      }
+    },
+    {
+      "role": "function",
+      "content": "{\"results\": []}",
+      "name": "skill-tools-search_memories"
+    },
+    {
+      "role": "assistant",
+      "content": "Nothing came up for sci-fi either — the search returned empty results. \n\nSo far, your memory is a blank slate when it comes to film preferences, including sci-fi. If you'd like, I can start remembering your sci-fi favorites (or any other movie preferences) as we discuss them!"
+    },
+    {
+      "role": "user",
+      "content": "That sounds great! I've always been a big fan of sci-fi, especially the classics like Blade Runner and The Matrix. I also really enjoy thought-provoking films with complex narratives. Could you remember that I prefer sci-fi movies that explore philosophical themes?"
+    },
+    {
+      "role": "assistant",
+      "content": ""
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "function_call": {
+        "name": "skill-tools-add_memory",
+        "arguments": "{\"text\": \"User's film preferences: Fan of sci-fi, especially classics like Blade Runner and The Matrix. Enjoys thought-provoking films with complex narratives. Prefers sci-fi movies that explore philosophical themes.\", \"user\": \"default\"}"
+      }
+    },
+    {
+      "role": "function",
+      "content": "{\"memory\": {\"id\": \"m2\", \"user\": \"default\", \"text\": \"User's film preferences: Fan of sci-fi, especially classics like Blade Runner and The Matrix. Enjoys thought-provoking films with complex narratives. Prefers sci-fi movies that explore philosophical themes.\"}}",
+      "name": "skill-tools-add_memory"
+    },
+    {
+      "role": "assistant",
+      "content": "Done! I've stored your film preferences in memory. Here's what I'll remember for you:\n\n- **Favorite genre**: Sci-fi, especially classics\n- **Favorite films**: Blade Runner and The Matrix\n- **Preferred style**: Thought-provoking films with complex narratives\n- **Theme preference**: Sci-fi movies that explore philosophical themes\n\nNow I have a record of your tastes for future conversations. If you discover more favorites or want to add other preferences (other genres, directors, etc.), just let me know!"
+    },
+    {
+      "role": "user",
+      "content": "Thanks for saving that! Could you double-check that my sci-fi preferences were stored correctly? I want to make sure everything is there for our next conversation."
+    },
+    {
+      "role": "assistant",
+      "content": ""
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "function_call": {
+        "name": "skill-tools-search_memories",
+        "arguments": "{\"limit\": 5, \"query\": \"sci-fi Blade Runner The Matrix philosophical themes film preferences\", \"user\": \"default\"}"
+      }
+    },
+    {
+      "role": "function",
+      "content": "{\"results\": [{\"id\": \"m2\", \"user\": \"default\", \"text\": \"User's film preferences: Fan of sci-fi, especially classics like Blade Runner and The Matrix. Enjoys thought-provoking films with complex narratives. Prefers sci-fi movies that explore philosophical themes.\"}]}",
+      "name": "skill-tools-search_memories"
+    },
+    {
+      "role": "assistant",
+      "content": "Your sci-fi preferences are stored correctly. Here's what's saved under memory ID **m2**:\n\n> \"User's film preferences: Fan of sci-fi, especially classics like Blade Runner and The Matrix. Enjoys thought-provoking films with complex narratives. Prefers sci-fi movies that explore philosophical themes.\"\n\nEverything is there and ready for our next conversation! 🎬"
+    }
+  ],
+  "structured_turns": [
+    {
+      "turn_index": 1,
+      "goal_index": 1,
+      "goal_text": "Check what preferences and patterns are currently stored in memory",
+      "user_message": "Hey, I'm curious about something. Can you show me what film preferences and patterns you've already stored in my memory? I want to see what you remember about my tastes before we continue our conversation.",
+      "assistant_message": "The results show that there are currently **no film preferences or patterns stored** in your memory. Both the list of all memories and a specific search for film/movie-related memories came back empty.\n\nThis means we haven't yet discussed your movie tastes, or you haven't asked me to remember any specific preferences yet.\n\nIf you'd like, we can start building up your film profile now. What are some of your favorite genres, movies, or directors? I can remember these for future conversations if you'd like!",
+      "tool_calls": [
+        {
+          "name": "skill-tools-list_memories",
+          "arguments": "{\"user\": \"default\"}",
+          "result": "{\"memories\": []}"
+        },
+        {
+          "name": "skill-tools-search_memories",
+          "arguments": "{\"limit\": 5, \"query\": \"film preferences movie tastes genres\", \"user\": \"default\"}",
+          "result": "{\"results\": []}"
+        }
+      ],
+      "execution_time_ms": 19842,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "list_memories",
+          "search_memories",
+          "add_memory"
+        ],
+        "actual_tool_names": [
+          "skill-tools-list_memories",
+          "skill-tools-search_memories"
+        ],
+        "normalized_tool_names": [
+          "list_memories",
+          "search_memories"
+        ],
+        "unexpected_tool_names": [],
+        "tool_calls_within_blueprint": true
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      }
+    },
+    {
+      "turn_index": 2,
+      "goal_index": 2,
+      "goal_text": "Search for past film recommendations or preferences related to a specific genre",
+      "user_message": "Could you search for any film preferences or recommendations related to sci-fi? I'd like to see if anything about that genre is stored in my memory.",
+      "assistant_message": "Nothing came up for sci-fi either — the search returned empty results. \n\nSo far, your memory is a blank slate when it comes to film preferences, including sci-fi. If you'd like, I can start remembering your sci-fi favorites (or any other movie preferences) as we discuss them!",
+      "tool_calls": [
+        {
+          "name": "skill-tools-search_memories",
+          "arguments": "{\"limit\": 5, \"query\": \"sci-fi science fiction movies preferences recommendations\", \"user\": \"default\"}",
+          "result": "{\"results\": []}"
+        }
+      ],
+      "execution_time_ms": 42220,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "search_memories",
+          "list_memories",
+          "add_memory"
+        ],
+        "actual_tool_names": [
+          "skill-tools-search_memories"
+        ],
+        "normalized_tool_names": [
+          "search_memories"
+        ],
+        "unexpected_tool_names": [],
+        "tool_calls_within_blueprint": true
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      }
+    },
+    {
+      "turn_index": 3,
+      "goal_index": 3,
+      "goal_text": "Add a new preference about film recommendations discovered during conversation",
+      "user_message": "That sounds great! I've always been a big fan of sci-fi, especially the classics like Blade Runner and The Matrix. I also really enjoy thought-provoking films with complex narratives. Could you remember that I prefer sci-fi movies that explore philosophical themes?",
+      "assistant_message": "Done! I've stored your film preferences in memory. Here's what I'll remember for you:\n\n- **Favorite genre**: Sci-fi, especially classics\n- **Favorite films**: Blade Runner and The Matrix\n- **Preferred style**: Thought-provoking films with complex narratives\n- **Theme preference**: Sci-fi movies that explore philosophical themes\n\nNow I have a record of your tastes for future conversations. If you discover more favorites or want to add other preferences (other genres, directors, etc.), just let me know!",
+      "tool_calls": [
+        {
+          "name": "skill-tools-add_memory",
+          "arguments": "{\"text\": \"User's film preferences: Fan of sci-fi, especially classics like Blade Runner and The Matrix. Enjoys thought-provoking films with complex narratives. Prefers sci-fi movies that explore philosophical themes.\", \"user\": \"default\"}",
+          "result": "{\"memory\": {\"id\": \"m2\", \"user\": \"default\", \"text\": \"User's film preferences: Fan of sci-fi, especially classics like Blade Runner and The Matrix. Enjoys thought-provoking films with complex narratives. Prefers sci-fi movies that explore philosophical themes.\"}}"
+        }
+      ],
+      "execution_time_ms": 51330,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "add_memory",
+          "search_memories",
+          "list_memories"
+        ],
+        "actual_tool_names": [
+          "skill-tools-add_memory"
+        ],
+        "normalized_tool_names": [
+          "add_memory"
+        ],
+        "unexpected_tool_names": [],
+        "tool_calls_within_blueprint": true
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "default",
+            "text": "User's film preferences: Fan of sci-fi, especially classics like Blade Runner and The Matrix. Enjoys thought-provoking films with complex narratives. Prefers sci-fi movies that explore philosophical themes."
+          }
+        ],
+        "next_id": 3
+      }
+    },
+    {
+      "turn_index": 4,
+      "goal_index": 4,
+      "goal_text": "Review the updated memory to confirm the new preference was stored correctly",
+      "user_message": "Thanks for saving that! Could you double-check that my sci-fi preferences were stored correctly? I want to make sure everything is there for our next conversation.",
+      "assistant_message": "Your sci-fi preferences are stored correctly. Here's what's saved under memory ID **m2**:\n\n> \"User's film preferences: Fan of sci-fi, especially classics like Blade Runner and The Matrix. Enjoys thought-provoking films with complex narratives. Prefers sci-fi movies that explore philosophical themes.\"\n\nEverything is there and ready for our next conversation! 🎬",
+      "tool_calls": [
+        {
+          "name": "skill-tools-search_memories",
+          "arguments": "{\"limit\": 5, \"query\": \"sci-fi Blade Runner The Matrix philosophical themes film preferences\", \"user\": \"default\"}",
+          "result": "{\"results\": [{\"id\": \"m2\", \"user\": \"default\", \"text\": \"User's film preferences: Fan of sci-fi, especially classics like Blade Runner and The Matrix. Enjoys thought-provoking films with complex narratives. Prefers sci-fi movies that explore philosophical themes.\"}]}"
+        }
+      ],
+      "execution_time_ms": 103115,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "search_memories",
+          "add_memory",
+          "list_memories"
+        ],
+        "actual_tool_names": [
+          "skill-tools-search_memories"
+        ],
+        "normalized_tool_names": [
+          "search_memories"
+        ],
+        "unexpected_tool_names": [],
+        "tool_calls_within_blueprint": true
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "default",
+            "text": "User's film preferences: Fan of sci-fi, especially classics like Blade Runner and The Matrix. Enjoys thought-provoking films with complex narratives. Prefers sci-fi movies that explore philosophical themes."
+          }
+        ],
+        "next_id": 3
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "default",
+            "text": "User's film preferences: Fan of sci-fi, especially classics like Blade Runner and The Matrix. Enjoys thought-provoking films with complex narratives. Prefers sci-fi movies that explore philosophical themes."
+          }
+        ],
+        "next_id": 3
+      }
+    }
+  ],
+  "validation": {
+    "ended_normally": true,
+    "hit_max_turns": false,
+    "num_goals": 4,
+    "user_turn_count": 4,
+    "all_goals_received_user_turn": true,
+    "tool_call_validation_passed": true,
+    "final_assistant_message_nonempty": true,
+    "final_tool_state_nonempty": true,
+    "final_state_diffs": [
+      {
+        "path": "$.memories[1].text",
+        "kind": "value_mismatch",
+        "expected": "User enjoys international films, particularly Korean cinema",
+        "actual": "User's film preferences: Fan of sci-fi, especially classics like Blade Runner and The Matrix. Enjoys thought-provoking films with complex narratives. Prefers sci-fi movies that explore philosophical themes."
+      },
+      {
+        "path": "$.memories[1].user",
+        "kind": "value_mismatch",
+        "expected": "demo",
+        "actual": "default"
+      }
+    ],
+    "final_state_match": false,
+    "state_checkpoints": []
+  },
+  "final_tool_state": {
+    "default_user": "demo",
+    "memories": [
+      {
+        "id": "m1",
+        "user": "demo",
+        "text": "User prefers concise updates"
+      },
+      {
+        "id": "m2",
+        "user": "default",
+        "text": "User's film preferences: Fan of sci-fi, especially classics like Blade Runner and The Matrix. Enjoys thought-provoking films with complex narratives. Prefers sci-fi movies that explore philosophical themes."
+      }
+    ],
+    "next_id": 3
+  },
+  "initial_state": {
+    "default_user": "demo",
+    "memories": [
+      {
+        "id": "m1",
+        "user": "demo",
+        "text": "User prefers concise updates"
+      }
+    ],
+    "next_id": 2
+  },
+  "scenario_id": "default",
+  "environment_profile": {
+    "backend_mode": "hybrid",
+    "state_mode": "json",
+    "validation_mode": "turn_state",
+    "scenario_source": "inline",
+    "bfcl_analog": "memory_vector",
+    "entry_class": "SkillBackend",
+    "tool_names": [
+      "search_memories",
+      "add_memory",
+      "list_memories",
+      "delete_memory"
+    ],
+    "default_scenario": "default",
+    "notes_ref": "/home/zhang/work/Astra-env-backend-runtime-refactor/artifacts/env_top30_backend_notes.md",
+    "state_mutation_policy": "programmatic",
+    "generated_result_fields": [],
+    "generated_text_policy": "derived-text"
+  },
+  "state_transitions": [
+    {
+      "tool_name": "list_memories",
+      "arguments": {
+        "user": "default"
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "result": {
+        "memories": []
+      }
+    },
+    {
+      "tool_name": "search_memories",
+      "arguments": {
+        "query": "film preferences movie tastes genres",
+        "limit": 5,
+        "user": "default"
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "result": {
+        "results": []
+      }
+    },
+    {
+      "tool_name": "search_memories",
+      "arguments": {
+        "query": "sci-fi science fiction movies preferences recommendations",
+        "limit": 5,
+        "user": "default"
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "result": {
+        "results": []
+      }
+    },
+    {
+      "tool_name": "add_memory",
+      "arguments": {
+        "text": "User's film preferences: Fan of sci-fi, especially classics like Blade Runner and The Matrix. Enjoys thought-provoking films with complex narratives. Prefers sci-fi movies that explore philosophical themes.",
+        "messages": null,
+        "user": "default"
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          }
+        ],
+        "next_id": 2
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "default",
+            "text": "User's film preferences: Fan of sci-fi, especially classics like Blade Runner and The Matrix. Enjoys thought-provoking films with complex narratives. Prefers sci-fi movies that explore philosophical themes."
+          }
+        ],
+        "next_id": 3
+      },
+      "result": {
+        "memory": {
+          "id": "m2",
+          "user": "default",
+          "text": "User's film preferences: Fan of sci-fi, especially classics like Blade Runner and The Matrix. Enjoys thought-provoking films with complex narratives. Prefers sci-fi movies that explore philosophical themes."
+        }
+      }
+    },
+    {
+      "tool_name": "search_memories",
+      "arguments": {
+        "query": "sci-fi Blade Runner The Matrix philosophical themes film preferences",
+        "limit": 5,
+        "user": "default"
+      },
+      "before_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "default",
+            "text": "User's film preferences: Fan of sci-fi, especially classics like Blade Runner and The Matrix. Enjoys thought-provoking films with complex narratives. Prefers sci-fi movies that explore philosophical themes."
+          }
+        ],
+        "next_id": 3
+      },
+      "after_state": {
+        "default_user": "demo",
+        "memories": [
+          {
+            "id": "m1",
+            "user": "demo",
+            "text": "User prefers concise updates"
+          },
+          {
+            "id": "m2",
+            "user": "default",
+            "text": "User's film preferences: Fan of sci-fi, especially classics like Blade Runner and The Matrix. Enjoys thought-provoking films with complex narratives. Prefers sci-fi movies that explore philosophical themes."
+          }
+        ],
+        "next_id": 3
+      },
+      "result": {
+        "results": [
+          {
+            "id": "m2",
+            "user": "default",
+            "text": "User's film preferences: Fan of sci-fi, especially classics like Blade Runner and The Matrix. Enjoys thought-provoking films with complex narratives. Prefers sci-fi movies that explore philosophical themes."
+          }
+        ]
+      }
+    }
+  ]
+}

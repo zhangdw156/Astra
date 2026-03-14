@@ -1,0 +1,592 @@
+{
+  "run_id": "sample_000017",
+  "trajectory_id": "32eae940-5f13-4b88-b42e-43baa2e66cf4",
+  "blueprint_id": "08e4fb29-d916-4874-b829-cf50e4b17965",
+  "skill_name": "1252_financial-calculator",
+  "persona_id": "0edf2e66-4279-48cd-a47f-3ef9c2a5ccf8",
+  "tools": [
+    {
+      "name": "future_value",
+      "description": "Calculate future value of an investment with compound interest. Use this for investment growth projections, savings account growth, and retirement planning. For comparing multiple rates and periods, use future_value_table instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "principal": {
+            "type": "number",
+            "description": "Initial investment amount"
+          },
+          "rate": {
+            "type": "number",
+            "description": "Annual interest rate as decimal (e.g., 0.05 for 5%)"
+          },
+          "years": {
+            "type": "integer",
+            "description": "Number of years for the investment"
+          },
+          "compound_frequency": {
+            "type": "integer",
+            "description": "Compounding frequency per year: 1=annual, 4=quarterly, 12=monthly, 365=daily",
+            "default": 1
+          }
+        },
+        "required": [
+          "principal",
+          "rate",
+          "years"
+        ]
+      }
+    },
+    {
+      "name": "present_value",
+      "description": "Calculate present value (current worth) of a future amount. Use this for loan valuation, bond pricing, and investment analysis. For comparing multiple scenarios, use future_value_table with different periods and rates instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "future_value": {
+            "type": "number",
+            "description": "Future amount to be discounted"
+          },
+          "rate": {
+            "type": "number",
+            "description": "Annual discount rate as decimal (e.g., 0.05 for 5%)"
+          },
+          "years": {
+            "type": "integer",
+            "description": "Number of years until the amount is received"
+          },
+          "compound_frequency": {
+            "type": "integer",
+            "description": "Compounding frequency per year: 1=annual, 4=quarterly, 12=monthly, 365=daily",
+            "default": 1
+          }
+        },
+        "required": [
+          "future_value",
+          "rate",
+          "years"
+        ]
+      }
+    },
+    {
+      "name": "discount",
+      "description": "Calculate final price after applying a percentage discount. Use this for retail pricing, sale calculations, and cost savings analysis. For comparing multiple discount percentages, use discount_table instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "price": {
+            "type": "number",
+            "description": "Original price before discount"
+          },
+          "discount": {
+            "type": "number",
+            "description": "Discount percentage (e.g., 20 for 20% or 0.20 as decimal, depending on input format)"
+          }
+        },
+        "required": [
+          "price",
+          "discount"
+        ]
+      }
+    },
+    {
+      "name": "markup",
+      "description": "Calculate selling price from cost and markup percentage. Use this for product pricing, profit margin calculation, and business pricing strategy. For comparing multiple markup scenarios, use discount_table which also shows profit margins.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "cost": {
+            "type": "number",
+            "description": "Cost price of the product"
+          },
+          "markup": {
+            "type": "number",
+            "description": "Markup percentage (e.g., 30 for 30% or 0.30 as decimal, depending on input format)"
+          }
+        },
+        "required": [
+          "cost",
+          "markup"
+        ]
+      }
+    },
+    {
+      "name": "future_value_table",
+      "description": "Generate a comparison table of future values across multiple interest rates and time periods. Use this for investment scenario comparison, rate shopping, and long-term planning. For single calculations, use future_value instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "principal": {
+            "type": "number",
+            "description": "Initial investment amount"
+          },
+          "rates": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "description": "Interest rates as decimals (e.g., [0.03, 0.05, 0.07] for 3%, 5%, 7%)"
+          },
+          "periods": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Time periods in years to compare (e.g., [1, 5, 10, 20])"
+          }
+        },
+        "required": [
+          "principal",
+          "rates",
+          "periods"
+        ]
+      }
+    },
+    {
+      "name": "discount_table",
+      "description": "Compare multiple discount percentages for the same price. Use this for bulk pricing strategies, promotional planning, and price comparison. For single discount calculations, use discount instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "price": {
+            "type": "number",
+            "description": "Original price before discount"
+          },
+          "discounts": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "description": "Discount percentages to compare (e.g., [10, 15, 20, 25, 30])"
+          }
+        },
+        "required": [
+          "price",
+          "discounts"
+        ]
+      }
+    },
+    {
+      "name": "launch_ui",
+      "description": "Launch the interactive web UI for the financial calculator. Use this for visual, tab-based calculations with real-time results and beautiful gradient UI. For command-line calculations, use the individual calculation tools instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "port": {
+            "type": "integer",
+            "default": 5050,
+            "description": "Port number for the web server (default: 5050)"
+          }
+        },
+        "required": []
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hey! I'm trying to figure out how much my savings will grow before I head to see Derek Ryan in concert next year. I've got some money set aside already and I want to know what it'll be worth if I put it in a savings account. Can you help me calculate the future value?"
+    },
+    {
+      "role": "assistant",
+      "content": "I'd be happy to help you calculate the future value of your savings! To do the calculation, I'll need a couple of details:\n\n1. **How much money do you have set aside?** (the principal amount)\n2. **What interest rate does your savings account offer?** (the annual rate)\n\nOnce you provide those, I can tell you what your savings will be worth by the time you go to that concert next year!"
+    },
+    {
+      "role": "user",
+      "content": "Oh, I haven't decided on a specific rate yet! That's actually what I wanted to ask you about - could we compare a few different scenarios? Like what if I went with a regular savings account versus maybe something with a higher rate? I want to see which option would give me the best return before the concert."
+    },
+    {
+      "role": "assistant",
+      "content": "Absolutely! I can definitely show you a comparison of different interest rates. That way you can see the difference in earnings between a regular savings account and higher-yield options.\n\nI just need one more piece of info:\n\n**How much money do you have set aside** that you want to put in the savings account?\n\nOnce you tell me the amount, I'll show you a table comparing several different interest rates so you can pick the best option for your concert fund!"
+    },
+    {
+      "role": "user",
+      "content": "Oh, before we get back to that - I've also got a little side business selling concert merchandise like t-shirts and hats at shows. I want to make sure I'm pricing things right. Like, if I buy items wholesale, how do I figure out what markup to use so I'm making a good profit but still keeping prices fair for fans? Can you help me think through that?"
+    },
+    {
+      "role": "assistant",
+      "content": "That's a great question! Pricing merchandise properly is important for any small business. The key is finding a markup that covers your costs, generates profit, and stays competitive for fans.\n\nOnce I know the **wholesale cost** of your items (what you pay to buy them), I can help you figure out the selling price using different markup percentages. This will show you:\n\n- How much profit you'd make at various markup levels\n- What the fan-facing price would look like\n\n**What I can do:**\n- If you give me a specific cost, I can calculate the selling price at a specific markup\n- Or I can show you a comparison table with multiple markup percentages so you can see the range of prices and profits\n\nFor reference, common retail markups vary widely:\n- Clothing/apparel typically uses 50-100% markup\n- Event merchandise often sits in the 75-150% range\n\n---\n\n**Quick recap:** Once you tell me:\n1. **The wholesale cost** of your merchandise (t-shirts, hats, etc.)\n2. **The amount you have in savings** (for the future value calculation)\n\nI can help you with both! What are the costs of the items you're planning to sell?"
+    },
+    {
+      "role": "user",
+      "content": "Oh, that makes sense! One more thing I'm wondering about for my merchandise business - when I buy items in bulk from wholesale suppliers, do they usually offer discounts? Like if I'm ordering a bigger quantity, how would I figure out what kind of deal I'm getting compared to buying smaller amounts? I'd love to compare a few bulk pricing scenarios to see how much I could save on my inventory costs."
+    },
+    {
+      "role": "assistant",
+      "content": "Yes, wholesale suppliers absolutely offer bulk discounts! It's pretty standard in the industry - the more you order, the better deal you typically get per unit. This is called \"volume discounting\" or \"tiered pricing.\"\n\nTo show you how bulk discounts would work, I can create a comparison table that shows:\n\n- The original wholesale price\n- What you'd pay with different discount percentages applied\n- How much you'd save at each level\n\n**What I'd need from you:**\n\n1. **What's the wholesale price per item** (the cost when buying smaller quantities)?\n\nOnce you give me that, I can show you a table comparing different discount scenarios - like 5%, 10%, 15%, 20% off - so you can see exactly how much you'd save by ordering larger bulk quantities.\n\nThis will help you figure out if it's worth ordering more inventory upfront to get those bulk savings!\n\n---\n\nSo, what's the wholesale cost per item you're looking at? And while we're at it, don't forget to send over that savings amount when you're ready - I've got both the **future value** and **markup** calculations waiting on those details too! 😊"
+    },
+    {
+      "role": "user",
+      "content": "Oh right, sorry! So for example, let's say I'm looking at t-shirts that cost about $8 each when I buy them in smaller quantities. What kind of discount could I expect if I ordered like 50 or 100 at a time?"
+    },
+    {
+      "role": "assistant",
+      "content": "Great example! Let's see what kind of savings you'd get with bulk ordering. I'll create a comparison table showing different discount scenarios applied to that $8 per shirt price."
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "function_call": {
+        "name": "skill-tools-discount_table",
+        "arguments": "{\"discounts\": [5, 10, 15, 20, 25, 30], \"price\": 8}"
+      }
+    },
+    {
+      "role": "function",
+      "content": "{\"price\": 8.0, \"rows\": [{\"discount_input\": 5.0, \"discount_rate\": 0.05, \"final_price\": 7.6}, {\"discount_input\": 10.0, \"discount_rate\": 0.1, \"final_price\": 7.2}, {\"discount_input\": 15.0, \"discount_rate\": 0.15, \"final_price\": 6.8}, {\"discount_input\": 20.0, \"discount_rate\": 0.2, \"final_price\": 6.4}, {\"discount_input\": 25.0, \"discount_rate\": 0.25, \"final_price\": 6.0}, {\"discount_input\": 30.0, \"discount_rate\": 0.3, \"final_price\": 5.6}]}",
+      "name": "skill-tools-discount_table"
+    },
+    {
+      "role": "assistant",
+      "content": "Here's a breakdown of what those t-shirts could cost you with bulk ordering:\n\n| Discount | Price per Shirt | Savings per Shirt |\n|----------|-----------------|-------------------|\n| 5% off   | $7.60           | $0.40             |\n| 10% off  | $7.20           | $0.80             |\n| 15% off  | $6.80           | $1.20             |\n| 20% off  | $6.40           | $1.60             |\n| 25% off  | $6.00           | $2.00             |\n| 30% off  | $5.60           | $2.40             |\n\n**What this means for you:**\n\n- If you order **50 shirts** at 20% off, you'd save **$80** total compared to buying them individually at $8 each\n- At 30% off for **100 shirts**, you'd save **$240**!\n\nCommon bulk discounts in the wholesale world typically range from 10-25% depending on the supplier and quantity, so 20% off for 50+ shirts is definitely achievable.\n\nWould you like me to also run some markup calculations on those bulk prices to see what you'd charge fans at the concert? That way you can see your potential profit margins at different price points!"
+    }
+  ],
+  "structured_turns": [
+    {
+      "turn_index": 1,
+      "goal_index": 1,
+      "goal_text": "Calculate future value of savings for upcoming Derek Ryan concert trip",
+      "user_message": "Hey! I'm trying to figure out how much my savings will grow before I head to see Derek Ryan in concert next year. I've got some money set aside already and I want to know what it'll be worth if I put it in a savings account. Can you help me calculate the future value?",
+      "assistant_message": "I'd be happy to help you calculate the future value of your savings! To do the calculation, I'll need a couple of details:\n\n1. **How much money do you have set aside?** (the principal amount)\n2. **What interest rate does your savings account offer?** (the annual rate)\n\nOnce you provide those, I can tell you what your savings will be worth by the time you go to that concert next year!",
+      "tool_calls": [],
+      "execution_time_ms": 3842,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "future_value",
+          "future_value_table",
+          "markup"
+        ],
+        "actual_tool_names": [],
+        "normalized_tool_names": [],
+        "unexpected_tool_names": [],
+        "tool_calls_within_blueprint": true
+      },
+      "before_state": {},
+      "after_state": {}
+    },
+    {
+      "turn_index": 2,
+      "goal_index": 2,
+      "goal_text": "Compare different investment rates to find best savings option",
+      "user_message": "Oh, I haven't decided on a specific rate yet! That's actually what I wanted to ask you about - could we compare a few different scenarios? Like what if I went with a regular savings account versus maybe something with a higher rate? I want to see which option would give me the best return before the concert.",
+      "assistant_message": "Absolutely! I can definitely show you a comparison of different interest rates. That way you can see the difference in earnings between a regular savings account and higher-yield options.\n\nI just need one more piece of info:\n\n**How much money do you have set aside** that you want to put in the savings account?\n\nOnce you tell me the amount, I'll show you a table comparing several different interest rates so you can pick the best option for your concert fund!",
+      "tool_calls": [],
+      "execution_time_ms": 3332,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "future_value_table",
+          "future_value",
+          "markup"
+        ],
+        "actual_tool_names": [],
+        "normalized_tool_names": [],
+        "unexpected_tool_names": [],
+        "tool_calls_within_blueprint": true
+      },
+      "before_state": {},
+      "after_state": {}
+    },
+    {
+      "turn_index": 3,
+      "goal_index": 3,
+      "goal_text": "Calculate markup pricing for concert merchandise resale business",
+      "user_message": "Oh, before we get back to that - I've also got a little side business selling concert merchandise like t-shirts and hats at shows. I want to make sure I'm pricing things right. Like, if I buy items wholesale, how do I figure out what markup to use so I'm making a good profit but still keeping prices fair for fans? Can you help me think through that?",
+      "assistant_message": "That's a great question! Pricing merchandise properly is important for any small business. The key is finding a markup that covers your costs, generates profit, and stays competitive for fans.\n\nOnce I know the **wholesale cost** of your items (what you pay to buy them), I can help you figure out the selling price using different markup percentages. This will show you:\n\n- How much profit you'd make at various markup levels\n- What the fan-facing price would look like\n\n**What I can do:**\n- If you give me a specific cost, I can calculate the selling price at a specific markup\n- Or I can show you a comparison table with multiple markup percentages so you can see the range of prices and profits\n\nFor reference, common retail markups vary widely:\n- Clothing/apparel typically uses 50-100% markup\n- Event merchandise often sits in the 75-150% range\n\n---\n\n**Quick recap:** Once you tell me:\n1. **The wholesale cost** of your merchandise (t-shirts, hats, etc.)\n2. **The amount you have in savings** (for the future value calculation)\n\nI can help you with both! What are the costs of the items you're planning to sell?",
+      "tool_calls": [],
+      "execution_time_ms": 8563,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "markup",
+          "future_value_table",
+          "discount_table"
+        ],
+        "actual_tool_names": [],
+        "normalized_tool_names": [],
+        "unexpected_tool_names": [],
+        "tool_calls_within_blueprint": true
+      },
+      "before_state": {},
+      "after_state": {}
+    },
+    {
+      "turn_index": 4,
+      "goal_index": 4,
+      "goal_text": "Compare discount options for bulk merchandise purchases",
+      "user_message": "Oh, that makes sense! One more thing I'm wondering about for my merchandise business - when I buy items in bulk from wholesale suppliers, do they usually offer discounts? Like if I'm ordering a bigger quantity, how would I figure out what kind of deal I'm getting compared to buying smaller amounts? I'd love to compare a few bulk pricing scenarios to see how much I could save on my inventory costs.",
+      "assistant_message": "Yes, wholesale suppliers absolutely offer bulk discounts! It's pretty standard in the industry - the more you order, the better deal you typically get per unit. This is called \"volume discounting\" or \"tiered pricing.\"\n\nTo show you how bulk discounts would work, I can create a comparison table that shows:\n\n- The original wholesale price\n- What you'd pay with different discount percentages applied\n- How much you'd save at each level\n\n**What I'd need from you:**\n\n1. **What's the wholesale price per item** (the cost when buying smaller quantities)?\n\nOnce you give me that, I can show you a table comparing different discount scenarios - like 5%, 10%, 15%, 20% off - so you can see exactly how much you'd save by ordering larger bulk quantities.\n\nThis will help you figure out if it's worth ordering more inventory upfront to get those bulk savings!\n\n---\n\nSo, what's the wholesale cost per item you're looking at? And while we're at it, don't forget to send over that savings amount when you're ready - I've got both the **future value** and **markup** calculations waiting on those details too! 😊",
+      "tool_calls": [],
+      "execution_time_ms": 6807,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "discount_table",
+          "markup",
+          "future_value"
+        ],
+        "actual_tool_names": [],
+        "normalized_tool_names": [],
+        "unexpected_tool_names": [],
+        "tool_calls_within_blueprint": true
+      },
+      "before_state": {},
+      "after_state": {}
+    },
+    {
+      "turn_index": 5,
+      "goal_index": 4,
+      "goal_text": "Compare discount options for bulk merchandise purchases",
+      "user_message": "Oh right, sorry! So for example, let's say I'm looking at t-shirts that cost about $8 each when I buy them in smaller quantities. What kind of discount could I expect if I ordered like 50 or 100 at a time?",
+      "assistant_message": "Here's a breakdown of what those t-shirts could cost you with bulk ordering:\n\n| Discount | Price per Shirt | Savings per Shirt |\n|----------|-----------------|-------------------|\n| 5% off   | $7.60           | $0.40             |\n| 10% off  | $7.20           | $0.80             |\n| 15% off  | $6.80           | $1.20             |\n| 20% off  | $6.40           | $1.60             |\n| 25% off  | $6.00           | $2.00             |\n| 30% off  | $5.60           | $2.40             |\n\n**What this means for you:**\n\n- If you order **50 shirts** at 20% off, you'd save **$80** total compared to buying them individually at $8 each\n- At 30% off for **100 shirts**, you'd save **$240**!\n\nCommon bulk discounts in the wholesale world typically range from 10-25% depending on the supplier and quantity, so 20% off for 50+ shirts is definitely achievable.\n\nWould you like me to also run some markup calculations on those bulk prices to see what you'd charge fans at the concert? That way you can see your potential profit margins at different price points!",
+      "tool_calls": [
+        {
+          "name": "skill-tools-discount_table",
+          "arguments": "{\"discounts\": [5, 10, 15, 20, 25, 30], \"price\": 8}",
+          "result": "{\"price\": 8.0, \"rows\": [{\"discount_input\": 5.0, \"discount_rate\": 0.05, \"final_price\": 7.6}, {\"discount_input\": 10.0, \"discount_rate\": 0.1, \"final_price\": 7.2}, {\"discount_input\": 15.0, \"discount_rate\": 0.15, \"final_price\": 6.8}, {\"discount_input\": 20.0, \"discount_rate\": 0.2, \"final_price\": 6.4}, {\"discount_input\": 25.0, \"discount_rate\": 0.25, \"final_price\": 6.0}, {\"discount_input\": 30.0, \"discount_rate\": 0.3, \"final_price\": 5.6}]}"
+        }
+      ],
+      "execution_time_ms": 22911,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "discount_table",
+          "markup",
+          "future_value"
+        ],
+        "actual_tool_names": [
+          "skill-tools-discount_table"
+        ],
+        "normalized_tool_names": [
+          "discount_table"
+        ],
+        "unexpected_tool_names": [],
+        "tool_calls_within_blueprint": true
+      },
+      "before_state": {
+        "last_calculation": null,
+        "ui_launches": []
+      },
+      "after_state": {
+        "last_calculation": {
+          "tool": "discount_table",
+          "result": {
+            "price": 8.0,
+            "rows": [
+              {
+                "discount_input": 5.0,
+                "discount_rate": 0.05,
+                "final_price": 7.6
+              },
+              {
+                "discount_input": 10.0,
+                "discount_rate": 0.1,
+                "final_price": 7.2
+              },
+              {
+                "discount_input": 15.0,
+                "discount_rate": 0.15,
+                "final_price": 6.8
+              },
+              {
+                "discount_input": 20.0,
+                "discount_rate": 0.2,
+                "final_price": 6.4
+              },
+              {
+                "discount_input": 25.0,
+                "discount_rate": 0.25,
+                "final_price": 6.0
+              },
+              {
+                "discount_input": 30.0,
+                "discount_rate": 0.3,
+                "final_price": 5.6
+              }
+            ]
+          }
+        },
+        "ui_launches": []
+      }
+    }
+  ],
+  "validation": {
+    "ended_normally": true,
+    "hit_max_turns": false,
+    "num_goals": 4,
+    "user_turn_count": 5,
+    "all_goals_received_user_turn": true,
+    "tool_call_validation_passed": true,
+    "final_assistant_message_nonempty": true,
+    "final_tool_state_nonempty": true,
+    "final_state_diffs": [],
+    "final_state_match": true,
+    "state_checkpoints": []
+  },
+  "final_tool_state": {
+    "last_calculation": {
+      "tool": "discount_table",
+      "result": {
+        "price": 8.0,
+        "rows": [
+          {
+            "discount_input": 5.0,
+            "discount_rate": 0.05,
+            "final_price": 7.6
+          },
+          {
+            "discount_input": 10.0,
+            "discount_rate": 0.1,
+            "final_price": 7.2
+          },
+          {
+            "discount_input": 15.0,
+            "discount_rate": 0.15,
+            "final_price": 6.8
+          },
+          {
+            "discount_input": 20.0,
+            "discount_rate": 0.2,
+            "final_price": 6.4
+          },
+          {
+            "discount_input": 25.0,
+            "discount_rate": 0.25,
+            "final_price": 6.0
+          },
+          {
+            "discount_input": 30.0,
+            "discount_rate": 0.3,
+            "final_price": 5.6
+          }
+        ]
+      }
+    },
+    "ui_launches": []
+  },
+  "initial_state": {
+    "last_calculation": null,
+    "ui_launches": []
+  },
+  "scenario_id": "default",
+  "environment_profile": {
+    "backend_mode": "program-direct",
+    "state_mode": "json",
+    "validation_mode": "final_state",
+    "scenario_source": "inline",
+    "bfcl_analog": "math_api",
+    "entry_class": "SkillBackend",
+    "tool_names": [
+      "future_value",
+      "present_value",
+      "discount",
+      "markup",
+      "future_value_table",
+      "discount_table",
+      "launch_ui"
+    ],
+    "default_scenario": "default",
+    "notes_ref": "/home/zhang/work/Astra-env-backend-runtime-refactor/artifacts/env_top30_backend_notes.md"
+  },
+  "state_transitions": [
+    {
+      "tool_name": "discount_table",
+      "arguments": {
+        "price": 8.0,
+        "discounts": [
+          5,
+          10,
+          15,
+          20,
+          25,
+          30
+        ]
+      },
+      "before_state": {
+        "last_calculation": null,
+        "ui_launches": []
+      },
+      "after_state": {
+        "last_calculation": {
+          "tool": "discount_table",
+          "result": {
+            "price": 8.0,
+            "rows": [
+              {
+                "discount_input": 5.0,
+                "discount_rate": 0.05,
+                "final_price": 7.6
+              },
+              {
+                "discount_input": 10.0,
+                "discount_rate": 0.1,
+                "final_price": 7.2
+              },
+              {
+                "discount_input": 15.0,
+                "discount_rate": 0.15,
+                "final_price": 6.8
+              },
+              {
+                "discount_input": 20.0,
+                "discount_rate": 0.2,
+                "final_price": 6.4
+              },
+              {
+                "discount_input": 25.0,
+                "discount_rate": 0.25,
+                "final_price": 6.0
+              },
+              {
+                "discount_input": 30.0,
+                "discount_rate": 0.3,
+                "final_price": 5.6
+              }
+            ]
+          }
+        },
+        "ui_launches": []
+      },
+      "result": {
+        "price": 8.0,
+        "rows": [
+          {
+            "discount_input": 5.0,
+            "discount_rate": 0.05,
+            "final_price": 7.6
+          },
+          {
+            "discount_input": 10.0,
+            "discount_rate": 0.1,
+            "final_price": 7.2
+          },
+          {
+            "discount_input": 15.0,
+            "discount_rate": 0.15,
+            "final_price": 6.8
+          },
+          {
+            "discount_input": 20.0,
+            "discount_rate": 0.2,
+            "final_price": 6.4
+          },
+          {
+            "discount_input": 25.0,
+            "discount_rate": 0.25,
+            "final_price": 6.0
+          },
+          {
+            "discount_input": 30.0,
+            "discount_rate": 0.3,
+            "final_price": 5.6
+          }
+        ]
+      }
+    }
+  ]
+}
