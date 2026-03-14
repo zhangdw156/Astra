@@ -1,0 +1,451 @@
+{
+  "run_id": "sample_000034",
+  "trajectory_id": "697c555d-d7e6-4b7c-9f50-5d71ce896ad7",
+  "blueprint_id": "0b315acb-53a9-405f-b76f-69d08688ecfc",
+  "skill_name": "1104_mem0-1-0-0",
+  "persona_id": "d5050496-2335-4225-bd32-be8f04ae89b9",
+  "tools": [
+    {
+      "name": "search_memories",
+      "description": "Searches semantically across stored memories using Mem0. Use this to retrieve relevant context about user preferences, patterns, and past interactions before responding. This is for retrieval only - use add_memory to store new memories, and list_memories to see all memories.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query text to find relevant memories"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 3,
+            "description": "Maximum number of memories to return"
+          },
+          "user": {
+            "type": "string",
+            "description": "User ID to search memories for (defaults to configured user)"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    {
+      "name": "add_memory",
+      "description": "Adds new memories to Mem0 storage. Use this when user explicitly asks to remember something or to store conversation context for future retrieval. Supports two forms: simple text memory or conversation messages (auto-extracts memories via LLM). For searching stored memories, use search_memories instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Simple text memory to store (use instead of messages)"
+          },
+          "messages": {
+            "type": "array",
+            "description": "Array of conversation messages to extract memories from (use instead of text)"
+          },
+          "user": {
+            "type": "string",
+            "description": "User ID to store memory for (defaults to configured user)"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "list_memories",
+      "description": "Lists all stored memories for a user with IDs and creation dates. Use this to see what memories are currently stored. For searching specific memories, use search_memories instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "description": "User ID to list memories for (defaults to configured user)"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "delete_memory",
+      "description": "Deletes memories from Mem0 storage. Use this to remove specific memories or all memories for a user. Supports two modes: delete a specific memory by ID, or delete all memories for a user.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "memory_id": {
+            "type": "string",
+            "description": "ID of specific memory to delete (use instead of all flag)"
+          },
+          "all": {
+            "type": "boolean",
+            "default": false,
+            "description": "Delete all memories for the user (use instead of memory_id)"
+          },
+          "user": {
+            "type": "string",
+            "description": "User ID to delete memories for (required when using all flag)"
+          }
+        },
+        "required": []
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hi, I'm a social worker and I've been really passionate about using arts programs to help with community development and social integration. I'd like to store some information about my interest in this area - mainly my belief that creative activities can really help bring people together and support vulnerable populations. Can you help me save this?"
+    },
+    {
+      "role": "assistant",
+      "content": "I'd be happy to help you store that information! Let me save this as a memory for you."
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "function_call": {
+        "name": "skill-tools-add_memory",
+        "arguments": "{\"text\": \"User is a social worker passionate about using arts programs for community development and social integration. Believes that creative activities can bring people together and support vulnerable populations.\"}"
+      }
+    },
+    {
+      "role": "function",
+      "content": "{\"status\": \"success\", \"tool\": \"add_memory\", \"memory_stored\": true, \"text\": \"User is a social worker passionate about using arts programs for community development and social integration. Believes that creative activities can bring people together and support vulnerable populations.\"}",
+      "name": "skill-tools-add_memory"
+    },
+    {
+      "role": "assistant",
+      "content": "Done! I've saved your memory. It captures your interest in using arts programs for community development and social integration, along with your belief in the power of creative activities to bring people together and support vulnerable populations.\n\nIs there anything else you'd like to add or discuss about this topic?"
+    },
+    {
+      "role": "user",
+      "content": "Now that I've saved that information, could you help me find or look up what memories you've stored about arts programs? I want to make sure everything is there correctly."
+    },
+    {
+      "role": "assistant",
+      "content": ""
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "function_call": {
+        "name": "skill-tools-search_memories",
+        "arguments": "{\"query\": \"arts programs community development social integration\", \"limit\": 5}"
+      }
+    },
+    {
+      "role": "function",
+      "content": "{\"status\": \"success\", \"results\": [{\"id\": \"mem_001\", \"text\": \"User is a social worker passionate about using arts programs for community development and social integration. Believes that creative activities can bring people together and support vulnerable populations.\", \"score\": 0.95, \"created_at\": \"2024-01-15T10:30:00Z\"}], \"query\": \"arts programs community development social integration\", \"count\": 1}",
+      "name": "skill-tools-search_memories"
+    },
+    {
+      "role": "assistant",
+      "content": "Here's the memory that's currently stored:\n\n> **User is a social worker passionate about using arts programs for community development and social integration. Believes that creative activities can bring people together and support vulnerable populations.**\n\n- **Memory ID:** mem_001\n- **Created:** January 15, 2024\n\nThis looks like the information you wanted saved. Is there anything you'd like to add or modify?"
+    },
+    {
+      "role": "user",
+      "content": "Could you show me all the memories you have stored, not just the ones from my search? I want to make sure I have a complete picture of what's saved."
+    },
+    {
+      "role": "assistant",
+      "content": ""
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "function_call": {
+        "name": "skill-tools-list_memories",
+        "arguments": "{}"
+      }
+    },
+    {
+      "role": "function",
+      "content": "{\"status\": \"success\", \"tool\": \"list_memories\", \"memories\": [{\"id\": \"mem_8f3a2b1c\", \"text\": \"User is interested in arts programs for community development and social integration\", \"created_at\": \"2024-01-15T10:30:00Z\"}], \"count\": 1}",
+      "name": "skill-tools-list_memories"
+    },
+    {
+      "role": "assistant",
+      "content": "Here's the complete list of all stored memories:\n\n| ID | Created |\n|---|---|\n| mem_8f3a2b1c | January 15, 2024 |\n\n**Memory:** \"User is interested in arts programs for community development and social integration\"\n\nYou currently have just this one memory stored. Would you like to add any additional details about your work or interests?"
+    },
+    {
+      "role": "user",
+      "content": "I see there's only one memory stored, but I noticed when I searched earlier, the result showed a slightly different version with more detail. Could you check if there are any duplicate or outdated entries, and help me remove any that aren't accurate?"
+    },
+    {
+      "role": "assistant",
+      "content": "Good catch! Let me search more broadly to see if there are any other entries that might be similar or duplicates."
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "function_call": {
+        "name": "skill-tools-search_memories",
+        "arguments": "{\"limit\": 10, \"query\": \"social worker arts programs creative activities vulnerable populations community development\"}"
+      }
+    },
+    {
+      "role": "function",
+      "content": "{\"status\": \"success\", \"tool\": \"search_memories\", \"query\": \"social worker arts programs creative activities vulnerable populations community development\", \"limit\": 10, \"results_count\": 0, \"results\": []}",
+      "name": "skill-tools-search_memories"
+    },
+    {
+      "role": "assistant",
+      "content": "Interesting - the more detailed version I found earlier doesn't seem to be showing up now. There's only one memory currently stored (mem_8f3a2b1c), and it has the shorter text: \"User is interested in arts programs for community development and social integration.\"\n\nIt appears there may have been some inconsistency in how the memory was stored. Would you like me to:\n\n1. **Update the existing memory** with the more detailed version (including your passion for helping vulnerable populations through creative activities), or\n2. **Delete this memory** and add a fresh one with all the details you'd like to capture?\n\nLet me know how you'd like to proceed!"
+    },
+    {
+      "role": "user",
+      "content": "Yes, that shorter version isn't quite accurate - I had mentioned being a social worker specifically and my belief that creative activities can help vulnerable populations. Could you delete that current memory and help me store a new, more complete version? I'd like to make sure the memory correctly reflects my full interest in using arts programs for community development and social integration."
+    },
+    {
+      "role": "assistant",
+      "content": ""
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "function_call": {
+        "name": "skill-tools-delete_memory",
+        "arguments": "{\"memory_id\": \"mem_8f3a2b1c\"}"
+      }
+    },
+    {
+      "role": "function",
+      "content": "{\"status\": \"success\", \"deleted_memory_id\": \"mem_8f3a2b1c\", \"message\": \"Memory deleted successfully\"}",
+      "name": "skill-tools-delete_memory"
+    },
+    {
+      "role": "assistant",
+      "content": "Done! Now let me store a new, complete version of your memory:"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "function_call": {
+        "name": "skill-tools-add_memory",
+        "arguments": "{\"text\": \"User is a social worker passionate about using arts programs for community development and social integration. Believes that creative activities can bring people together and support vulnerable populations.\"}"
+      }
+    },
+    {
+      "role": "function",
+      "content": "{\"status\": \"success\", \"memory_added\": true, \"text\": \"User is a social worker passionate about using arts programs for community development and social integration. Believes that creative activities can bring people together and support vulnerable populations.\", \"user\": null}",
+      "name": "skill-tools-add_memory"
+    },
+    {
+      "role": "assistant",
+      "content": "All set! I've deleted the old memory and stored a new one with the complete, accurate details:\n\n> **\"User is a social worker passionate about using arts programs for community development and social integration. Believes that creative activities can bring people together and support vulnerable populations.\"**\n\nThis now correctly reflects your interest in using arts programs for community development and social integration, along with your belief in supporting vulnerable populations through creative activities. Is there anything else you'd like to add?"
+    },
+    {
+      "role": "user",
+      "content": "Perfect, that new memory looks exactly right now. It captures everything I wanted - my role as a social worker, my passion for arts programs in community development, and my belief in how creative activities can support vulnerable populations. Thanks for cleaning that up!\n\n[TASK_END]"
+    },
+    {
+      "role": "assistant",
+      "content": "You're welcome! I'm glad we got your memory stored correctly with all the details that matter to you. If you ever want to add more information about your work or interests in the future, feel free to reach out. Good luck with your arts programs and community development work!"
+    }
+  ],
+  "structured_turns": [
+    {
+      "turn_index": 1,
+      "goal_index": 1,
+      "goal_text": "Store initial information about their interest in arts for social development",
+      "user_message": "Hi, I'm a social worker and I've been really passionate about using arts programs to help with community development and social integration. I'd like to store some information about my interest in this area - mainly my belief that creative activities can really help bring people together and support vulnerable populations. Can you help me save this?",
+      "assistant_message": "Done! I've saved your memory. It captures your interest in using arts programs for community development and social integration, along with your belief in the power of creative activities to bring people together and support vulnerable populations.\n\nIs there anything else you'd like to add or discuss about this topic?",
+      "tool_calls": [
+        {
+          "name": "skill-tools-add_memory",
+          "arguments": "{\"text\": \"User is a social worker passionate about using arts programs for community development and social integration. Believes that creative activities can bring people together and support vulnerable populations.\"}",
+          "result": "{\"status\": \"success\", \"tool\": \"add_memory\", \"memory_stored\": true, \"text\": \"User is a social worker passionate about using arts programs for community development and social integration. Believes that creative activities can bring people together and support vulnerable populations.\"}"
+        }
+      ],
+      "execution_time_ms": 14173,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "add_memory"
+        ],
+        "actual_tool_names": [
+          "skill-tools-add_memory"
+        ],
+        "unexpected_tool_names": [
+          "skill-tools-add_memory"
+        ],
+        "tool_calls_within_blueprint": false
+      }
+    },
+    {
+      "turn_index": 2,
+      "goal_index": 2,
+      "goal_text": "Search for stored memories related to arts programs",
+      "user_message": "Now that I've saved that information, could you help me find or look up what memories you've stored about arts programs? I want to make sure everything is there correctly.",
+      "assistant_message": "Here's the memory that's currently stored:\n\n> **User is a social worker passionate about using arts programs for community development and social integration. Believes that creative activities can bring people together and support vulnerable populations.**\n\n- **Memory ID:** mem_001\n- **Created:** January 15, 2024\n\nThis looks like the information you wanted saved. Is there anything you'd like to add or modify?",
+      "tool_calls": [
+        {
+          "name": "skill-tools-search_memories",
+          "arguments": "{\"query\": \"arts programs community development social integration\", \"limit\": 5}",
+          "result": "{\"status\": \"success\", \"results\": [{\"id\": \"mem_001\", \"text\": \"User is a social worker passionate about using arts programs for community development and social integration. Believes that creative activities can bring people together and support vulnerable populations.\", \"score\": 0.95, \"created_at\": \"2024-01-15T10:30:00Z\"}], \"query\": \"arts programs community development social integration\", \"count\": 1}"
+        }
+      ],
+      "execution_time_ms": 12677,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "search_memories"
+        ],
+        "actual_tool_names": [
+          "skill-tools-search_memories"
+        ],
+        "unexpected_tool_names": [
+          "skill-tools-search_memories"
+        ],
+        "tool_calls_within_blueprint": false
+      }
+    },
+    {
+      "turn_index": 3,
+      "goal_index": 3,
+      "goal_text": "Review all stored memories to see what has been saved",
+      "user_message": "Could you show me all the memories you have stored, not just the ones from my search? I want to make sure I have a complete picture of what's saved.",
+      "assistant_message": "Here's the complete list of all stored memories:\n\n| ID | Created |\n|---|---|\n| mem_8f3a2b1c | January 15, 2024 |\n\n**Memory:** \"User is interested in arts programs for community development and social integration\"\n\nYou currently have just this one memory stored. Would you like to add any additional details about your work or interests?",
+      "tool_calls": [
+        {
+          "name": "skill-tools-list_memories",
+          "arguments": "{}",
+          "result": "{\"status\": \"success\", \"tool\": \"list_memories\", \"memories\": [{\"id\": \"mem_8f3a2b1c\", \"text\": \"User is interested in arts programs for community development and social integration\", \"created_at\": \"2024-01-15T10:30:00Z\"}], \"count\": 1}"
+        }
+      ],
+      "execution_time_ms": 13637,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "list_memories"
+        ],
+        "actual_tool_names": [
+          "skill-tools-list_memories"
+        ],
+        "unexpected_tool_names": [
+          "skill-tools-list_memories"
+        ],
+        "tool_calls_within_blueprint": false
+      }
+    },
+    {
+      "turn_index": 4,
+      "goal_index": 4,
+      "goal_text": "Remove any outdated or incorrect memories",
+      "user_message": "I see there's only one memory stored, but I noticed when I searched earlier, the result showed a slightly different version with more detail. Could you check if there are any duplicate or outdated entries, and help me remove any that aren't accurate?",
+      "assistant_message": "Interesting - the more detailed version I found earlier doesn't seem to be showing up now. There's only one memory currently stored (mem_8f3a2b1c), and it has the shorter text: \"User is interested in arts programs for community development and social integration.\"\n\nIt appears there may have been some inconsistency in how the memory was stored. Would you like me to:\n\n1. **Update the existing memory** with the more detailed version (including your passion for helping vulnerable populations through creative activities), or\n2. **Delete this memory** and add a fresh one with all the details you'd like to capture?\n\nLet me know how you'd like to proceed!",
+      "tool_calls": [
+        {
+          "name": "skill-tools-search_memories",
+          "arguments": "{\"limit\": 10, \"query\": \"social worker arts programs creative activities vulnerable populations community development\"}",
+          "result": "{\"status\": \"success\", \"tool\": \"search_memories\", \"query\": \"social worker arts programs creative activities vulnerable populations community development\", \"limit\": 10, \"results_count\": 0, \"results\": []}"
+        }
+      ],
+      "execution_time_ms": 19835,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "delete_memory"
+        ],
+        "actual_tool_names": [
+          "skill-tools-search_memories"
+        ],
+        "unexpected_tool_names": [
+          "skill-tools-search_memories"
+        ],
+        "tool_calls_within_blueprint": false
+      }
+    },
+    {
+      "turn_index": 5,
+      "goal_index": 4,
+      "goal_text": "Remove any outdated or incorrect memories",
+      "user_message": "Yes, that shorter version isn't quite accurate - I had mentioned being a social worker specifically and my belief that creative activities can help vulnerable populations. Could you delete that current memory and help me store a new, more complete version? I'd like to make sure the memory correctly reflects my full interest in using arts programs for community development and social integration.",
+      "assistant_message": "All set! I've deleted the old memory and stored a new one with the complete, accurate details:\n\n> **\"User is a social worker passionate about using arts programs for community development and social integration. Believes that creative activities can bring people together and support vulnerable populations.\"**\n\nThis now correctly reflects your interest in using arts programs for community development and social integration, along with your belief in supporting vulnerable populations through creative activities. Is there anything else you'd like to add?",
+      "tool_calls": [
+        {
+          "name": "skill-tools-delete_memory",
+          "arguments": "{\"memory_id\": \"mem_8f3a2b1c\"}",
+          "result": "{\"status\": \"success\", \"deleted_memory_id\": \"mem_8f3a2b1c\", \"message\": \"Memory deleted successfully\"}"
+        },
+        {
+          "name": "skill-tools-add_memory",
+          "arguments": "{\"text\": \"User is a social worker passionate about using arts programs for community development and social integration. Believes that creative activities can bring people together and support vulnerable populations.\"}",
+          "result": "{\"status\": \"success\", \"memory_added\": true, \"text\": \"User is a social worker passionate about using arts programs for community development and social integration. Believes that creative activities can bring people together and support vulnerable populations.\", \"user\": null}"
+        }
+      ],
+      "execution_time_ms": 35425,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "delete_memory"
+        ],
+        "actual_tool_names": [
+          "skill-tools-delete_memory",
+          "skill-tools-add_memory"
+        ],
+        "unexpected_tool_names": [
+          "skill-tools-delete_memory",
+          "skill-tools-add_memory"
+        ],
+        "tool_calls_within_blueprint": false
+      }
+    },
+    {
+      "turn_index": 6,
+      "goal_index": 4,
+      "goal_text": "Remove any outdated or incorrect memories",
+      "user_message": "Perfect, that new memory looks exactly right now. It captures everything I wanted - my role as a social worker, my passion for arts programs in community development, and my belief in how creative activities can support vulnerable populations. Thanks for cleaning that up!\n\n[TASK_END]",
+      "assistant_message": "You're welcome! I'm glad we got your memory stored correctly with all the details that matter to you. If you ever want to add more information about your work or interests in the future, feel free to reach out. Good luck with your arts programs and community development work!",
+      "tool_calls": [],
+      "execution_time_ms": 2256,
+      "validation": {
+        "assistant_message_nonempty": true,
+        "tool_call_validation_enabled": true,
+        "allowed_tool_names": [
+          "delete_memory"
+        ],
+        "actual_tool_names": [],
+        "unexpected_tool_names": [],
+        "tool_calls_within_blueprint": true
+      }
+    }
+  ],
+  "validation": {
+    "ended_normally": true,
+    "hit_max_turns": false,
+    "num_goals": 4,
+    "user_turn_count": 6,
+    "all_goals_received_user_turn": true,
+    "tool_call_validation_passed": false,
+    "final_assistant_message_nonempty": true,
+    "final_tool_state_nonempty": true
+  },
+  "final_tool_state": {
+    "last_tool": "add_memory",
+    "last_tool_arguments": {
+      "text": "User is a social worker passionate about using arts programs for community development and social integration. Believes that creative activities can bring people together and support vulnerable populations.",
+      "messages": null,
+      "user": null
+    },
+    "last_tool_result_summary": {
+      "status": "success",
+      "memory_added": true
+    },
+    "previous_tool": "delete_memory",
+    "previous_tool_arguments": {
+      "memory_id": "mem_8f3a2b1c",
+      "all": false,
+      "user": null
+    },
+    "previous_tool_result_summary": {
+      "status": "success",
+      "deleted": true,
+      "memory_id": "mem_8f3a2b1c"
+    }
+  }
+}
