@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any
 
 from astra.agent import EvalAgent, EvalAgentConfig
+from astra.agent import EvalAgentV2, EvalAgentV2Config
 from astra.agent import PlannerAgent, PlannerAgentConfig
 from astra.agent import PlannerAgentV2, PlannerAgentV2Config
 from astra.agent import ToolAgentConfig
@@ -137,6 +138,7 @@ def build_agents_and_pipeline(
     user_prompt_path: Path,
     tool_prompt_path: Path,
     eval_prompt_path: Path,
+    eval_kind: str,
     port: int,
 ) -> SynthesisPipeline:
     if planner_kind == "v2":
@@ -180,13 +182,21 @@ def build_agents_and_pipeline(
         ),
     )
 
-    eval_agent = EvalAgent(
-        EvalAgentConfig(
-            prompt_path=eval_prompt_path,
-            model_temperature=0.2,
-            max_message_chars=4000,
+    if eval_kind == "v2":
+        eval_agent = EvalAgentV2(
+            EvalAgentV2Config(
+                prompt_path=eval_prompt_path,
+                max_message_chars=4000,
+            )
         )
-    )
+    else:
+        eval_agent = EvalAgent(
+            EvalAgentConfig(
+                prompt_path=eval_prompt_path,
+                model_temperature=0.2,
+                max_message_chars=4000,
+            )
+        )
 
     return SynthesisPipeline(
         config=SynthesisPipelineConfig(
@@ -239,6 +249,7 @@ def run_one_skill(
     tool_prompt_path: Path,
     eval_prompt_path: Path,
     planner_kind: str,
+    eval_kind: str,
     port: int,
 ) -> tuple[str, int, int]:
     skill_dir = resolve_skill_dir(record, skills_root)
@@ -254,6 +265,7 @@ def run_one_skill(
         user_prompt_path=user_prompt_path,
         tool_prompt_path=tool_prompt_path,
         eval_prompt_path=eval_prompt_path,
+        eval_kind=eval_kind,
         port=port,
     )
 
@@ -522,6 +534,11 @@ def main() -> int:
         choices=("v1", "v2"),
         default="v1",
     )
+    parser.add_argument(
+        "--eval-kind",
+        choices=("v1", "v2"),
+        default="v1",
+    )
     parser.add_argument("--user-prompt-path", type=Path, required=True)
     parser.add_argument("--tool-prompt-path", type=Path, required=True)
     parser.add_argument("--eval-prompt-path", type=Path, required=True)
@@ -568,6 +585,7 @@ def main() -> int:
     print(f"User prompt:          {user_prompt_path}")
     print(f"Tool prompt:          {tool_prompt_path}")
     print(f"Eval prompt:          {eval_prompt_path}")
+    print(f"Eval kind:            {args.eval_kind}")
     print(f"Max workers:          {args.max_workers}")
     print(f"Base port:            {args.base_port}")
     print(f"Selected skill count: {len(records)}")
@@ -594,6 +612,7 @@ def main() -> int:
                     user_prompt_path=user_prompt_path,
                     tool_prompt_path=tool_prompt_path,
                     eval_prompt_path=eval_prompt_path,
+                    eval_kind=args.eval_kind,
                     port=port,
                 )
             )

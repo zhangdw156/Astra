@@ -5,6 +5,7 @@ from ._tool_agent import ToolAgent, ToolAgentConfig
 from ._user_agent import UserAgent, UserAgentConfig
 from ._assistant_agent import AssistantAgent, AssistantAgentConfig
 from ._eval_agent import EvalAgent, EvalAgentConfig
+from ._eval_agent_v2 import EvalAgentV2, EvalAgentV2Config
 
 __all__ = [
     "PlannerAgent",
@@ -21,4 +22,6 @@ __all__ = [
     "AssistantAgentConfig",
     "EvalAgent",
     "EvalAgentConfig",
+    "EvalAgentV2",
+    "EvalAgentV2Config",
 ]

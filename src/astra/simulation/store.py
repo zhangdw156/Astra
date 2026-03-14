@@ -66,6 +66,17 @@ class ArtifactStore:
         self._write_json(path, evaluation)
         return path
 
+    def write_sidecar_json(self, sample_index: int, filename: str, payload: Any) -> Path:
+        path = self.sample_dir(sample_index) / filename
+        self._write_json(path, payload)
+        return path
+
+    def write_sidecar_text(self, sample_index: int, filename: str, content: str) -> Path:
+        path = self.sample_dir(sample_index) / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(str(content), encoding="utf-8")
+        return path
+
     def append_manifest_record(self, record: dict[str, Any]) -> None:
         self.manifest_path.parent.mkdir(parents=True, exist_ok=True)
         with self.manifest_path.open("a", encoding="utf-8") as f:

@@ -58,6 +58,7 @@ class SynthesisSampleResult:
     blueprint: dict[str, Any] | None = None
     trajectory: SimulationResult | None = None
     evaluation: EvaluationResult | None = None
+    evaluation_artifacts: dict[str, Any] | None = None
     accepted: bool = False
     error: str = ""
 

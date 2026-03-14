@@ -30,3 +30,4 @@ class EvaluationBundle:
     result: EvaluationResult
     prompt: str
     raw_response: str
+    artifacts: dict[str, Any] | None = None

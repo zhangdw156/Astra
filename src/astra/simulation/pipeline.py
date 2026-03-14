@@ -76,6 +76,7 @@ class SynthesisPipeline:
         )
 
         evaluation = None
+        evaluation_artifacts = None
         if self.config.evaluate_after_run:
             if self.eval_agent is None:
                 raise RuntimeError("配置要求 evaluate_after_run=True，但未提供 EvalAgent")
@@ -85,6 +86,7 @@ class SynthesisPipeline:
                 blueprint=blueprint,
             )
             evaluation = evaluation_bundle.result
+            evaluation_artifacts = evaluation_bundle.artifacts
 
         accepted = self.decide_acceptance(evaluation)
 
@@ -94,6 +96,7 @@ class SynthesisPipeline:
             blueprint=blueprint,
             trajectory=trajectory,
             evaluation=evaluation,
+            evaluation_artifacts=evaluation_artifacts,
             accepted=accepted,
             error="",
         )
@@ -177,10 +180,15 @@ class SynthesisPipeline:
                             blueprint=partial_result.blueprint,
                         )
                         partial_result.evaluation = evaluation_bundle.result
+                        partial_result.evaluation_artifacts = evaluation_bundle.artifacts
                         if self.config.save_evaluation:
                             store.write_evaluation(
                                 partial_result.sample_index,
                                 partial_result.evaluation,
+                            )
+                            self.persist_evaluation_artifacts(
+                                store=store,
+                                result=partial_result,
                             )
 
                     partial_result.accepted = self.decide_acceptance(
@@ -290,6 +298,41 @@ class SynthesisPipeline:
 
         if self.config.save_evaluation and result.evaluation is not None:
             store.write_evaluation(result.sample_index, result.evaluation)
+            self.persist_evaluation_artifacts(store=store, result=result)
+
+    def persist_evaluation_artifacts(
+        self,
+        *,
+        store: ArtifactStore,
+        result: SynthesisSampleResult,
+    ) -> None:
+        artifacts = result.evaluation_artifacts or {}
+        if not artifacts:
+            return
+
+        review = artifacts.get("review")
+        if review is not None:
+            store.write_sidecar_json(result.sample_index, "eval_review.json", review)
+
+        repair_report = artifacts.get("repair_report")
+        if repair_report is not None:
+            store.write_sidecar_json(result.sample_index, "repair_report.json", repair_report)
+
+        training_export = artifacts.get("training_export")
+        if training_export is not None:
+            store.write_sidecar_json(
+                result.sample_index,
+                "repair_training_export.json",
+                training_export,
+            )
+
+        repair_markdown = artifacts.get("repair_markdown")
+        if isinstance(repair_markdown, str) and repair_markdown.strip():
+            store.write_sidecar_text(
+                result.sample_index,
+                "repair_plan.md",
+                repair_markdown,
+            )
 
     def build_manifest_record(
         self,
