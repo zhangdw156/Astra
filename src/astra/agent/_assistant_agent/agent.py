@@ -105,6 +105,8 @@ class AssistantAgent:
         if self.config.enable_mcp_patch:
             self.patch_mcp_tool_params(state_key=state_key)
 
+        self.patch_fncall_run_limit()
+
         from qwen_agent.agents import Assistant
 
         llm_cfg = self.build_llm_config()
@@ -225,6 +227,10 @@ class AssistantAgent:
             "model_type": "oai",
             "model_server": base_url or "https://api.openai.com/v1",
             "api_key": api_key,
+            "generate_cfg": {
+                "request_timeout": self.config.request_timeout_sec,
+                "max_retries": self.config.max_retries,
+            },
         }
 
     def build_mcp_config(self) -> dict[str, Any]:
@@ -317,7 +323,10 @@ class AssistantAgent:
             import json as _json
             from qwen_agent.tools import mcp_manager
 
-            original_create = mcp_manager.MCPManager.create_tool_class
+            existing_create = mcp_manager.MCPManager.create_tool_class
+            original_create = getattr(existing_create, "_astra_original_create", existing_create)
+            if getattr(existing_create, "_astra_mcp_state_key", None) == state_key:
+                return
 
             def normalize_tool_params(params) -> dict:
                 if params is None:
@@ -374,6 +383,8 @@ class AssistantAgent:
                     tool_parameters,
                 )
                 original_call = tool_instance.call
+                if getattr(original_call, "_astra_mcp_state_key", None) == state_key:
+                    return tool_instance
 
                 def patched_call(params, **kwargs):
                     tool_args = normalize_tool_params(params)
@@ -381,9 +392,12 @@ class AssistantAgent:
                         tool_args["__state_key"] = state_key
                     return original_call(_json.dumps(tool_args), **kwargs)
 
+                patched_call._astra_mcp_state_key = state_key
                 tool_instance.call = patched_call
                 return tool_instance
 
+            patched_create_tool_class._astra_original_create = original_create
+            patched_create_tool_class._astra_mcp_state_key = state_key
             mcp_manager.MCPManager.create_tool_class = patched_create_tool_class
 
         except Exception as exc:
@@ -399,7 +413,14 @@ class AssistantAgent:
             import re
             from qwen_agent.llm.fncall_prompts import nous_fncall_prompt as _nfp
 
-            original_json5_loads = _nfp.json5.loads
+            existing_json5_loads = _nfp.json5.loads
+            original_json5_loads = getattr(
+                existing_json5_loads,
+                "_astra_original_json5_loads",
+                existing_json5_loads,
+            )
+            if getattr(existing_json5_loads, "_astra_json_recovery_patch", False):
+                return
 
             def collect_json_candidates(text: str) -> list[object]:
                 candidates: list[object] = []
@@ -558,8 +579,21 @@ class AssistantAgent:
 
                 return original_json5_loads(payload, *args, **kwargs)
 
+            loads_with_recovery._astra_original_json5_loads = original_json5_loads
+            loads_with_recovery._astra_json_recovery_patch = True
             _nfp.json5.loads = loads_with_recovery
 
         except Exception as exc:
             import warnings
             warnings.warn(f"NousFnCallPrompt JSON 容错 patch 未生效: {exc}", RuntimeWarning)
+
+    def patch_fncall_run_limit(self) -> None:
+        try:
+            from qwen_agent import settings as _settings
+            from qwen_agent.agents import fncall_agent as _fncall_agent
+
+            _settings.MAX_LLM_CALL_PER_RUN = self.config.max_llm_calls_per_run
+            _fncall_agent.MAX_LLM_CALL_PER_RUN = self.config.max_llm_calls_per_run
+        except Exception as exc:
+            import warnings
+            warnings.warn(f"FnCallAgent LLM 调用上限 patch 未生效: {exc}", RuntimeWarning)

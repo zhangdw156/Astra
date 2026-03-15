@@ -27,6 +27,9 @@ class QueueStageConfig:
     simulation_assistant_verbose: bool = False
     simulation_assistant_enable_mcp_patch: bool = True
     simulation_assistant_enable_json_patch: bool = True
+    simulation_assistant_request_timeout_sec: float = 120.0
+    simulation_assistant_max_retries: int = 2
+    simulation_assistant_max_llm_calls_per_run: int = 6
     runtime_host: str = "127.0.0.1"
     runtime_transport: str = "sse"
     runtime_server_name: str = "skill-tools"
@@ -56,6 +59,9 @@ class QueueStageConfig:
             simulation_assistant_verbose=self.simulation_assistant_verbose,
             simulation_assistant_enable_mcp_patch=self.simulation_assistant_enable_mcp_patch,
             simulation_assistant_enable_json_patch=self.simulation_assistant_enable_json_patch,
+            simulation_assistant_request_timeout_sec=self.simulation_assistant_request_timeout_sec,
+            simulation_assistant_max_retries=self.simulation_assistant_max_retries,
+            simulation_assistant_max_llm_calls_per_run=self.simulation_assistant_max_llm_calls_per_run,
             runtime_host=self.runtime_host,
             runtime_transport=self.runtime_transport,
             runtime_server_name=self.runtime_server_name,
@@ -92,6 +98,21 @@ class QueueStageConfig:
         if self.simulation_max_turns <= 0:
             errors.append(
                 f"simulation_max_turns 必须为正整数: {self.simulation_max_turns}"
+            )
+        if self.simulation_assistant_request_timeout_sec <= 0:
+            errors.append(
+                "simulation_assistant_request_timeout_sec 必须为正数: "
+                f"{self.simulation_assistant_request_timeout_sec}"
+            )
+        if self.simulation_assistant_max_retries < 0:
+            errors.append(
+                "simulation_assistant_max_retries 不能小于 0: "
+                f"{self.simulation_assistant_max_retries}"
+            )
+        if self.simulation_assistant_max_llm_calls_per_run <= 0:
+            errors.append(
+                "simulation_assistant_max_llm_calls_per_run 必须为正整数: "
+                f"{self.simulation_assistant_max_llm_calls_per_run}"
             )
         if self.simulation_early_task_end_policy not in {"fallback", "stop", "error"}:
             errors.append(

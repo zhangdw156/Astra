@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..utils import logger
+from ..utils.tool_schema import ToolParameterMapping
 
 
 class ToolRegistry:
@@ -67,24 +68,20 @@ class ToolRegistry:
         self,
         *,
         handler: Any,
-        tool_params: dict[str, Any],
-        required_names: set[str],
+        parameter_mappings: list[ToolParameterMapping],
         allow_state_key: bool = True,
         strict_required: bool = True,
     ) -> None:
         parameters: list[inspect.Parameter] = []
         annotations: dict[str, Any] = {}
 
-        for name, info in tool_params.items():
-            if not isinstance(name, str):
-                continue
-            if not name.isidentifier() or name == "__state_key":
-                continue
-
+        for mapping in parameter_mappings:
+            name = mapping.public_name
+            info = mapping.schema
             schema_type = info.get("type", "string") if isinstance(info, dict) else "string"
             pytype = self.schema_type_to_pytype(schema_type)
 
-            if name in required_names and strict_required:
+            if mapping.required and strict_required:
                 default = inspect.Parameter.empty
                 annotation = pytype
             elif isinstance(info, dict) and "default" in info:
@@ -104,7 +101,10 @@ class ToolRegistry:
             )
             annotations[name] = annotation
 
-        if allow_state_key and "__state_key" not in tool_params:
+        has_explicit_state_key = any(
+            mapping.original_name == "__state_key" for mapping in parameter_mappings
+        )
+        if allow_state_key and not has_explicit_state_key:
             parameters.append(
                 inspect.Parameter(
                     name="__state_key",

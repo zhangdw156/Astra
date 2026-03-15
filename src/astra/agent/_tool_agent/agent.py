@@ -10,6 +10,11 @@ from openai import OpenAI
 
 from ...utils import config as astra_config
 from ...utils import logger
+from ...utils.tool_schema import (
+    ToolParameterMapping,
+    build_parameter_name_mappings,
+    restore_original_argument_names,
+)
 
 from .config import ToolAgentConfig
 from .types import ToolExecutionResult
@@ -332,8 +337,7 @@ class ToolAgent:
         self,
         *,
         handler: Any,
-        tool_params: dict[str, Any],
-        required_names: set[str],
+        parameter_mappings: list[ToolParameterMapping],
         allow_state_key: bool = True,
     ) -> None:
         """
@@ -348,16 +352,13 @@ class ToolAgent:
         parameters: list[inspect.Parameter] = []
         annotations: dict[str, Any] = {}
 
-        for name, info in tool_params.items():
-            if not isinstance(name, str):
-                continue
-            if not name.isidentifier() or name == "__state_key":
-                continue
-
+        for mapping in parameter_mappings:
+            name = mapping.public_name
+            info = mapping.schema
             schema_type = info.get("type", "string") if isinstance(info, dict) else "string"
             pytype = self.schema_type_to_pytype(schema_type)
 
-            if name in required_names:
+            if mapping.required:
                 default = inspect.Parameter.empty
             elif isinstance(info, dict) and "default" in info:
                 default = info.get("default")
@@ -374,7 +375,10 @@ class ToolAgent:
             )
             annotations[name] = pytype
 
-        if allow_state_key and "__state_key" not in tool_params:
+        has_explicit_state_key = any(
+            mapping.original_name == "__state_key" for mapping in parameter_mappings
+        )
+        if allow_state_key and not has_explicit_state_key:
             parameters.append(
                 inspect.Parameter(
                     name="__state_key",
@@ -407,11 +411,20 @@ class ToolAgent:
         """
         from fastmcp.tools import tool
 
+        parameter_mappings = build_parameter_name_mappings(
+            tool_params=tool_params,
+            required_names=required_names,
+        )
+
         @tool(name=tool_name, description=tool_description)
         def _handler(**kwargs: Any) -> str:
             runtime_state_key, runtime_kwargs = self.extract_runtime_state_key(
                 kwargs=kwargs,
                 default_state_key=state_key,
+            )
+            runtime_kwargs = restore_original_argument_names(
+                arguments=runtime_kwargs,
+                parameter_mappings=parameter_mappings,
             )
             current_state = self.get_state(runtime_state_key)
             arguments_json = json.dumps(runtime_kwargs, ensure_ascii=False)
@@ -439,7 +452,6 @@ class ToolAgent:
 
         self.apply_explicit_signature(
             handler=_handler,
-            tool_params=tool_params,
-            required_names=required_names,
+            parameter_mappings=parameter_mappings,
         )
         return _handler

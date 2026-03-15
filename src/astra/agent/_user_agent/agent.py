@@ -16,6 +16,65 @@ from .types import UserTurnResult
 
 TASK_END_MARKER = "[TASK_END]"
 OPENAI_REQUEST_TIMEOUT_SEC = 120.0
+GOAL_FOCUS_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "but",
+    "by",
+    "can",
+    "do",
+    "for",
+    "from",
+    "get",
+    "have",
+    "help",
+    "i",
+    "if",
+    "in",
+    "into",
+    "is",
+    "it",
+    "like",
+    "me",
+    "my",
+    "of",
+    "on",
+    "or",
+    "our",
+    "please",
+    "show",
+    "so",
+    "that",
+    "the",
+    "their",
+    "them",
+    "there",
+    "this",
+    "to",
+    "up",
+    "us",
+    "want",
+    "we",
+    "with",
+    "you",
+    "your",
+}
+OFF_GOAL_PIVOT_MARKERS = (
+    "actually, skip",
+    "skip that",
+    "move on",
+    "move into",
+    "instead",
+    "something else",
+    "different topic",
+    "another topic",
+    "hold off",
+)
 
 
 class UserAgent:
@@ -79,6 +138,11 @@ class UserAgent:
                     )
 
         current_goal_index = min(user_message_count + 1, len(goals)) if goals else 1
+        current_goal_text = (
+            goals[current_goal_index - 1]
+            if goals and 1 <= current_goal_index <= len(goals)
+            else ""
+        )
         conversation_history = self.format_conversation_history(messages)
 
         prompt = self.prompt_builder.build(
@@ -106,8 +170,24 @@ class UserAgent:
                 thinking=thinking,
             )
 
+        cleaned_message = self.normalize_user_message(cleaned_message)
+        if self.should_fallback_to_current_goal(
+            message=cleaned_message,
+            current_goal_text=current_goal_text,
+            messages=messages,
+            user_message_count=user_message_count,
+        ):
+            logger.warning(
+                "UserAgent message drifted from current goal {}; using fallback",
+                current_goal_index,
+            )
+            cleaned_message = self.build_goal_fallback_message(
+                current_goal_text=current_goal_text,
+                messages=messages,
+            )
+
         return UserTurnResult(
-            message=self.normalize_user_message(cleaned_message),
+            message=cleaned_message,
             is_task_end=False,
             raw_response=raw_response,
             thinking=thinking,
@@ -234,6 +314,61 @@ class UserAgent:
         )
         normalized = re.sub(r"\s+", " ", normalized).strip()
         return normalized
+
+    def should_fallback_to_current_goal(
+        self,
+        *,
+        message: str,
+        current_goal_text: str,
+        messages: list[dict[str, Any]],
+        user_message_count: int,
+    ) -> bool:
+        normalized = (message or "").strip()
+        if not normalized:
+            return True
+
+        goal_tokens = self.extract_focus_tokens(current_goal_text)
+        message_tokens = self.extract_focus_tokens(normalized)
+        goal_overlap = len(goal_tokens & message_tokens)
+        lowered = normalized.lower()
+
+        if user_message_count == 0 and goal_tokens and goal_overlap == 0:
+            return True
+
+        if any(marker in lowered for marker in OFF_GOAL_PIVOT_MARKERS) and goal_overlap == 0:
+            return True
+
+        last_assistant = self.get_last_assistant_message(messages)
+        if last_assistant:
+            assistant_tokens = self.extract_focus_tokens(last_assistant)
+            if "?" in last_assistant and goal_overlap == 0 and not (assistant_tokens & message_tokens):
+                return True
+
+        if goal_tokens and goal_overlap == 0 and len(message_tokens) >= 8:
+            return True
+
+        return False
+
+    def build_goal_fallback_message(
+        self,
+        *,
+        current_goal_text: str,
+        messages: list[dict[str, Any]],
+    ) -> str:
+        last_assistant = self.get_last_assistant_message(messages)
+        if last_assistant and "?" in last_assistant:
+            return f"For this step, let's stay focused on this: {current_goal_text}"
+        return f"Let's focus on this next part: {current_goal_text}"
+
+    def get_last_assistant_message(self, messages: list[dict[str, Any]]) -> str:
+        for message in reversed(messages):
+            if message.get("role") == "assistant":
+                return (message.get("content") or "").strip()
+        return ""
+
+    def extract_focus_tokens(self, text: str) -> set[str]:
+        tokens = re.findall(r"[a-zA-Z][a-zA-Z0-9_-]{2,}", (text or "").lower())
+        return {token for token in tokens if token not in GOAL_FOCUS_STOPWORDS}
 
     # -------------------------------------------------------------------------
     # LLM

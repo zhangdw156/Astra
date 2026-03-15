@@ -84,6 +84,9 @@ class QueueStageFactory:
                 assistant_verbose=self.config.simulation_assistant_verbose,
                 assistant_enable_mcp_patch=self.config.simulation_assistant_enable_mcp_patch,
                 assistant_enable_json_patch=self.config.simulation_assistant_enable_json_patch,
+                assistant_request_timeout_sec=self.config.simulation_assistant_request_timeout_sec,
+                assistant_max_retries=self.config.simulation_assistant_max_retries,
+                assistant_max_llm_calls_per_run=self.config.simulation_assistant_max_llm_calls_per_run,
                 runtime=MCPRuntimeConfig(
                     host=self.config.runtime_host,
                     port=port,

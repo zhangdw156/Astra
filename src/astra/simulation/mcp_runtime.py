@@ -10,6 +10,11 @@ from urllib.request import urlopen
 from ..agent._tool_agent import ToolAgentConfig
 from ..envs import StateTransitionRecord, load_backend_from_skill_dir
 from ..utils import logger
+from ..utils.tool_schema import (
+    ToolParameterMapping,
+    build_parameter_name_mappings,
+    restore_original_argument_names,
+)
 
 from .config import MCPRuntimeConfig
 from .executors import LLMToolExecutor, ProgramToolExecutor
@@ -43,6 +48,7 @@ class LocalMCPRuntime:
 
         self.registry = ToolRegistry()
         self.tools = self.registry.load_tools_from_jsonl(self.tools_path)
+        self.tool_parameter_mappings = self.build_tool_parameter_mappings()
         self.state_transitions: list[StateTransitionRecord] = []
 
         has_program_backend = load_backend_from_skill_dir(self.skill_dir) is not None
@@ -78,6 +84,77 @@ class LocalMCPRuntime:
                 return True
         except Exception:
             return False
+
+    def build_tool_parameter_mappings(self) -> dict[str, list[ToolParameterMapping]]:
+        mappings: dict[str, list[ToolParameterMapping]] = {}
+        for schema in self.tools:
+            tool_name = schema.get("name")
+            if not isinstance(tool_name, str) or not tool_name:
+                continue
+            tool_params, required_names = self.registry.extract_schema_info(schema)
+            mappings[tool_name] = build_parameter_name_mappings(
+                tool_params=tool_params,
+                required_names=required_names,
+            )
+        return mappings
+
+    def normalize_tool_arguments(self, *, tool_name: str, arguments: Any) -> Any:
+        parameter_mappings = self.tool_parameter_mappings.get(tool_name) or []
+        if not parameter_mappings:
+            return arguments
+
+        if isinstance(arguments, dict):
+            return restore_original_argument_names(
+                arguments=arguments,
+                parameter_mappings=parameter_mappings,
+            )
+
+        if isinstance(arguments, str):
+            text = arguments.strip()
+            if not text:
+                return arguments
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError:
+                return arguments
+            if not isinstance(parsed, dict):
+                return arguments
+            normalized = restore_original_argument_names(
+                arguments=parsed,
+                parameter_mappings=parameter_mappings,
+            )
+            return json.dumps(normalized, ensure_ascii=False)
+
+        return arguments
+
+    def normalize_message_tool_arguments(self, message: dict[str, Any]) -> dict[str, Any]:
+        normalized = dict(message)
+
+        function_call = normalized.get("function_call")
+        if isinstance(function_call, dict) and function_call.get("name"):
+            normalized_function_call = dict(function_call)
+            normalized_function_call["arguments"] = self.normalize_tool_arguments(
+                tool_name=str(normalized_function_call.get("name", "")),
+                arguments=normalized_function_call.get("arguments", {}),
+            )
+            normalized["function_call"] = normalized_function_call
+
+        raw_tool_calls = normalized.get("tool_calls")
+        if isinstance(raw_tool_calls, list):
+            normalized_tool_calls: list[Any] = []
+            for item in raw_tool_calls:
+                if not isinstance(item, dict) or not item.get("name"):
+                    normalized_tool_calls.append(item)
+                    continue
+                normalized_item = dict(item)
+                normalized_item["arguments"] = self.normalize_tool_arguments(
+                    tool_name=str(normalized_item.get("name", "")),
+                    arguments=normalized_item.get("arguments", {}),
+                )
+                normalized_tool_calls.append(normalized_item)
+            normalized["tool_calls"] = normalized_tool_calls
+
+        return normalized
 
     def start(self) -> None:
         """
@@ -169,12 +246,20 @@ class LocalMCPRuntime:
 
         description = schema.get("description", "")
         tool_params, required_names = self.registry.extract_schema_info(schema)
+        parameter_mappings = self.tool_parameter_mappings.get(name) or build_parameter_name_mappings(
+            tool_params=tool_params,
+            required_names=required_names,
+        )
 
         @tool(name=name, description=description)
         def _handler(**kwargs: Any) -> str:
             runtime_state_key, runtime_kwargs = self.extract_runtime_state_key(
                 kwargs=kwargs,
                 default_state_key=self.state_key,
+            )
+            runtime_kwargs = restore_original_argument_names(
+                arguments=runtime_kwargs,
+                parameter_mappings=parameter_mappings,
             )
             missing_names = self.registry.find_missing_required_arguments(
                 arguments=runtime_kwargs,
@@ -211,8 +296,7 @@ class LocalMCPRuntime:
 
         self.registry.apply_explicit_signature(
             handler=_handler,
-            tool_params=tool_params,
-            required_names=required_names,
+            parameter_mappings=parameter_mappings,
             strict_required=False,
         )
         return _handler

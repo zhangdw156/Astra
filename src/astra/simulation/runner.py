@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from ..agent._assistant_agent import AssistantAgent, AssistantAgentConfig
+from ..agent._assistant_agent.types import AssistantToolCall
 from ..agent._user_agent import UserAgent, UserAgentConfig
 from ..agent._tool_agent import ToolAgentConfig
 from ..envs.validation import compare_state
@@ -140,12 +141,28 @@ class SimulationRunner:
                 assistant_result = assistant_agent.run_turn(messages=messages)
                 execution_time_ms = int((time.perf_counter() - start_time) * 1000)
 
-                messages.extend(assistant_result.messages)
+                normalized_assistant_messages = [
+                    runtime.normalize_message_tool_arguments(message)
+                    for message in assistant_result.messages
+                ]
+                normalized_tool_calls = [
+                    AssistantToolCall(
+                        name=call.name,
+                        arguments=runtime.normalize_tool_arguments(
+                            tool_name=call.name,
+                            arguments=call.arguments,
+                        ),
+                        result=call.result,
+                    )
+                    for call in assistant_result.tool_calls
+                ]
+
+                messages.extend(normalized_assistant_messages)
 
                 turn_validation = self.build_turn_validation(
                     blueprint=blueprint,
                     goal_index=goal_index,
-                    assistant_tool_calls=assistant_result.tool_calls,
+                    assistant_tool_calls=normalized_tool_calls,
                     assistant_message=assistant_result.assistant_message,
                 )
 
@@ -161,7 +178,7 @@ class SimulationRunner:
                             "arguments": call.arguments,
                             "result": call.result,
                         }
-                        for call in assistant_result.tool_calls
+                        for call in normalized_tool_calls
                     ],
                     execution_time_ms=execution_time_ms,
                     validation=turn_validation,
@@ -235,6 +252,9 @@ class SimulationRunner:
             verbose=self.config.assistant_verbose,
             enable_mcp_patch=self.config.assistant_enable_mcp_patch,
             enable_json_patch=self.config.assistant_enable_json_patch,
+            request_timeout_sec=self.config.assistant_request_timeout_sec,
+            max_retries=self.config.assistant_max_retries,
+            max_llm_calls_per_run=self.config.assistant_max_llm_calls_per_run,
         )
         assistant_agent = AssistantAgent(assistant_config)
         assistant_agent.create(state_key=self.config.assistant_state_key)

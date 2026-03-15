@@ -72,6 +72,9 @@ class SimulationRunnerConfig:
     assistant_verbose: bool = False
     assistant_enable_mcp_patch: bool = True
     assistant_enable_json_patch: bool = True
+    assistant_request_timeout_sec: float = 120.0
+    assistant_max_retries: int = 2
+    assistant_max_llm_calls_per_run: int = 6
     runtime: MCPRuntimeConfig = field(default_factory=MCPRuntimeConfig)
 
     def validate_basic(self) -> list[str]:
@@ -88,6 +91,20 @@ class SimulationRunnerConfig:
 
         if not self.assistant_state_key.strip():
             errors.append("assistant_state_key 不能为空")
+        if self.assistant_request_timeout_sec <= 0:
+            errors.append(
+                "assistant_request_timeout_sec 必须为正数: "
+                f"{self.assistant_request_timeout_sec}"
+            )
+        if self.assistant_max_retries < 0:
+            errors.append(
+                f"assistant_max_retries 不能小于 0: {self.assistant_max_retries}"
+            )
+        if self.assistant_max_llm_calls_per_run <= 0:
+            errors.append(
+                "assistant_max_llm_calls_per_run 必须为正整数: "
+                f"{self.assistant_max_llm_calls_per_run}"
+            )
 
         errors.extend(self.runtime.validate_basic())
         return errors
